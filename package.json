@@ -1,0 +1,59 @@
+{
+  "name": "nextjs-base-starter",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n web,api -c cyan,magenta \"NEXT_DISABLE_ESLINT=1 NEXT_DISABLE_TYPECHECK=1 next dev --turbopack\" \"pnpm:dev:api\"",
+    "dev:api": "tsx watch --clear-screen=false backend/src/server.ts",
+    "build": "pnpm run build:web && pnpm run build:api",
+    "build:web": "next build",
+    "build:api": "tsc -p backend/tsconfig.json",
+    "start": "concurrently -n web,api -c cyan,magenta \"next start\" \"pnpm:start:api\"",
+    "start:api": "node backend/dist/server.js",
+    "lint": "oxlint",
+    "type-check": "tsc --noEmit",
+    "check-all": "npm run lint & npm run type-check & wait"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.6.1",
+    "@supabase/supabase-js": "^2.49.4",
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.5.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "express": "^5.2.1",
+    "jsbarcode": "^3.12.1",
+    "jsonwebtoken": "^9.0.3",
+    "next": "15.5.7",
+    "posthog-js": "^1.270.1",
+    "react": "^19",
+    "react-dom": "^19"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsbarcode": "^3.11.4",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "concurrently": "^9.2.1",
+    "oxlint": "^1.12.0",
+    "postcss": "^8",
+    "supabase": "2.34.3",
+    "tailwindcss": "^3.4.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "unrs-resolver"
+    ],
+    "peerDependencyRules": {
+      "allowAny": [
+        "supabase"
+      ]
+    }
+  }
+}
