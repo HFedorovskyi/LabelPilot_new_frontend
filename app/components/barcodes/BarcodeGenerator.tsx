@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import JsBarcode from "jsbarcode";
 import type { Product } from "../catalog/types";
-import { loadProducts } from "../catalog/storage";
+import { api } from "@/lib/api/client";
 import { cx, makeEan13, normalizeDigits } from "../catalog/utils";
 
 function Card({
@@ -123,11 +123,15 @@ export default function BarcodeGenerator() {
   const svgRef = useRef<SVGSVGElement | null>(null);
 
   useEffect(() => {
-    const ps = loadProducts();
-    setProducts(ps);
-    setSelectedProductId(ps[0]?.id ?? "");
-    const initial = ps[0]?.defaultBarcode ?? "4601234567890";
-    setValue(initial);
+    api.nomenclature.list()
+      .then((ps: Product[]) => {
+        setProducts(ps);
+        if (ps.length > 0) {
+          setSelectedProductId(ps[0].id);
+          setValue(ps[0].defaultBarcode || "4601234567890");
+        }
+      })
+      .catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -322,7 +326,7 @@ export default function BarcodeGenerator() {
                       ? makeEan13(normalizeDigits(value)) ?? ""
                       : value.trim();
                   if (!n) return;
-                  navigator.clipboard.writeText(n).catch(() => {});
+                  navigator.clipboard.writeText(n).catch(() => { });
                 }}
                 disabled={!isValid}
                 title="Скопировать значение"

@@ -1,0 +1,25 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+RUN apk add --no-cache libc6-compat
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Copy only dependency files first
+COPY package.json pnpm-lock.yaml* ./
+
+# Install dependencies (including devDependencies)
+RUN pnpm install --no-frozen-lockfile
+
+# We don't COPY . . here because we will mount the volume in docker-compose
+# However, for the initial build, we might need some files
+# COPY . .
+
+EXPOSE 3000
+
+ENV PORT 3000
+ENV HOSTNAME "0.0.0.0"
+
+CMD ["pnpm", "dev"]

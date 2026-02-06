@@ -4,9 +4,10 @@ import React, { useMemo, useState } from "react";
 import LabelDesigner from "./components/LabelDesigner";
 import ProductCatalog from "./components/catalog/ProductCatalog";
 import PackagingManager from "./components/catalog/PackagingManager";
-import BarcodeGenerator from "./components/barcodes/BarcodeGenerator";
+import BarcodeTemplatesManager from "./components/barcodes/BarcodeTemplatesManager";
+import StationsPage from "./stations/page";
 
-type TabKey = "labels" | "catalog" | "packaging" | "barcodes" | "users";
+type TabKey = "labels" | "catalog" | "packaging" | "barcodes" | "users" | "stations";
 
 type Tab = {
   key: TabKey;
@@ -22,7 +23,7 @@ function Icon({
   name,
   className,
 }: {
-  name: "sparkles" | "tag" | "box" | "barcode" | "users";
+  name: "sparkles" | "tag" | "box" | "barcode" | "users" | "server";
   className?: string;
 }) {
   const common = "h-5 w-5";
@@ -97,6 +98,13 @@ function Icon({
           <path d="M18.5 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" className="stroke-current" strokeWidth="1.6" />
         </svg>
       );
+    case "server":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={cx(common, className)} aria-hidden="true">
+          <path d="M4 4h16v6H4zM4 14h16v6H4z" className="stroke-current" strokeWidth="1.6" />
+          <path d="M7 7h.01M7 17h.01" className="stroke-current" strokeWidth="2.5" strokeLinecap="round" />
+        </svg>
+      );
   }
 }
 
@@ -133,6 +141,7 @@ export default function Home() {
       { key: "catalog", label: "Номенклатурная база", description: "Справочник товаров, атрибуты и быстрый поиск." },
       { key: "packaging", label: "Упаковки", description: "Типы упаковок, размеры, привязка к товарам." },
       { key: "barcodes", label: "Штрихкоды", description: "Генерация, просмотр и печать штрихкодов." },
+      { key: "stations", label: "Станции", description: "Управление станциями маркировки." },
       { key: "users", label: "Пользователи", description: "Управление пользователями (только для админа)." },
     ],
     []
@@ -151,6 +160,8 @@ export default function Home() {
         return "box";
       case "barcodes":
         return "barcode";
+      case "stations":
+        return "server";
       case "users":
         return "users";
     }
@@ -237,7 +248,8 @@ export default function Home() {
             {active === "labels" ? <LabelDesigner /> : null}
             {active === "catalog" ? <ProductCatalog /> : null}
             {active === "packaging" ? <PackagingManager /> : null}
-            {active === "barcodes" ? <BarcodeGenerator /> : null}
+            {active === "barcodes" ? <BarcodeTemplatesManager /> : null}
+            {active === "stations" ? <StationsPage /> : null}
 
             {active === "users" ? (
               <section className="rounded-2xl border border-white/10 bg-white/5 p-5">

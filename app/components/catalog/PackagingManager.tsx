@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import type { Packaging, Product, ProductPackagingLink } from "./types";
-import { loadLinks, loadPackaging, loadProducts, saveLinks, savePackaging } from "./storage";
-import { cx, uid } from "./utils";
+import type { Packaging } from "./types";
+import { api } from "@/lib/api/client";
+import { cx } from "./utils";
 
 function Card({
   title,
@@ -118,112 +118,105 @@ function toNum(s: string) {
 }
 
 export default function PackagingManager() {
-  const [products, setProducts] = useState<Product[]>([]);
   const [packaging, setPackaging] = useState<Packaging[]>([]);
-  const [links, setLinks] = useState<ProductPackagingLink[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   const [pName, setPName] = useState("");
-  const [wMm, setWMm] = useState("70");
-  const [hMm, setHMm] = useState("40");
-  const [dMm, setDMm] = useState("");
-  const [tare, setTare] = useState("");
+  const [weightGrams, setWeightGrams] = useState("0");
+  const [editingId, setEditingId] = useState<string | null>(null);
 
-  const [selectedProductId, setSelectedProductId] = useState<string>("");
-  const [selectedPackagingId, setSelectedPackagingId] = useState<string>("");
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const packsData = await api.packs.list();
+
+      const mappedPackaging = packsData.map((item: any) => ({
+        id: item.id.toString(),
+        name: item.name,
+        weightGrams: item.weight,
+        createdAt: new Date(item.created).getTime(),
+      }));
+
+      setPackaging(mappedPackaging);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const ps = loadProducts();
-    const pk = loadPackaging();
-    const lk = loadLinks();
-    setProducts(ps);
-    setPackaging(pk);
-    setLinks(lk);
-
-    setSelectedProductId(ps[0]?.id ?? "");
-    setSelectedPackagingId(pk[0]?.id ?? "");
+    fetchData();
   }, []);
 
-  useEffect(() => {
-    savePackaging(packaging);
-  }, [packaging]);
-
-  useEffect(() => {
-    saveLinks(links);
-  }, [links]);
-
-  const addPackaging = () => {
-    const name = pName.trim();
-    const widthMm = toNum(wMm);
-    const heightMm = toNum(hMm);
-    if (!name || widthMm === null || heightMm === null) return;
-
-    const depthMm = dMm.trim() ? toNum(dMm) ?? undefined : undefined;
-    const tareGrams = tare.trim() ? toNum(tare) ?? undefined : undefined;
-
-    const item: Packaging = {
-      id: uid(),
-      name,
-      widthMm,
-      heightMm,
-      depthMm,
-      tareGrams,
-      createdAt: Date.now(),
-    };
-
-    setPackaging((prev) => [item, ...prev]);
+  const resetForm = () => {
     setPName("");
-    setDMm("");
-    setTare("");
-    setSelectedPackagingId(item.id);
+    setWeightGrams("0");
+    setEditingId(null);
   };
 
-  const removePackaging = (id: string) => {
-    setPackaging((prev) => prev.filter((p) => p.id !== id));
-    setLinks((prev) => prev.filter((l) => l.packagingId !== id));
+  const handleEdit = (p: Packaging) => {
+    setEditingId(p.id);
+    setPName(p.name);
+    setWeightGrams(String(p.weightGrams || 0));
   };
 
-  const assign = () => {
-    if (!selectedProductId || !selectedPackagingId) return;
-    const exists = links.some(
-      (l) => l.productId === selectedProductId && l.packagingId === selectedPackagingId
-    );
-    if (exists) return;
+  const cancelEdit = () => {
+    resetForm();
+  };
 
-    const link: ProductPackagingLink = {
-      id: uid(),
-      productId: selectedProductId,
-      packagingId: selectedPackagingId,
-      createdAt: Date.now(),
+  const savePackaging = async () => {
+    const name = pName.trim();
+    const weight = toNum(weightGrams) ?? 0;
+    if (!name) return;
+
+    const payload = {
+      name,
+      weight: weight,
     };
-    setLinks((prev) => [link, ...prev]);
+
+    try {
+      if (editingId) {
+        await api.packs.update(editingId, payload);
+      } else {
+        await api.packs.create(payload);
+      }
+      fetchData();
+      resetForm();
+    } catch (e) {
+      console.error(e);
+      alert("Ошибка сохранения упаковки");
+    }
   };
 
-  const unassign = (id: string) => {
-    setLinks((prev) => prev.filter((l) => l.id !== id));
+  const removePackaging = async (id: string) => {
+    if (!confirm("Вы уверены?")) return;
+    try {
+      await api.packs.delete(id);
+      setPackaging((prev) => prev.filter((p) => p.id !== id));
+    } catch (e) {
+      console.error(e);
+      alert("Ошибка при удалении");
+    }
   };
-
-  const packagingById = useMemo(() => {
-    const map = new Map<string, Packaging>();
-    packaging.forEach((p) => map.set(p.id, p));
-    return map;
-  }, [packaging]);
-
-  const productById = useMemo(() => {
-    const map = new Map<string, Product>();
-    products.forEach((p) => map.set(p.id, p));
-    return map;
-  }, [products]);
 
   return (
     <div className="grid gap-4 md:grid-cols-12">
       <div className="md:col-span-5">
         <Card
-          title="Добавить упаковку"
-          subtitle="Размеры в мм. Сохранение локально в браузере (пока)."
+          title={editingId ? "Редактировать упаковку" : "Добавить упаковку"}
+          subtitle="Укажите название и вес упаковки."
           right={
-            <SmallButton variant="primary" onClick={addPackaging}>
-              Добавить
-            </SmallButton>
+            <div className="flex gap-2">
+              {editingId && (
+                <SmallButton onClick={cancelEdit}>
+                  Отмена
+                </SmallButton>
+              )}
+              <SmallButton variant="primary" onClick={savePackaging}>
+                {editingId ? "Сохранить" : "Добавить"}
+              </SmallButton>
+            </div>
           }
         >
           <div className="grid gap-3">
@@ -231,107 +224,29 @@ export default function PackagingManager() {
               <div className="text-[11px] font-medium uppercase tracking-wider text-white/55">
                 Название
               </div>
-              <Input value={pName} onChange={setPName} placeholder="Напр. Коробка S" />
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div className="grid gap-1">
-                <div className="text-[11px] font-medium uppercase tracking-wider text-white/55">
-                  Ширина
-                </div>
-                <Input type="number" value={wMm} onChange={setWMm} placeholder="70" />
-              </div>
-              <div className="grid gap-1">
-                <div className="text-[11px] font-medium uppercase tracking-wider text-white/55">
-                  Высота
-                </div>
-                <Input type="number" value={hMm} onChange={setHMm} placeholder="40" />
-              </div>
-              <div className="grid gap-1">
-                <div className="text-[11px] font-medium uppercase tracking-wider text-white/55">
-                  Глубина
-                </div>
-                <Input type="number" value={dMm} onChange={setDMm} placeholder="(опц.)" />
-              </div>
+              <Input value={pName} onChange={setPName} placeholder="Напр. Подложка 150г" />
             </div>
 
             <div className="grid gap-1">
               <div className="text-[11px] font-medium uppercase tracking-wider text-white/55">
-                Тара (г)
+                Вес (г)
               </div>
-              <Input type="number" value={tare} onChange={setTare} placeholder="(опц.)" />
+              <Input type="number" value={weightGrams} onChange={setWeightGrams} placeholder="0" />
             </div>
           </div>
         </Card>
-
-        <div className="mt-4">
-          <Card
-            title="Привязка упаковки к товару"
-            subtitle="Выберите товар и упаковку — создадим связь."
-            right={
-              <SmallButton
-                variant="secondary"
-                onClick={assign}
-                disabled={!selectedProductId || !selectedPackagingId}
-              >
-                Привязать
-              </SmallButton>
-            }
-          >
-            <div className="grid gap-3">
-              <div className="grid gap-1">
-                <div className="text-[11px] font-medium uppercase tracking-wider text-white/55">
-                  Товар
-                </div>
-                <Select
-                  value={selectedProductId}
-                  onChange={setSelectedProductId}
-                  options={[
-                    { value: "", label: products.length ? "— выберите —" : "Нет товаров" },
-                    ...products.map((p) => ({ value: p.id, label: `${p.sku} — ${p.name}` })),
-                  ]}
-                />
-              </div>
-              <div className="grid gap-1">
-                <div className="text-[11px] font-medium uppercase tracking-wider text-white/55">
-                  Упаковка
-                </div>
-                <Select
-                  value={selectedPackagingId}
-                  onChange={setSelectedPackagingId}
-                  options={[
-                    {
-                      value: "",
-                      label: packaging.length ? "— выберите —" : "Нет упаковок",
-                    },
-                    ...packaging.map((p) => ({
-                      value: p.id,
-                      label: `${p.name} (${p.widthMm}×${p.heightMm}${p.depthMm ? `×${p.depthMm}` : ""} мм)`,
-                    })),
-                  ]}
-                />
-              </div>
-
-              <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/60">
-                Позже эту связь будем использовать для быстрых шаблонов этикеток и
-                печати (размеры, поля, раскладка).
-              </div>
-            </div>
-          </Card>
-        </div>
       </div>
 
       <div className="md:col-span-7">
         <Card
           title="Справочник упаковок"
-          subtitle={`Всего: ${packaging.length}`}
+          subtitle={`Всего: ${packaging.length} ${isLoading ? '(Загрузка...)' : ''}`}
         >
           <div className="overflow-hidden rounded-2xl border border-white/10">
             <div className="grid grid-cols-12 gap-0 bg-white/5 px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-white/55">
-              <div className="col-span-4">Название</div>
-              <div className="col-span-4">Размеры</div>
-              <div className="col-span-2">Тара</div>
-              <div className="col-span-2 text-right">Действия</div>
+              <div className="col-span-6">Название</div>
+              <div className="col-span-3">Вес (г)</div>
+              <div className="col-span-3 text-right">Действия</div>
             </div>
 
             <div className="divide-y divide-white/10">
@@ -339,23 +254,29 @@ export default function PackagingManager() {
                 <div className="p-4 text-sm text-white/60">Нет упаковок</div>
               ) : (
                 packaging.map((p) => (
-                  <div key={p.id} className="grid grid-cols-12 items-center px-3 py-3">
-                    <div className="col-span-4">
+                  <div key={p.id} className="grid grid-cols-12 items-center px-3 py-3 hover:bg-white/5 transition-colors">
+                    <div className="col-span-6">
                       <div className="text-sm font-medium text-white">{p.name}</div>
-                      <div className="text-xs text-white/50">
+                      <div className="text-[10px] text-white/40">
                         {new Date(p.createdAt).toLocaleString()}
                       </div>
                     </div>
-                    <div className="col-span-4 text-sm text-white/80">
-                      {p.widthMm}×{p.heightMm}
-                      {p.depthMm ? `×${p.depthMm}` : ""} мм
+                    <div className="col-span-3 text-sm text-white/80 font-mono">
+                      {p.weightGrams} г
                     </div>
-                    <div className="col-span-2 text-sm text-white/80">
-                      {typeof p.tareGrams === "number" ? `${p.tareGrams} г` : "—"}
-                    </div>
-                    <div className="col-span-2 flex justify-end">
-                      <SmallButton variant="danger" onClick={() => removePackaging(p.id)}>
-                        Удалить
+                    <div className="col-span-3 flex justify-end gap-1">
+                      <SmallButton
+                        onClick={() => handleEdit(p)}
+                        title="Редактировать"
+                      >
+                        Изм.
+                      </SmallButton>
+                      <SmallButton
+                        variant="danger"
+                        onClick={() => removePackaging(p.id)}
+                        title="Удалить"
+                      >
+                        Удал.
                       </SmallButton>
                     </div>
                   </div>
@@ -364,47 +285,8 @@ export default function PackagingManager() {
             </div>
           </div>
         </Card>
-
-        <div className="mt-4">
-          <Card title="Связи товар ↔ упаковка" subtitle={`Всего: ${links.length}`}>
-            <div className="overflow-hidden rounded-2xl border border-white/10">
-              <div className="grid grid-cols-12 gap-0 bg-white/5 px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-white/55">
-                <div className="col-span-5">Товар</div>
-                <div className="col-span-5">Упаковка</div>
-                <div className="col-span-2 text-right">Действия</div>
-              </div>
-
-              <div className="divide-y divide-white/10">
-                {links.length === 0 ? (
-                  <div className="p-4 text-sm text-white/60">Нет связей</div>
-                ) : (
-                  links.map((l) => {
-                    const prod = productById.get(l.productId);
-                    const pack = packagingById.get(l.packagingId);
-                    return (
-                      <div key={l.id} className="grid grid-cols-12 items-center px-3 py-3">
-                        <div className="col-span-5 text-sm text-white/90">
-                          {prod ? `${prod.sku} — ${prod.name}` : "— (товар удалён)"}
-                        </div>
-                        <div className="col-span-5 text-sm text-white/80">
-                          {pack
-                            ? `${pack.name} (${pack.widthMm}×${pack.heightMm}${pack.depthMm ? `×${pack.depthMm}` : ""} мм)`
-                            : "— (упаковка удалена)"}
-                        </div>
-                        <div className="col-span-2 flex justify-end">
-                          <SmallButton variant="danger" onClick={() => unassign(l.id)}>
-                            Удалить
-                          </SmallButton>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          </Card>
-        </div>
       </div>
     </div>
   );
 }
+
