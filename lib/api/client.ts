@@ -90,35 +90,7 @@ export const api = {
             if (!res.ok) throw new Error('Failed to delete link');
         },
     },
-    stations: {
-        list: async () => {
-            const res = await fetch(`${API_BASE}/stations/`);
-            if (!res.ok) throw new Error('Failed to fetch stations');
-            return res.json();
-        },
-        create: async (data: any) => {
-            const res = await fetch(`${API_BASE}/stations/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            });
-            if (!res.ok) throw new Error('Failed to create station');
-            return res.json();
-        },
-        update: async (id: number | string, data: any) => {
-            const res = await fetch(`${API_BASE}/stations/${id}/`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            });
-            if (!res.ok) throw new Error('Failed to update station');
-            return res.json();
-        },
-        delete: async (id: number | string) => {
-            const res = await fetch(`${API_BASE}/stations/${id}/`, { method: 'DELETE' });
-            if (!res.ok) throw new Error('Failed to delete station');
-        },
-    },
+
     labels: {
         list: async () => {
             const res = await fetch(`${API_BASE}/labels/`);
@@ -147,6 +119,46 @@ export const api = {
             const res = await fetch(`${API_BASE}/labels/${id}/`, { method: 'DELETE' });
             if (!res.ok) throw new Error('Failed to delete label');
         },
+    },
+    stations: {
+        list: async () => {
+            const res = await fetch(`${API_BASE}/stations/`);
+            if (!res.ok) throw new Error('Failed to fetch stations');
+            return res.json();
+        },
+        create: async (data: any) => {
+            const res = await fetch(`${API_BASE}/stations/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+            });
+            if (!res.ok) throw new Error('Failed to create station');
+            return res.json();
+        },
+        update: async (uuid: string, data: any) => {
+            const res = await fetch(`${API_BASE}/stations/${uuid}/`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+            });
+            if (!res.ok) throw new Error('Failed to update station');
+            return res.json();
+        },
+        delete: async (uuid: string) => {
+            const res = await fetch(`${API_BASE}/stations/${uuid}/`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Failed to delete station');
+        },
+        sync: async (uuid: string) => {
+            const res = await fetch(`${API_BASE}/stations/${uuid}/sync_data/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Failed to sync data');
+            }
+            return res.json();
+        }
     },
     attributes: {
         list: async () => {

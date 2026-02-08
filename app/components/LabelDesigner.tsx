@@ -1183,7 +1183,21 @@ export default function LabelDesigner() {
   const loadLabelEntry = useCallback((label: any) => {
     if (!confirm("Загрузить макет? Несохраненные изменения текущего макета будут потеряны.")) return;
     try {
-      const v = validateDoc(label.scheme);
+      let scheme = label.scheme;
+
+      // Fallback: if scheme is not an object, try parsing 'structure'
+      if (!scheme || typeof scheme !== 'object') {
+        const structure = label.structure || label.scheme;
+        if (typeof structure === 'string') {
+          try {
+            scheme = JSON.parse(structure);
+          } catch (e) {
+            console.error("Failed to parse structure string", e);
+          }
+        }
+      }
+
+      const v = validateDoc(scheme);
       if (v) {
         setDoc(v);
         setLabelId(label.id);
