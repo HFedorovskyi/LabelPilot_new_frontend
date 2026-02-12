@@ -158,6 +158,17 @@ export const api = {
                 throw new Error(errorData.error || 'Failed to sync data');
             }
             return res.json();
+        },
+        getFullDump: async (uuid?: string) => {
+            const url = uuid ? `${API_BASE}/stations/full_dump/?station_uuid=${uuid}` : `${API_BASE}/stations/full_dump/`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('Failed to fetch full dump');
+            return res.json();
+        },
+        getServerIp: async () => {
+            const res = await fetch(`${API_BASE}/stations/server_ip/`);
+            if (!res.ok) throw new Error('Failed to fetch server IP');
+            return res.json();
         }
     },
     attributes: {

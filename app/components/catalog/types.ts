@@ -41,6 +41,7 @@ export type Station = {
   station_ip: string;
   is_online: boolean;
   name?: string; // If 'hostname' or 'name' exists
+  station_number?: number;
 };
 
 export type ProductPackagingLink = {

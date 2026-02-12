@@ -232,7 +232,7 @@ export default function Home() {
       </header>
 
       <main className="relative z-10">
-        <div className="mx-auto max-w-6xl px-6 py-8">
+        <div className="mx-auto px-3 py-4">
           <div className="flex flex-col gap-6">
             <div className="flex flex-col gap-2">
               <div className="inline-flex items-center gap-2 text-white/70">

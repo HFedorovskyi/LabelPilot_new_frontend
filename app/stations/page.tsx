@@ -10,6 +10,7 @@ function cx(...classes: (string | undefined | null | false)[]) {
 type Station = {
     id: number;
     station_name: string;
+    station_number: number | null;
     station_uuid: string;
     station_ip: string | null;
     is_online: boolean;
@@ -92,9 +93,48 @@ export default function StationsPage() {
         }
     };
 
+    const [previewData, setPreviewData] = useState<any>(null);
+    const [previewName, setPreviewName] = useState("");
+    const [serverIp, setServerIp] = useState<string | null>(null);
+
+    const viewStationData = async (uuid: string, name: string) => {
+        setIsLoading(true);
+        try {
+            const data = await api.stations.getFullDump(uuid);
+            setPreviewData(data);
+            setPreviewName(name);
+        } catch (e) {
+            alert("Ошибка при загрузке данных");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        api.stations.getServerIp().then(data => setServerIp(data.ip)).catch(console.error);
+    }, []);
+
     return (
         <div className="p-8">
-            <h1 className="mb-6 text-2xl font-bold text-white">Станции маркировки</h1>
+            <div className="mb-6 flex items-center justify-between">
+                <h1 className="text-2xl font-bold text-white">Станции маркировки</h1>
+                {serverIp && (
+                    <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2">
+                        <span className="text-sm text-white/60">Server IP: </span>
+                        <span className="font-mono text-sm font-bold text-emerald-400">{serverIp}</span>
+                        <button
+                            onClick={() => {
+                                navigator.clipboard.writeText(serverIp);
+                                alert("IP скопирован");
+                            }}
+                            className="ml-2 text-white/40 hover:text-white"
+                            title="Копировать IP"
+                        >
+                            📋
+                        </button>
+                    </div>
+                )}
+            </div>
 
             <div className="mb-8 grid gap-4 rounded-2xl border border-white/10 bg-white/5 p-6 md:w-1/2">
                 <h3 className="text-lg font-medium text-white">Добавить станцию</h3>
@@ -152,6 +192,11 @@ export default function StationsPage() {
                                     </div>
                                 ) : (
                                     <div className="group flex items-center gap-2">
+                                        {s.station_number != null && (
+                                            <span className="inline-flex items-center justify-center rounded-lg bg-white/10 px-2 py-0.5 font-mono text-sm font-bold text-white/80 border border-white/10">
+                                                #{String(s.station_number).padStart(2, '0')}
+                                            </span>
+                                        )}
                                         <h3 className="font-semibold text-white">{s.station_name}</h3>
                                         <button
                                             onClick={() => {
@@ -179,6 +224,13 @@ export default function StationsPage() {
                             </div>
                             <div className="flex gap-2">
                                 <button
+                                    onClick={() => viewStationData(s.station_uuid, s.station_name)}
+                                    className="text-white/40 hover:text-blue-400"
+                                    title="Просмотреть данные синхронизации"
+                                >
+                                    👁️
+                                </button>
+                                <button
                                     onClick={() => syncStation(s.station_uuid, s.station_name)}
                                     disabled={!s.is_online}
                                     className={cx(
@@ -201,12 +253,32 @@ export default function StationsPage() {
 
                         <div className="space-y-2 text-sm text-white/60">
                             <div className="flex justify-between">
+                                <span>Номер:</span>
+                                <span className="font-mono text-xs font-bold">
+                                    {s.station_number != null ? String(s.station_number).padStart(2, '0') : '—'}
+                                </span>
+                            </div>
+                            <div className="flex justify-between">
                                 <span>UUID:</span>
                                 <span className="font-mono text-xs">{s.station_uuid}</span>
                             </div>
-                            <div className="flex justify-between">
+                            <div className="flex justify-between items-center">
                                 <span>IP:</span>
-                                <span className="font-mono text-xs">{s.station_ip || "—"}</span>
+                                <div className="flex items-center gap-1">
+                                    <span className="font-mono text-xs">{s.station_ip || "—"}</span>
+                                    {s.station_ip && (
+                                        <button
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(s.station_ip!);
+                                                alert("IP станции скопирован");
+                                            }}
+                                            className="text-white/40 hover:text-white"
+                                            title="Копировать IP станции"
+                                        >
+                                            📋
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                             <div className="flex justify-between">
                                 <span>Создана:</span>
@@ -223,6 +295,42 @@ export default function StationsPage() {
                     </div>
                 )}
             </div>
+
+            {/* JSON Preview Modal */}
+            {previewData && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                    <div className="flex h-full max-h-[90vh] w-full max-w-4xl flex-col rounded-3xl border border-white/10 bg-[#0A0A0B] shadow-2xl">
+                        <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+                            <div>
+                                <h3 className="text-xl font-bold text-white">Данные синхронизации</h3>
+                                <p className="text-sm text-white/50">{previewName}</p>
+                            </div>
+                            <button
+                                onClick={() => setPreviewData(null)}
+                                className="h-10 w-10 flex items-center justify-center rounded-xl bg-white/5 text-white/40 hover:bg-white/10 hover:text-white transition-colors"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-auto p-6">
+                            <pre className="rounded-2xl bg-black/50 p-6 text-xs text-blue-300 font-mono scrollbar-thin scrollbar-thumb-white/10">
+                                {JSON.stringify(previewData, null, 2)}
+                            </pre>
+                        </div>
+                        <div className="border-t border-white/10 px-6 py-4 flex justify-end">
+                            <button
+                                onClick={() => {
+                                    navigator.clipboard.writeText(JSON.stringify(previewData, null, 2));
+                                    alert("Скопировано в буфер обмена");
+                                }}
+                                className="rounded-xl bg-white px-6 py-2 text-sm font-semibold text-black hover:bg-white/90"
+                            >
+                                Копировать JSON
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 }

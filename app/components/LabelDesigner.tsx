@@ -21,7 +21,12 @@ type TextElement = LabelElementBase & {
   fontSize: number;
   fontWeight: number;
   color: string;
-}
+  fontFamily: string;
+  fontStyle: 'normal' | 'italic';
+  textAlign: 'left' | 'center' | 'right';
+  textDecoration: 'none' | 'underline';
+  minLength?: number;
+};
 
 export interface RectElement extends LabelElementBase {
   type: "rect";
@@ -47,11 +52,35 @@ export interface BarcodeElement extends LabelElementBase {
 export type LabelElement = TextElement | RectElement | BarcodeElement;
 
 // Значения по умолчанию когда номенклатура не выбрана
+const FONTS = [
+  "Inter",
+  "Roboto",
+  "Arial",
+  "Times New Roman",
+  "Courier New",
+  "Montserrat",
+  "Ubuntu",
+  "Georgia",
+  "Verdana"
+];
+
 const DEFAULT_PREVIEW_DATA: Record<string, string> = {
   name: "Пример товара",
   article: "ART-00000",
   exp_date: "30",
-  close_box_counter: "10",
+  pack_counter: "1",
+  weight_netto_pack: "99.999",
+  weight_brutto_pack: "99.999",
+  weight_netto_box: "99.999",
+  weight_brutto_box: "99.999",
+  weight_netto_pallet: "99.999",
+  weight_brutto_pallet: "99.999",
+  pack_number: "1",
+  box_number: "1",
+  pallet_number: "1",
+  production_date: formatDate(new Date()),
+  exp_date_full: formatDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
+  batch_number: "9999999999",
 };
 
 // Фиксированные атрибуты модели Nomenclature
@@ -100,6 +129,13 @@ function uid() {
   return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function formatDate(date: Date) {
+  const d = String(date.getDate()).padStart(2, '0');
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const y = date.getFullYear();
+  return `${d}.${m}.${y}`;
+}
+
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
@@ -112,9 +148,20 @@ function safeNumber(v: unknown, fallback: number) {
   return isFiniteNumber(v) ? v : fallback;
 }
 
-function processDynamicText(text: string, data: Record<string, string>) {
+function processDynamicText(
+  text: string,
+  data: Record<string, string>,
+  opts?: { minLength?: number }
+) {
   return text.replace(/{{\s*([^{}]+)\s*}}/g, (match, key) => {
-    return data[key.trim()] || match;
+    const trimmedKey = key.trim();
+    let value = data[trimmedKey] || match;
+
+    // If minLength is set and the key ends with _number (counter) or is pack_counter, pad it if it's numeric
+    if (opts?.minLength && (trimmedKey === "pack_number" || trimmedKey === "box_number" || trimmedKey === "pallet_number" || trimmedKey === "pack_counter") && /^\d+$/.test(value)) {
+      value = value.padStart(opts.minLength, '0');
+    }
+    return value;
   });
 }
 
@@ -137,11 +184,27 @@ function Icon({
   | "chevron-down"
   | "box"
   | "plus"
-  | "minus";
+  | "minus"
+  | "sparkles";
   className?: string;
 }) {
   const common = "h-4 w-4";
   switch (name) {
+    case "sparkles":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={cx(common, className)}>
+          <path
+            d="M12 3v2m0 14v2m9-9h-2M5 12H3m14.5-6.5-1.5 1.5M7.5 16.5l-1.5 1.5m10.5 0-1.5-1.5M7.5 7.5 6 6"
+            className="stroke-current"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+          />
+          <path
+            d="m9.5 8 1 3.5 1.5 1m0 0-1.5 1-1 3.5-1-3.5-1.5-1 0 0 1.5-1 1-3.5Z"
+            className="fill-current"
+          />
+        </svg>
+      );
     case "text":
       return (
         <svg viewBox="0 0 24 24" fill="none" className={cx(common, className)}>
@@ -405,9 +468,107 @@ function TextInput({
     <input
       value={value}
       placeholder={placeholder}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
       className="h-10 w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white placeholder:text-white/35 outline-none focus:border-white/20 focus:bg-white/10"
     />
+  );
+}
+
+function VariableTextInput({
+  value,
+  onChange,
+  attributes,
+  multiline = true,
+  onAttributeSelect,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  attributes: { key: string; label: string; icon: string }[];
+  multiline?: boolean;
+  onAttributeSelect?: (key: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative w-full" ref={containerRef}>
+      <div className="flex gap-2">
+        {multiline ? (
+          <textarea
+            value={value}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onChange(e.target.value)}
+            placeholder="Введите текст..."
+            className="flex-1 min-h-[80px] rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder:text-white/35 outline-none focus:border-white/20 focus:bg-white/10 resize-none transition-all scrollbar-thin scrollbar-thumb-white/10"
+          />
+        ) : (
+          <input
+            value={value}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
+            placeholder="Значение..."
+            className="h-9 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white placeholder:text-white/35 outline-none focus:border-white/20 focus:bg-white/10 transition-all font-mono text-[11px]"
+          />
+        )}
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          className={cx(
+            "h-9 w-9 flex flex-shrink-0 items-center justify-center rounded-xl border transition-all",
+            open
+              ? "bg-blue-500/20 text-blue-400 border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.2)]"
+              : "bg-white/5 text-white/40 border-white/10 hover:bg-white/10 hover:text-white/60"
+          )}
+          title="Вставить атрибут"
+        >
+          <Icon name="sparkles" className={cx("h-4 w-4", open && "animate-pulse")} />
+        </button>
+      </div>
+
+      {open && (
+        <div className="absolute right-0 top-11 z-[100] w-64 rounded-2xl border border-white/10 bg-[#1A1F2B]/95 p-1.5 backdrop-blur-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+          <div className="mb-1.5 px-3 py-2">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-white/30">
+              Вставить атрибут
+            </div>
+          </div>
+          <div className="max-h-[280px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
+            {attributes.map((attr) => (
+              <button
+                key={attr.key}
+                type="button"
+                onClick={() => {
+                  onChange(value + `{{${attr.key}}}`);
+                  onAttributeSelect?.(attr.key);
+                  setOpen(false);
+                }}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all hover:bg-white/10 group"
+              >
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/5 text-sm group-hover:bg-blue-500/20 group-hover:text-blue-400 transition-colors">
+                  {attr.icon}
+                </div>
+                <div className="flex-1 overflow-hidden">
+                  <div className="truncate text-xs font-medium text-white/80 group-hover:text-white">
+                    {attr.label}
+                  </div>
+                  <div className="truncate text-[9px] text-white/30 font-mono">
+                    {`{{${attr.key}}}`}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -431,7 +592,7 @@ function NumberInput({
       min={min}
       max={max}
       step={step}
-      onChange={(e) => onChange(Number(e.target.value))}
+      onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(Number(e.target.value))}
       className="h-10 w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white outline-none focus:border-white/20 focus:bg-white/10"
     />
   );
@@ -449,7 +610,7 @@ function ColorInput({
       <input
         type="color"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
         className="h-7 w-8 cursor-pointer rounded-md bg-transparent border-none"
       />
       <input
@@ -459,6 +620,111 @@ function ColorInput({
         className="w-20 bg-transparent text-xs text-white outline-none"
         spellCheck={false}
       />
+    </div>
+  );
+}
+
+function CustomSelect<T extends string | number>({
+  value,
+  options,
+  onChange,
+  onDelete,
+  renderOption,
+  className,
+}: {
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (val: T) => void;
+  onDelete?: (val: T) => void;
+  renderOption?: (opt: { value: T; label: string }) => React.ReactNode;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  const selected = options.find((o) => o.value === value);
+
+  return (
+    <div className={cx("relative w-full", className)} ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className={cx(
+          "flex h-10 w-full items-center justify-between rounded-xl border px-3 text-xs font-medium text-white transition-all outline-none text-left",
+          open
+            ? "border-white/30 bg-white/10 shadow-[0_0_15px_rgba(255,255,255,0.05)]"
+            : "border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20"
+        )}
+      >
+        <span className="truncate">{selected?.label || String(value)}</span>
+        <Icon
+          name="chevron-down"
+          className={cx("h-3.5 w-3.5 text-white/40 transition-transform duration-300 flex-shrink-0 ml-2", open && "rotate-180 text-white")}
+        />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-[100] overflow-hidden rounded-xl border border-white/10 bg-[#0B1220]/95 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="max-h-60 overflow-y-auto p-1 custom-scrollbar">
+            {options.map((opt) => (
+              <div
+                key={opt.value}
+                className={cx(
+                  "group flex w-full items-center gap-2 rounded-lg px-2 py-1.5 transition-all text-left",
+                  opt.value === value
+                    ? "bg-white/10"
+                    : "hover:bg-white/5"
+                )}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange(opt.value);
+                    setOpen(false);
+                  }}
+                  className={cx(
+                    "flex-1 text-left text-xs truncate transition-all outline-none",
+                    opt.value === value ? "text-white" : "text-white/50 group-hover:text-white"
+                  )}
+                >
+                  {renderOption ? renderOption(opt) : opt.label}
+                </button>
+
+                {onDelete && opt.value !== ("" as any) && (
+                  <button
+                    type="button"
+                    onClick={(e: React.MouseEvent) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onDelete(opt.value);
+                    }}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-white/20 hover:bg-red-500/20 hover:text-red-400 transition-all opacity-0 group-hover:opacity-100 outline-none"
+                    title="Удалить"
+                  >
+                    <Icon name="trash" className="h-3.5 w-3.5" />
+                  </button>
+                )}
+
+                {opt.value === value && !onDelete && (
+                  <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -476,34 +742,7 @@ function defaultDoc(): LabelDoc {
       showGrid: true,
       gridSize: 16,
     },
-    elements: [
-      {
-        id: uid(),
-        type: "rect",
-        x: 32,
-        y: 32,
-        w: 280,
-        h: 120,
-        rotation: 0,
-        fill: "transparent",
-        borderColor: "#000000",
-        borderWidth: 2,
-        borderRadius: 0,
-      },
-      {
-        id: uid(),
-        type: "text",
-        x: 56,
-        y: 56,
-        w: 240,
-        h: 48,
-        rotation: 0,
-        text: "Пример этикетки",
-        fontSize: 20,
-        color: "#000000",
-        fontWeight: 700,
-      },
-    ],
+    elements: [],
   };
 }
 
@@ -550,28 +789,33 @@ function validateDoc(input: unknown): LabelDoc | null {
 
         if (el.type === "text") {
           const t = el as Partial<TextElement>;
-          return {
+          const textEl: TextElement = {
             ...base,
             type: "text",
             text: typeof t.text === "string" ? t.text : "Текст",
             fontSize: clamp(safeNumber(t.fontSize, 14), 4, 200),
             color: typeof t.color === "string" ? t.color : "#000000",
-            fontWeight: [400, 500, 600, 700].includes(Number(t.fontWeight))
-              ? (Number(t.fontWeight) as TextElement["fontWeight"])
-              : 600,
-          } satisfies TextElement;
+            fontWeight: Number(t.fontWeight) || 600,
+            fontFamily: typeof t.fontFamily === "string" ? t.fontFamily : "Inter",
+            fontStyle: (["normal", "italic"].includes(t.fontStyle as string) ? t.fontStyle : "normal") as "normal" | "italic",
+            textAlign: (["left", "center", "right"].includes(t.textAlign as string) ? t.textAlign : "left") as "left" | "center" | "right",
+            textDecoration: (["none", "underline"].includes(t.textDecoration as string) ? t.textDecoration : "none") as "none" | "underline",
+            minLength: typeof t.minLength === "number" ? t.minLength : undefined,
+          };
+          return textEl;
         }
 
         if (el.type === "rect") {
           const r = el as Partial<RectElement>;
-          return {
+          const rectEl: RectElement = {
             ...base,
             type: "rect",
             fill: typeof r.fill === "string" ? r.fill : "transparent",
             borderColor: typeof r.borderColor === "string" ? r.borderColor : "#000000",
             borderWidth: clamp(safeNumber(r.borderWidth, 1), 0, 50),
             borderRadius: clamp(safeNumber(r.borderRadius, 0), 0, 500),
-          } satisfies RectElement;
+          };
+          return rectEl;
         }
 
         if (el.type === "barcode") {
@@ -591,7 +835,7 @@ function validateDoc(input: unknown): LabelDoc | null {
 
         return null;
       })
-      .filter((x): x is LabelElement => Boolean(x)),
+      .filter((e): e is LabelElement => e !== null),
   };
 
   return normalized;
@@ -600,10 +844,9 @@ function validateDoc(input: unknown): LabelDoc | null {
 
 
 export default function LabelDesigner() {
-  const [doc, setDoc] = useState<LabelDoc>(() => defaultDoc());
-  const [selectedId, setSelectedId] = useState<string | null>(() =>
-    doc.elements[doc.elements.length - 1]?.id ?? null
-  );
+  const [hasMounted, setHasMounted] = useState(false);
+  const [doc, setDoc] = useState<LabelDoc>(defaultDoc());
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -753,8 +996,20 @@ export default function LabelDesigner() {
     const data: Record<string, string> = {
       name: item.name || "",
       article: item.article || "",
-      exp_date: String(item.exp_date || ""),
-      close_box_counter: String(item.close_box_counter || ""),
+      exp_date: String(item.exp_date || "30"),
+      pack_counter: "1",
+      weight_netto_pack: "99.999",
+      weight_brutto_pack: "99.999",
+      weight_netto_box: "99.999",
+      weight_brutto_box: "99.999",
+      weight_netto_pallet: "99.999",
+      weight_brutto_pallet: "99.999",
+      pack_number: "1",
+      box_number: "1",
+      pallet_number: "1",
+      production_date: formatDate(new Date()),
+      exp_date_full: formatDate(new Date(Date.now() + Number(item.exp_date || 30) * 24 * 60 * 60 * 1000)),
+      batch_number: "9999999999",
     };
 
     if (item.extra_data) {
@@ -788,8 +1043,20 @@ export default function LabelDesigner() {
     return [
       { key: "name", label: "Наименование", icon: "📦" },
       { key: "article", label: "Артикул", icon: "🏷️" },
-      { key: "exp_date", label: "Срок годности", icon: "⏳" },
-      { key: "close_box_counter", label: "Вложений", icon: "🔢" },
+      { key: "exp_date", label: "Срок годности (сут)", icon: "⏳" },
+      { key: "pack_counter", label: "Текущий счетчик (в коробе)", icon: "🔢" },
+      { key: "weight_netto_pack", label: "Вес нетто (уп)", icon: "⚖️" },
+      { key: "weight_brutto_pack", label: "Вес брутто (уп)", icon: "⚖️" },
+      { key: "weight_netto_box", label: "Вес нетто (кор)", icon: "📦" },
+      { key: "weight_brutto_box", label: "Вес брутто (кор)", icon: "📦" },
+      { key: "weight_netto_pallet", label: "Вес нетто (пал)", icon: "🏗️" },
+      { key: "weight_brutto_pallet", label: "Вес брутто (пал)", icon: "🏗️" },
+      { key: "pack_number", label: "Номер упаковки", icon: "#️⃣" },
+      { key: "box_number", label: "Номер короба", icon: "#️⃣" },
+      { key: "pallet_number", label: "Номер паллеты", icon: "#️⃣" },
+      { key: "production_date", label: "Дата производства", icon: "📅" },
+      { key: "exp_date_full", label: "Годен до (дата)", icon: "📅" },
+      { key: "batch_number", label: "Номер партии", icon: "🔢" },
       ...dynamic
     ];
   }, [globalAttributes]);
@@ -885,8 +1152,94 @@ export default function LabelDesigner() {
   // New state for API integration
   const [labelId, setLabelId] = useState<number | null>(null);
   const [labelName, setLabelName] = useState<string>("Новый макет");
+
+  // Restore state from localStorage on mount
+  useEffect(() => {
+    setHasMounted(true);
+
+    // Restoration logic
+    try {
+      // 1. Label Doc
+      const savedDoc = localStorage.getItem(STORAGE_KEY);
+      let currentDoc = doc;
+      if (savedDoc) {
+        const parsed = JSON.parse(savedDoc);
+        const validated = validateDoc(parsed);
+        if (validated) {
+          setDoc(validated);
+          currentDoc = validated;
+        }
+      }
+
+      // 2. Selected Element
+      const savedSelectedId = localStorage.getItem("labelDesigner_selectedId");
+      if (savedSelectedId && currentDoc.elements.some(e => e.id === savedSelectedId)) {
+        setSelectedId(savedSelectedId);
+      } else if (currentDoc.elements.length > 0) {
+        setSelectedId(currentDoc.elements[currentDoc.elements.length - 1].id);
+      }
+
+      // 3. View Port
+      const savedZoom = localStorage.getItem("labelDesigner_zoom");
+      if (savedZoom) setZoom(Number(savedZoom));
+
+      const savedPan = localStorage.getItem("labelDesigner_pan");
+      if (savedPan) {
+        try { setPan(JSON.parse(savedPan)); } catch { }
+      }
+
+      // 4. API State
+      const savedLabelId = localStorage.getItem("labelDesigner_labelId");
+      if (savedLabelId) setLabelId(Number(savedLabelId));
+
+      const savedLabelName = localStorage.getItem("labelDesigner_labelName");
+      if (savedLabelName) setLabelName(savedLabelName);
+
+    } catch (err) {
+      console.error("Failed to restore designer state:", err);
+    }
+  }, []);
   const [savedLabels, setSavedLabels] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Persistence Effects
+  useEffect(() => {
+    if (!hasMounted) return;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(doc));
+  }, [doc, hasMounted]);
+
+  useEffect(() => {
+    if (!hasMounted) return;
+    if (labelId !== null) {
+      localStorage.setItem("labelDesigner_labelId", labelId.toString());
+    } else {
+      localStorage.removeItem("labelDesigner_labelId");
+    }
+  }, [labelId, hasMounted]);
+
+  useEffect(() => {
+    if (!hasMounted) return;
+    localStorage.setItem("labelDesigner_labelName", labelName);
+  }, [labelName, hasMounted]);
+
+  useEffect(() => {
+    if (!hasMounted) return;
+    localStorage.setItem("labelDesigner_zoom", zoom.toString());
+  }, [zoom, hasMounted]);
+
+  useEffect(() => {
+    if (!hasMounted) return;
+    localStorage.setItem("labelDesigner_pan", JSON.stringify(pan));
+  }, [pan, hasMounted]);
+
+  useEffect(() => {
+    if (!hasMounted) return;
+    if (selectedId) {
+      localStorage.setItem("labelDesigner_selectedId", selectedId);
+    } else {
+      localStorage.removeItem("labelDesigner_selectedId");
+    }
+  }, [selectedId, hasMounted]);
 
   useEffect(() => {
     loadLabelsList();
@@ -914,6 +1267,10 @@ export default function LabelDesigner() {
       fontSize: 20,
       color: "#000000",
       fontWeight: 600,
+      fontFamily: "Inter",
+      textAlign: "left",
+      fontStyle: "normal",
+      textDecoration: "none",
     };
     setDoc((d) => ({ ...d, elements: [...d.elements, el] }));
     setSelectedId(el.id);
@@ -941,17 +1298,21 @@ export default function LabelDesigner() {
     const template = barcodeTemplates.find(t => t.name === templateName);
     if (!template) return;
 
+    // Detect 2D barcodes (QR, DataMatrix, etc.) for square default dimensions
+    const barcodeType = template.structure?.barcode_type || '';
+    const is2D = ['qrcode', 'gs1qrcode', 'datamatrix', 'azteccode'].includes(barcodeType.toLowerCase());
+
     const el: BarcodeElement = {
       id: uid(),
       type: "barcode",
       x: 48,
       y: 240,
-      w: 260,
-      h: 80,
+      w: is2D ? 150 : 260,
+      h: is2D ? 150 : 80,
       rotation: 0,
       value: "{{ barcode }}",
       barcodeType: template.name,
-      showText: true,
+      showText: !is2D,
       templateId: template.id,
     };
 
@@ -975,7 +1336,23 @@ export default function LabelDesigner() {
       fontSize: 14,
       color: "#000000",
       fontWeight: 500,
+      fontFamily: "Inter",
+      textAlign: "left",
+      fontStyle: "normal",
+      textDecoration: "none",
     };
+
+    // If adding a counter variable, prompt for minLength
+    if (attributeKey.includes("pack_number") || attributeKey.includes("box_number")) {
+      const lenStr = window.prompt("Введите длину счетчика (количество символов). Оставьте пустым, чтобы не использовать дополнение нулями.", "8");
+      if (lenStr) {
+        const len = parseInt(lenStr, 10);
+        if (!isNaN(len) && len > 0) {
+          el.minLength = len;
+        }
+      }
+    }
+
     setDoc((d) => ({ ...d, elements: [...d.elements, el] }));
     setSelectedId(el.id);
   }, []);
@@ -983,19 +1360,41 @@ export default function LabelDesigner() {
   const updateSelected = useCallback(
     (patch: Partial<LabelElement>) => {
       if (!selectedId) return;
-      setDoc((d) => ({
+
+      const el = doc.elements.find((e) => e.id === selectedId);
+
+      // If updating text, detect if a counter variable was added manually or via helper
+      const textPatch = (patch as any).text;
+      if (el?.type === "text" && textPatch !== undefined && typeof textPatch === "string") {
+        const oldText = (el as TextElement).text;
+        const newText = textPatch;
+        const counters = ["{{pack_number}}", "{{box_number}}"];
+        const addedCounter = counters.find(c => newText.includes(c) && !oldText.includes(c));
+
+        if (addedCounter && !(el as TextElement).minLength) {
+          const lenStr = window.prompt("Введите длину счетчика (количество символов). Оставьте пустым, чтобы не использовать дополнение нулями.", "8");
+          if (lenStr) {
+            const len = parseInt(lenStr, 10);
+            if (!isNaN(len) && len > 0) {
+              (patch as any).minLength = len;
+            }
+          }
+        }
+      }
+
+      setDoc((d: LabelDoc) => ({
         ...d,
-        elements: d.elements.map((e) =>
+        elements: d.elements.map((e: LabelElement) =>
           e.id === selectedId ? ({ ...e, ...patch } as LabelElement) : e
         ),
       }));
     },
-    [selectedId]
+    [selectedId, doc.elements]
   );
 
   const deleteSelected = useCallback(() => {
     if (!selectedId) return;
-    setDoc((d) => ({ ...d, elements: d.elements.filter((e) => e.id !== selectedId) }));
+    setDoc((d: LabelDoc) => ({ ...d, elements: d.elements.filter((e: LabelElement) => e.id !== selectedId) }));
   }, [selectedId]);
 
   const moveLayer = useCallback(
@@ -1212,6 +1611,22 @@ export default function LabelDesigner() {
     }
   }, []);
 
+  const deleteLabelEntry = useCallback(async (id: number) => {
+    if (!confirm("Вы действительно хотите удалить этот макет?")) return;
+    try {
+      await client.labels.delete(id);
+      if (labelId === id) {
+        setLabelId(null);
+        setLabelName("Новый макет");
+        setDoc(defaultDoc());
+      }
+      loadLabelsList();
+    } catch (e) {
+      console.error(e);
+      alert("Ошибка при удалении");
+    }
+  }, [labelId]);
+
   const resetDoc = useCallback(() => {
     if (!confirm("Сбросить текущий макет?")) return;
     const d = defaultDoc();
@@ -1358,23 +1773,20 @@ export default function LabelDesigner() {
                 </SmallButton>
               </div>
 
-              <div className="relative col-span-1">
-                <select
-                  className="w-full h-9 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-medium text-white outline-none cursor-pointer hover:bg-white/15 transition-all appearance-none"
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                    const id = Number(e.target.value);
-                    const l = savedLabels.find((x: any) => x.id === id);
+              <div className="col-span-1">
+                <CustomSelect<string | number>
+                  value={""}
+                  onChange={(v) => {
+                    const l = savedLabels.find((x: any) => x.id === v);
                     if (l) loadLabelEntry(l);
-                    e.target.value = "";
                   }}
-                  defaultValue=""
-                >
-                  <option value="" disabled className="bg-[#1A1D24]">📂 Загрузить...</option>
-                  {savedLabels.map((l: any) => <option key={l.id} value={l.id} className="bg-[#1A1D24]">{l.name}</option>)}
-                </select>
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-white/40">
-                  <Icon name="chevron-down" className="h-3 w-3" />
-                </div>
+                  onDelete={(v) => deleteLabelEntry(Number(v))}
+                  options={[
+                    { value: "", label: "📂 Загрузить..." },
+                    ...savedLabels.map((l: any) => ({ value: l.id, label: l.name }))
+                  ]}
+                  className="w-full"
+                />
               </div>
 
               <div className="col-span-1">
@@ -1571,7 +1983,7 @@ export default function LabelDesigner() {
 
               if (el.type === "text") {
                 const t = el as TextElement;
-                const displayText = processDynamicText(t.text, previewData);
+                const displayText = processDynamicText(t.text, previewData, { minLength: t.minLength });
                 return (
                   <div key={el.id} {...commonProps}>
                     <div
@@ -1581,10 +1993,13 @@ export default function LabelDesigner() {
                         fontSize: `${t.fontSize}px`,
                         color: t.color,
                         fontWeight: t.fontWeight,
+                        fontFamily: t.fontFamily || "Inter",
+                        fontStyle: t.fontStyle || "normal",
+                        textDecoration: t.textDecoration || "none",
                         display: "flex",
                         alignItems: "center",
-                        justifyContent: "center",
-                        textAlign: "center",
+                        justifyContent: t.textAlign === "center" ? "center" : t.textAlign === "right" ? "flex-end" : "flex-start",
+                        textAlign: t.textAlign || "left",
                         overflow: "hidden",
                         wordBreak: "break-word",
                         lineHeight: 1.1,
@@ -1601,20 +2016,20 @@ export default function LabelDesigner() {
                 const b = el as BarcodeElement;
                 return (
                   <div key={el.id} {...commonProps}>
-                    <div className="flex h-full flex-col items-center justify-center bg-white overflow-hidden rounded-sm">
+                    <div className="h-full w-full bg-white overflow-hidden rounded-sm flex items-center justify-center">
                       {b.imageData ? (
                         <img
                           src={`data:image/png;base64,${b.imageData}`}
                           alt="barcode"
-                          className="max-w-full max-h-full object-contain select-none"
+                          className="w-full h-full object-contain select-none"
                           draggable={false}
                         />
                       ) : b.error ? (
-                        <div className="grow flex items-center justify-center text-red-500 font-mono text-[9px] border border-red-500/20 bg-red-500/5 px-2 text-center uppercase break-words overflow-hidden leading-tight">
+                        <div className="flex items-center justify-center text-red-500 font-mono text-[9px] border border-red-500/20 bg-red-500/5 px-2 text-center uppercase break-words overflow-hidden leading-tight">
                           Error: {b.error}
                         </div>
                       ) : (
-                        <div className="grow flex items-center justify-center text-black font-mono text-[10px] border border-black/10 px-2 uppercase italic opacity-60">
+                        <div className="flex items-center justify-center text-black font-mono text-[10px] border border-black/10 px-2 uppercase italic opacity-60">
                           [{b.barcodeType}]
                         </div>
                       )}
@@ -1743,28 +2158,94 @@ export default function LabelDesigner() {
                 {selected.type === "text" && (
                   <div className="grid gap-3">
                     <Field label="Текст">
-                      <TextInput
+                      <VariableTextInput
                         value={(selected as TextElement).text}
                         onChange={(v) => updateSelected({ text: v })}
+                        attributes={allAttributes}
                       />
                     </Field>
+                    <Field label="Размер шрифта">
+                      <NumberInput
+                        value={(selected as TextElement).fontSize}
+                        onChange={(v) => updateSelected({ fontSize: v })}
+                      />
+                    </Field>
+                    <Field label="Длина (0=нет)">
+                      <NumberInput
+                        value={(selected as TextElement).minLength || 0}
+                        onChange={(v) => updateSelected({ minLength: v > 0 ? v : undefined })}
+                        min={0}
+                        max={50}
+                      />
+                    </Field>
+
                     <div className="grid grid-cols-2 gap-3">
-                      <Field label="Размер шрифта">
-                        <NumberInput
-                          value={(selected as TextElement).fontSize}
-                          onChange={(v) => updateSelected({ fontSize: v })}
+                      <Field label="Шрифт">
+                        <CustomSelect
+                          value={(selected as TextElement).fontFamily || "Inter"}
+                          onChange={(v) => updateSelected({ fontFamily: v })}
+                          options={FONTS.map(f => ({ value: f, label: f }))}
+                          renderOption={(opt) => (
+                            <span style={{ fontFamily: opt.value }}>{opt.label}</span>
+                          )}
                         />
                       </Field>
                       <Field label="Вес">
-                        <select
+                        <CustomSelect
                           value={(selected as TextElement).fontWeight}
-                          onChange={(e) => updateSelected({ fontWeight: Number(e.target.value) })}
-                          className="h-10 w-full rounded-xl border border-white/10 bg-white/10 px-3 text-xs text-white outline-none hover:bg-white/15 transition-colors"
-                        >
-                          <option value="400">Regular</option>
-                          <option value="600">SemiBold</option>
-                          <option value="700">Bold</option>
-                        </select>
+                          onChange={(v) => updateSelected({ fontWeight: v })}
+                          options={[100, 200, 300, 400, 500, 600, 700, 800, 900].map(w => ({
+                            value: w,
+                            label: w === 400 ? 'Regular' : w === 600 ? 'SemiBold' : w === 700 ? 'Bold' : String(w)
+                          }))}
+                        />
+                      </Field>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Выравнивание">
+                        <div className="flex bg-white/5 rounded-xl border border-white/10 p-1">
+                          {(['left', 'center', 'right'] as const).map((align) => (
+                            <button
+                              key={align}
+                              onClick={() => updateSelected({ textAlign: align })}
+                              className={cx(
+                                "flex-1 px-2 py-1.5 rounded-lg transition-all text-[10px] font-medium uppercase",
+                                (selected as TextElement).textAlign === align || (!(selected as TextElement).textAlign && align === 'left')
+                                  ? "bg-white/20 text-white shadow-sm"
+                                  : "text-white/40 hover:text-white/60"
+                              )}
+                            >
+                              {align === 'left' ? 'L' : align === 'center' ? 'C' : 'R'}
+                            </button>
+                          ))}
+                        </div>
+                      </Field>
+                      <Field label="Стиль">
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => updateSelected({ fontStyle: (selected as TextElement).fontStyle === 'italic' ? 'normal' : 'italic' })}
+                            className={cx(
+                              "h-10 w-10 flex items-center justify-center rounded-xl border border-white/10 transition-all font-serif italic text-sm",
+                              (selected as TextElement).fontStyle === 'italic'
+                                ? "bg-white/20 text-white border-white/20"
+                                : "bg-white/5 text-white/40 hover:bg-white/10"
+                            )}
+                          >
+                            I
+                          </button>
+                          <button
+                            onClick={() => updateSelected({ textDecoration: (selected as TextElement).textDecoration === 'underline' ? 'none' : 'underline' })}
+                            className={cx(
+                              "h-10 w-10 flex items-center justify-center rounded-xl border border-white/10 transition-all underline text-sm",
+                              (selected as TextElement).textDecoration === 'underline'
+                                ? "bg-white/20 text-white border-white/20"
+                                : "bg-white/5 text-white/40 hover:bg-white/10"
+                            )}
+                          >
+                            U
+                          </button>
+                        </div>
                       </Field>
                     </div>
                     <Field label="Цвет">
@@ -1829,9 +2310,11 @@ export default function LabelDesigner() {
                       </select>
                     </Field>
                     <Field label="Значение (поддерживает {{ плейсхолдеры }})">
-                      <TextInput
+                      <VariableTextInput
                         value={(selected as BarcodeElement).value}
                         onChange={(v) => updateSelected({ value: v })}
+                        attributes={allAttributes}
+                        multiline={false}
                       />
                     </Field>
                     <div className="flex items-center justify-between">

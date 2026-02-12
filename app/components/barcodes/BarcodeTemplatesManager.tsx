@@ -497,17 +497,17 @@ export default function BarcodeTemplatesManager() {
             <div className="md:col-span-5 space-y-6">
                 {/* Preview Card */}
                 <Card title="Предпросмотр">
-                    <div className="flex min-h-[140px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/20 bg-black/40 p-4">
+                    <div className="flex min-h-[200px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/20 bg-white p-4">
                         {previewPng ? (
                             <img
                                 src={`data:image/png;base64,${previewPng}`}
                                 alt="Barcode Preview"
-                                className="max-h-32 object-contain filter invert"
+                                className="max-w-full max-h-[180px] object-contain"
                             />
                         ) : (
-                            <div className="text-center text-sm text-white/40">
+                            <div className="text-center text-sm text-black/40">
                                 Настройте поля и нажмите <br />
-                                <span className="text-white/60">"Проверить структуру"</span>
+                                <span className="text-black/60">"Проверить структуру"</span>
                             </div>
                         )}
                     </div>
