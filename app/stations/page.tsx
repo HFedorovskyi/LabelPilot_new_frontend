@@ -13,6 +13,7 @@ type Station = {
     station_number: number | null;
     station_uuid: string;
     station_ip: string | null;
+    station_port: number;
     is_online: boolean;
     created_at: string;
 };
@@ -22,8 +23,12 @@ export default function StationsPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
     const [newName, setNewName] = useState("");
+    const [newIp, setNewIp] = useState("");
+    const [newPort, setNewPort] = useState("5000");
     const [editingUuid, setEditingUuid] = useState<string | null>(null);
     const [editName, setEditName] = useState("");
+    const [editIp, setEditIp] = useState("");
+    const [editPort, setEditPort] = useState("");
 
     const fetchStations = async (silent = false) => {
         if (!silent) setIsLoading(true);
@@ -37,14 +42,18 @@ export default function StationsPage() {
         }
     };
 
-    const updateStationName = async (uuid: string) => {
+    const updateStation = async (uuid: string) => {
         if (!editName.trim()) return;
         try {
-            await api.stations.update(uuid, { station_name: editName });
+            await api.stations.update(uuid, {
+                station_name: editName,
+                station_ip: editIp || null,
+                station_port: parseInt(editPort) || 5000
+            });
             setEditingUuid(null);
             fetchStations(true);
         } catch (e) {
-            alert("Ошибка при переименовании");
+            alert("Ошибка при обновлении данных станции");
         }
     };
 
@@ -65,8 +74,14 @@ export default function StationsPage() {
     const addStation = async () => {
         if (!newName.trim()) return;
         try {
-            await api.stations.create({ station_name: newName });
+            await api.stations.create({
+                station_name: newName,
+                station_ip: newIp || null,
+                station_port: parseInt(newPort) || 5000
+            });
             setNewName("");
+            setNewIp("");
+            setNewPort("5000");
             fetchStations();
         } catch (e) {
             alert("Ошибка при создании станции");
@@ -77,9 +92,9 @@ export default function StationsPage() {
         try {
             await api.stations.sync(uuid);
             alert(`Данные успешно отправлены на станцию "${name}"`);
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            alert(`Ошибка при отправке данных на станцию "${name}"`);
+            alert(`Ошибка при отправке данных на станцию "${name}":\n${e.message}`);
         }
     };
 
@@ -114,47 +129,113 @@ export default function StationsPage() {
         api.stations.getServerIp().then(data => setServerIp(data.ip)).catch(console.error);
     }, []);
 
+    const downloadUpdate = async (uuid: string, name: string) => {
+        try {
+            const blob = await api.stations.downloadUpdate(uuid);
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `update_${name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.lps`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (e: any) {
+            alert(`Ошибка при скачивании обновления: ${e.message}`);
+        }
+    };
+
+    const downloadIdentity = async (uuid: string, name: string) => {
+        try {
+            const blob = await api.stations.downloadIdentity(uuid);
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `identity_${name.replace(/\s+/g, '_')}.lpi`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (e: any) {
+            alert(`Ошибка при скачивании идентификатора: ${e.message}`);
+        }
+    };
+
+    const handleReportUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        try {
+            await api.stations.uploadReport(file);
+            alert("Отчет успешно загружен");
+            fetchStations(true);
+        } catch (e: any) {
+            alert(`Ошибка при загрузке отчета: ${e.message}`);
+        } finally {
+            e.target.value = ''; // Reset input
+        }
+    };
+
     return (
         <div className="p-8">
             <div className="mb-6 flex items-center justify-between">
                 <h1 className="text-2xl font-bold text-white">Станции маркировки</h1>
-                {serverIp && (
-                    <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2">
-                        <span className="text-sm text-white/60">Server IP: </span>
-                        <span className="font-mono text-sm font-bold text-emerald-400">{serverIp}</span>
-                        <button
-                            onClick={() => {
-                                navigator.clipboard.writeText(serverIp);
-                                alert("IP скопирован");
-                            }}
-                            className="ml-2 text-white/40 hover:text-white"
-                            title="Копировать IP"
-                        >
-                            📋
-                        </button>
-                    </div>
-                )}
+                <div className="flex gap-4">
+                    <label className="flex items-center gap-2 rounded-xl bg-blue-500/20 px-4 py-2 text-blue-300 hover:bg-blue-500/30 cursor-pointer transition">
+                        <span>📤 Загрузить отчет (.lpr)</span>
+                        <input type="file" accept=".lpr" onChange={handleReportUpload} className="hidden" />
+                    </label>
+
+                    {serverIp && (
+                        <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2">
+                            <span className="text-sm text-white/60">Server IP: </span>
+                            <span className="font-mono text-sm font-bold text-emerald-400">{serverIp}</span>
+                            <button
+                                onClick={() => {
+                                    navigator.clipboard.writeText(serverIp);
+                                    alert("IP скопирован");
+                                }}
+                                className="ml-2 text-white/40 hover:text-white"
+                                title="Копировать IP"
+                            >
+                                📋
+                            </button>
+                        </div>
+                    )}
+                </div>
             </div>
 
-            <div className="mb-8 grid gap-4 rounded-2xl border border-white/10 bg-white/5 p-6 md:w-1/2">
-                <h3 className="text-lg font-medium text-white">Добавить станцию</h3>
-                <div className="flex gap-2">
+            <div className="mb-8 rounded-2xl border border-white/10 bg-white/5 p-6 md:w-3/4">
+                <h3 className="mb-4 text-lg font-medium text-white">Добавить станцию</h3>
+                <div className="flex flex-wrap gap-3">
                     <input
                         value={newName}
                         onChange={(e) => setNewName(e.target.value)}
-                        placeholder="Название станции"
-                        className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-white outline-none focus:border-white/20"
+                        placeholder="Название (обязательно)"
+                        className="flex-1 min-w-[200px] rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-white outline-none focus:border-white/20"
+                    />
+                    <input
+                        value={newIp}
+                        onChange={(e) => setNewIp(e.target.value)}
+                        placeholder="IP адрес (опционально)"
+                        className="w-48 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-white outline-none focus:border-white/20"
+                    />
+                    <input
+                        value={newPort}
+                        onChange={(e) => setNewPort(e.target.value)}
+                        placeholder="Порт"
+                        className="w-24 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-white outline-none focus:border-white/20"
                     />
                     <button
                         onClick={addStation}
-                        className="rounded-xl bg-white px-4 py-2 font-medium text-black hover:bg-white/90"
+                        className="rounded-xl bg-white px-6 py-2 font-medium text-black hover:bg-white/90 transition"
                     >
                         Добавить
                     </button>
                     <button
                         onClick={searchStations}
                         disabled={isSearching}
-                        className="rounded-xl bg-blue-500 px-4 py-2 font-medium text-white hover:bg-blue-600 disabled:opacity-50"
+                        className="rounded-xl bg-blue-500/20 px-6 py-2 font-medium text-blue-300 border border-blue-500/30 hover:bg-blue-500/30 disabled:opacity-50 transition"
                     >
                         {isSearching ? "Поиск..." : "Поиск станций"}
                     </button>
@@ -170,25 +251,41 @@ export default function StationsPage() {
                         <div className="mb-4 flex items-start justify-between">
                             <div className="flex-1">
                                 {editingUuid === s.station_uuid ? (
-                                    <div className="flex gap-2">
+                                    <div className="space-y-2 pr-2">
                                         <input
                                             value={editName}
                                             onChange={(e) => setEditName(e.target.value)}
-                                            autoFocus
-                                            className="w-full rounded-lg border border-white/20 bg-white/10 px-2 py-1 text-sm text-white outline-none"
+                                            placeholder="Название"
+                                            className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-sm text-white outline-none"
                                         />
-                                        <button
-                                            onClick={() => updateStationName(s.station_uuid)}
-                                            className="text-emerald-500 hover:text-emerald-400"
-                                        >
-                                            ✓
-                                        </button>
-                                        <button
-                                            onClick={() => setEditingUuid(null)}
-                                            className="text-white/40 hover:text-white"
-                                        >
-                                            ✕
-                                        </button>
+                                        <div className="flex gap-2">
+                                            <input
+                                                value={editIp}
+                                                onChange={(e) => setEditIp(e.target.value)}
+                                                placeholder="IP адрес"
+                                                className="flex-1 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs text-white outline-none"
+                                            />
+                                            <input
+                                                value={editPort}
+                                                onChange={(e) => setEditPort(e.target.value)}
+                                                placeholder="Порт"
+                                                className="w-20 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs text-white outline-none"
+                                            />
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => updateStation(s.station_uuid)}
+                                                className="flex-1 rounded-lg bg-emerald-500/20 py-1 text-xs font-bold text-emerald-400 hover:bg-emerald-500/30"
+                                            >
+                                                Сохранить
+                                            </button>
+                                            <button
+                                                onClick={() => setEditingUuid(null)}
+                                                className="rounded-lg bg-white/5 px-3 py-1 text-xs text-white/40 hover:bg-white/10"
+                                            >
+                                                Отмена
+                                            </button>
+                                        </div>
                                     </div>
                                 ) : (
                                     <div className="group flex items-center gap-2">
@@ -202,11 +299,13 @@ export default function StationsPage() {
                                             onClick={() => {
                                                 setEditingUuid(s.station_uuid);
                                                 setEditName(s.station_name);
+                                                setEditIp(s.station_ip || "");
+                                                setEditPort(String(s.station_port || 5000));
                                             }}
-                                            className="opacity-0 transition group-hover:opacity-100 hover:text-blue-400"
-                                            title="Переименовать"
+                                            className="opacity-0 transition group-hover:opacity-100 text-white/40 hover:text-blue-400"
+                                            title="Редактировать данные станции"
                                         >
-                                            edit
+                                            ✏️
                                         </button>
                                     </div>
                                 )}
@@ -251,6 +350,22 @@ export default function StationsPage() {
                             </div>
                         </div>
 
+
+                        <div className="mb-4 flex flex-wrap gap-2 border-t border-white/5 pt-4">
+                            <button
+                                onClick={() => downloadUpdate(s.station_uuid, s.station_name)}
+                                className="flex-1 rounded-lg bg-white/5 px-3 py-2 text-xs font-medium text-white hover:bg-white/10 transition"
+                            >
+                                💾 Обновление (.lps)
+                            </button>
+                            <button
+                                onClick={() => downloadIdentity(s.station_uuid, s.station_name)}
+                                className="flex-1 rounded-lg bg-white/5 px-3 py-2 text-xs font-medium text-white hover:bg-white/10 transition"
+                            >
+                                🆔 Настройка (.lpi)
+                            </button>
+                        </div>
+
                         <div className="space-y-2 text-sm text-white/60">
                             <div className="flex justify-between">
                                 <span>Номер:</span>
@@ -263,17 +378,19 @@ export default function StationsPage() {
                                 <span className="font-mono text-xs">{s.station_uuid}</span>
                             </div>
                             <div className="flex justify-between items-center">
-                                <span>IP:</span>
+                                <span>Адрес:</span>
                                 <div className="flex items-center gap-1">
-                                    <span className="font-mono text-xs">{s.station_ip || "—"}</span>
+                                    <span className="font-mono text-xs text-white/80">
+                                        {s.station_ip || "—"}:{s.station_port}
+                                    </span>
                                     {s.station_ip && (
                                         <button
                                             onClick={() => {
-                                                navigator.clipboard.writeText(s.station_ip!);
-                                                alert("IP станции скопирован");
+                                                navigator.clipboard.writeText(`${s.station_ip}:${s.station_port}`);
+                                                alert("Адрес станции скопирован");
                                             }}
                                             className="text-white/40 hover:text-white"
-                                            title="Копировать IP станции"
+                                            title="Копировать адрес"
                                         >
                                             📋
                                         </button>

@@ -155,7 +155,8 @@ export const api = {
             });
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}));
-                throw new Error(errorData.error || 'Failed to sync data');
+                const message = errorData.error || errorData.detail || 'Failed to sync data';
+                throw new Error(message);
             }
             return res.json();
         },
@@ -168,6 +169,32 @@ export const api = {
         getServerIp: async () => {
             const res = await fetch(`${API_BASE}/stations/server_ip/`);
             if (!res.ok) throw new Error('Failed to fetch server IP');
+            return res.json();
+        },
+        downloadUpdate: async (uuid: string) => {
+            const res = await fetch(`${API_BASE}/stations/${uuid}/download_update/`);
+            if (!res.ok) throw new Error('Failed to download update');
+            return res.blob();
+        },
+        downloadIdentity: async (uuid: string) => {
+            const res = await fetch(`${API_BASE}/stations/${uuid}/download_identity/`);
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Failed to download identity');
+            }
+            return res.blob();
+        },
+        uploadReport: async (file: File) => {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await fetch(`${API_BASE}/stations/upload_report/`, {
+                method: 'POST',
+                body: formData,
+            });
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Failed to upload report');
+            }
             return res.json();
         }
     },
