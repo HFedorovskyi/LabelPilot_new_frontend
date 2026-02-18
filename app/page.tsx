@@ -6,8 +6,9 @@ import ProductCatalog from "./components/catalog/ProductCatalog";
 import PackagingManager from "./components/catalog/PackagingManager";
 import BarcodeTemplatesManager from "./components/barcodes/BarcodeTemplatesManager";
 import StationsPage from "./stations/page";
+import SettingsPage from "./components/settings/SettingsPage";
 
-type TabKey = "labels" | "catalog" | "packaging" | "barcodes" | "users" | "stations";
+type TabKey = "labels" | "catalog" | "packaging" | "barcodes" | "users" | "stations" | "settings";
 
 type Tab = {
   key: TabKey;
@@ -23,7 +24,7 @@ function Icon({
   name,
   className,
 }: {
-  name: "sparkles" | "tag" | "box" | "barcode" | "users" | "server";
+  name: "sparkles" | "tag" | "box" | "barcode" | "users" | "server" | "settings";
   className?: string;
 }) {
   const common = "h-5 w-5";
@@ -105,6 +106,21 @@ function Icon({
           <path d="M7 7h.01M7 17h.01" className="stroke-current" strokeWidth="2.5" strokeLinecap="round" />
         </svg>
       );
+    case "settings":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={cx(common, className)} aria-hidden="true">
+          <path
+            d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
+            className="stroke-current"
+            strokeWidth="1.6"
+          />
+          <path
+            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"
+            className="stroke-current"
+            strokeWidth="1.6"
+          />
+        </svg>
+      );
   }
 }
 
@@ -143,6 +159,7 @@ export default function Home() {
       { key: "barcodes", label: "Штрихкоды", description: "Генерация, просмотр и печать штрихкодов." },
       { key: "stations", label: "Станции", description: "Управление станциями маркировки." },
       { key: "users", label: "Пользователи", description: "Управление пользователями (только для админа)." },
+      { key: "settings", label: "Настройки", description: "Обновления системы, версии и конфигурация." },
     ],
     []
   );
@@ -164,6 +181,8 @@ export default function Home() {
         return "server";
       case "users":
         return "users";
+      case "settings":
+        return "settings";
     }
   };
 
@@ -250,6 +269,7 @@ export default function Home() {
             {active === "packaging" ? <PackagingManager /> : null}
             {active === "barcodes" ? <BarcodeTemplatesManager /> : null}
             {active === "stations" ? <StationsPage /> : null}
+            {active === "settings" ? <SettingsPage /> : null}
 
             {active === "users" ? (
               <section className="rounded-2xl border border-white/10 bg-white/5 p-5">

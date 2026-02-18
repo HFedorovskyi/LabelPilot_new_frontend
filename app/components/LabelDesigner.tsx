@@ -91,6 +91,14 @@ const FIXED_PRODUCT_ATTRIBUTES = [
   { key: "close_box_counter", label: "Вложений в короб" },
 ] as const;
 
+export interface PrintedZone {
+  id: string;
+  label: string;
+  side: "top" | "bottom" | "left" | "right";
+  sizeMm: number;
+  color: string;
+}
+
 export interface CanvasConfig {
   width: number;
   height: number;
@@ -100,6 +108,7 @@ export interface CanvasConfig {
   background: string;
   showGrid: boolean;
   gridSize: number;
+  printedZones: PrintedZone[];
 }
 
 type LabelDoc = {
@@ -119,6 +128,10 @@ function cmToPx(cm: number, dpi: number = DPI_203) {
 
 function pxToCm(px: number, dpi: number = DPI_203) {
   return Number((px / dpi / CM_TO_INCH).toFixed(2));
+}
+
+function mmToPx(mm: number, dpi: number = DPI_203): number {
+  return Math.round(mm * dpi / 25.4);
 }
 
 function cx(...parts: Array<string | false | null | undefined>) {
@@ -741,6 +754,7 @@ function defaultDoc(): LabelDoc {
       background: "#ffffff",
       showGrid: true,
       gridSize: 16,
+      printedZones: [],
     },
     elements: [],
   };
@@ -771,6 +785,17 @@ function validateDoc(input: unknown): LabelDoc | null {
       background: typeof canvas.background === "string" ? canvas.background : "#ffffff",
       showGrid: Boolean(canvas.showGrid),
       gridSize: clamp(safeNumber(canvas.gridSize, 16), 4, 64),
+      printedZones: Array.isArray((canvas as any).printedZones)
+        ? (canvas as any).printedZones
+          .filter((z: any) => z && typeof z === "object" && typeof z.id === "string")
+          .map((z: any): PrintedZone => ({
+            id: z.id,
+            label: typeof z.label === "string" ? z.label : "Зона",
+            side: ["top", "bottom", "left", "right"].includes(z.side) ? z.side : "top",
+            sizeMm: clamp(safeNumber(z.sizeMm, 10), 0, 500),
+            color: typeof z.color === "string" ? z.color : "#1e40af",
+          }))
+        : [],
     },
     elements: obj.elements
       .map((e) => {
@@ -1912,6 +1937,60 @@ export default function LabelDesigner() {
             className="relative shadow-2xl flex-shrink-0"
             style={canvasStyle}
           >
+            {/* Rendered printed zones (hatched overlays) */}
+            {doc.canvas.printedZones.map((zone) => {
+              const dpi = doc.canvas.dpi || DPI_203;
+              const zonePx = mmToPx(zone.sizeMm, dpi);
+              const canvasWidthPx = cmToPx(doc.canvas.widthCm || 10, dpi);
+              const canvasHeightPx = cmToPx(doc.canvas.heightCm || 6, dpi);
+
+              let style: React.CSSProperties = {
+                position: "absolute",
+                backgroundColor: zone.color,
+                backgroundImage: `repeating-linear-gradient(
+                  45deg,
+                  transparent,
+                  transparent 4px,
+                  rgba(255,255,255,0.35) 4px,
+                  rgba(255,255,255,0.35) 8px
+                )`,
+                pointerEvents: "none",
+                zIndex: 0,
+                boxSizing: "border-box",
+                border: "1px dashed rgba(0,0,0,0.25)",
+              };
+
+              if (zone.side === "top") {
+                style = { ...style, top: 0, left: 0, width: canvasWidthPx, height: zonePx };
+              } else if (zone.side === "bottom") {
+                style = { ...style, bottom: 0, left: 0, width: canvasWidthPx, height: zonePx };
+              } else if (zone.side === "left") {
+                style = { ...style, top: 0, left: 0, width: zonePx, height: canvasHeightPx };
+              } else {
+                style = { ...style, top: 0, right: 0, width: zonePx, height: canvasHeightPx };
+              }
+
+              return (
+                <div key={`zone-${zone.id}`} style={style}>
+                  <div style={{
+                    position: "absolute",
+                    bottom: zone.side === "top" ? 2 : undefined,
+                    top: zone.side === "bottom" ? 2 : (zone.side !== "top" ? 2 : undefined),
+                    left: zone.side === "right" ? undefined : 2,
+                    right: zone.side === "right" ? 2 : undefined,
+                    fontSize: 9,
+                    color: "rgba(255,255,255,0.7)",
+                    fontWeight: 600,
+                    textShadow: "0 1px 2px rgba(0,0,0,0.5)",
+                    whiteSpace: "nowrap",
+                    writingMode: (zone.side === "left" || zone.side === "right") ? "vertical-lr" : undefined,
+                  }}>
+                    {zone.label}
+                  </div>
+                </div>
+              );
+            })}
+
             {doc.elements.map((el: LabelElement) => {
               const commonProps = {
                 onPointerDown: (e: React.PointerEvent) => onPointerDownElement(e, el.id),
@@ -2397,6 +2476,153 @@ export default function LabelDesigner() {
               />
             </div>
           </div>
+        </div>
+
+        {/* Pre-printed Zones Section */}
+        <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+          <details className="group">
+            <summary className="flex cursor-pointer items-center justify-between text-sm font-semibold text-white list-none">
+              <span>Преднапечатанные зоны</span>
+              <span className="text-white/50 transition-transform duration-200 group-open:rotate-90">▶</span>
+            </summary>
+            <div className="mt-3 grid gap-3">
+              <SmallButton
+                variant="secondary"
+                onClick={() => {
+                  const newZone: PrintedZone = {
+                    id: uid(),
+                    label: "Шапка",
+                    side: "top",
+                    sizeMm: 10,
+                    color: "#1e40af",
+                  };
+                  setDoc(d => ({
+                    ...d,
+                    canvas: {
+                      ...d.canvas,
+                      printedZones: [...d.canvas.printedZones, newZone],
+                    },
+                  }));
+                }}
+                className="w-full"
+              >
+                <Icon name="plus" />
+                Добавить зону
+              </SmallButton>
+
+              {doc.canvas.printedZones.map((zone, idx) => (
+                <div
+                  key={zone.id}
+                  className="rounded-xl border border-white/10 bg-white/5 p-3 grid gap-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-white/40">
+                      Зона {idx + 1}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDoc(d => ({
+                          ...d,
+                          canvas: {
+                            ...d.canvas,
+                            printedZones: d.canvas.printedZones.filter(z => z.id !== zone.id),
+                          },
+                        }));
+                      }}
+                      className="flex h-6 w-6 items-center justify-center rounded-lg text-white/30 hover:bg-red-500/20 hover:text-red-400 transition-all"
+                      title="Удалить"
+                    >
+                      <Icon name="trash" className="h-3 w-3" />
+                    </button>
+                  </div>
+
+                  <Field label="Название">
+                    <TextInput
+                      value={zone.label}
+                      onChange={(v) => {
+                        setDoc(d => ({
+                          ...d,
+                          canvas: {
+                            ...d.canvas,
+                            printedZones: d.canvas.printedZones.map(z =>
+                              z.id === zone.id ? { ...z, label: v } : z
+                            ),
+                          },
+                        }));
+                      }}
+                    />
+                  </Field>
+
+                  <Field label="Сторона">
+                    <CustomSelect<string>
+                      value={zone.side}
+                      onChange={(v) => {
+                        setDoc(d => ({
+                          ...d,
+                          canvas: {
+                            ...d.canvas,
+                            printedZones: d.canvas.printedZones.map(z =>
+                              z.id === zone.id ? { ...z, side: v as PrintedZone["side"] } : z
+                            ),
+                          },
+                        }));
+                      }}
+                      options={[
+                        { value: "top", label: "Сверху" },
+                        { value: "bottom", label: "Снизу" },
+                        { value: "left", label: "Слева" },
+                        { value: "right", label: "Справа" },
+                      ]}
+                    />
+                  </Field>
+
+                  <Field label="Толщина (мм)">
+                    <NumberInput
+                      value={zone.sizeMm}
+                      onChange={(v) => {
+                        setDoc(d => ({
+                          ...d,
+                          canvas: {
+                            ...d.canvas,
+                            printedZones: d.canvas.printedZones.map(z =>
+                              z.id === zone.id ? { ...z, sizeMm: Math.max(0, v) } : z
+                            ),
+                          },
+                        }));
+                      }}
+                      min={0}
+                      max={500}
+                      step={0.5}
+                    />
+                  </Field>
+
+                  <Field label="Цвет">
+                    <ColorInput
+                      value={zone.color}
+                      onChange={(v) => {
+                        setDoc(d => ({
+                          ...d,
+                          canvas: {
+                            ...d.canvas,
+                            printedZones: d.canvas.printedZones.map(z =>
+                              z.id === zone.id ? { ...z, color: v } : z
+                            ),
+                          },
+                        }));
+                      }}
+                    />
+                  </Field>
+                </div>
+              ))}
+
+              {doc.canvas.printedZones.length === 0 && (
+                <div className="py-4 text-center text-xs text-white/30 italic">
+                  Нет заданных зон
+                </div>
+              )}
+            </div>
+          </details>
         </div>
       </aside>
     </div>
