@@ -483,7 +483,7 @@ export default function ProductCatalog() {
               <div className="text-[11px] font-medium uppercase tracking-wider text-white/55">
                 Артикул / SKU
               </div>
-              <Input value={sku} onChange={setSku} placeholder="Напр. TEA-001" />
+              <Input value={sku} onChange={(v) => setSku(v.replace(/\D/g, ""))} placeholder="Напр. 22032" />
             </div>
 
             <div className="grid gap-1">
@@ -578,9 +578,6 @@ export default function ProductCatalog() {
           subtitle={`Всего: ${products.length} ${isLoading ? '(Загрузка...)' : ''}`}
           right={
             <div className="flex gap-2">
-              <SmallButton variant="success" onClick={() => setIsSendModalOpen(true)}>
-                Отправить на станции
-              </SmallButton>
               <div className="w-48">
                 <Input value={query} onChange={setQuery} placeholder="Поиск..." />
               </div>
@@ -607,18 +604,6 @@ export default function ProductCatalog() {
                     <div className="col-span-5 grid gap-1">
                       <div className="font-mono text-sm font-bold text-white/90">{p.sku}</div>
                       <div className="text-sm text-white font-medium leading-snug">{p.name}</div>
-
-                      {/* Global Attributes Display */}
-                      {p.extra_data && Object.keys(p.extra_data).length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          {Object.entries(p.extra_data).map(([k, v]) => (
-                            <div key={k} className="inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-white/80 border border-white/5">
-                              <span className="opacity-60 uppercase">{k}:</span>
-                              <span className="font-medium">{String(v)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
                     </div>
 
                     {/* Properties Column */}
@@ -657,13 +642,30 @@ export default function ProductCatalog() {
                       </div>
                     </div>
 
+                    {/* Global Attributes Row (Full Width) */}
+                    {p.extra_data && Object.keys(p.extra_data).length > 0 && (
+                      <div className="col-span-12 mt-2 pt-3 border-t border-white/5">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+                          {Object.entries(p.extra_data).map(([k, v]) => (
+                            <div key={k} className="flex flex-col gap-1 rounded-xl bg-white/[0.03] p-2.5 border border-white/5 hover:bg-white/5 transition-colors">
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-white/40 leading-none">
+                                {k}
+                              </span>
+                              <span className="text-xs text-white/90 leading-normal line-clamp-2" title={String(v)}>
+                                {String(v)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))
               )}
             </div>
           </div>
-        </Card>
-      </div>
-    </div>
+        </Card >
+      </div >
+    </div >
   );
 }

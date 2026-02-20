@@ -156,6 +156,7 @@ const FIELD_TYPES = [
     { value: "fnc1", label: "FNC1 (GS1)" },
     { value: "gs", label: "Group Separator (ASCII 29)" },
     { value: "ai", label: "Идентификатор AI" },
+    { value: "extra_data", label: "Глобальный атрибут (Доп. поле)" },
 ];
 
 const DATE_FORMATS = [
@@ -207,6 +208,11 @@ export default function BarcodeTemplatesManager() {
         { field_type: "constanta", value: "460" },
     ]);
     const [editingId, setEditingId] = useState<string | null>(null);
+    const [attributes, setAttributes] = useState<{ id: number; name: string }[]>([]);
+
+    // Product selection for preview
+    const [products, setProducts] = useState<any[]>([]);
+    const [previewProductId, setPreviewProductId] = useState<string>("");
 
     // Preview State
     const [previewPng, setPreviewPng] = useState<string | null>(null);
@@ -231,8 +237,30 @@ export default function BarcodeTemplatesManager() {
         }
     };
 
+    const fetchAttributes = async () => {
+        try {
+            const data = await api.attributes.list();
+            const items = Array.isArray(data) ? data : data.results || [];
+            setAttributes(items);
+        } catch (e) {
+            console.error("Failed to load attributes", e);
+        }
+    };
+
+    const fetchProducts = async () => {
+        try {
+            const data = await api.nomenclature.list();
+            const items = Array.isArray(data) ? data : data.results || [];
+            setProducts(items);
+        } catch (e) {
+            console.error("Failed to load products", e);
+        }
+    };
+
     useEffect(() => {
         fetchTemplates();
+        fetchAttributes();
+        fetchProducts();
     }, []);
 
     const addField = () => {
@@ -274,7 +302,12 @@ export default function BarcodeTemplatesManager() {
                 barcode_name: templateName,
                 fields,
             };
-            const res = await api.barcodes.generate(structure);
+            const payload: any = { barcode_structure: structure };
+            if (previewProductId) {
+                payload.product_id = previewProductId;
+            }
+
+            const res = await api.barcodes.generate(payload);
             if (res.png) {
                 setPreviewPng(res.png);
             }
@@ -406,6 +439,27 @@ export default function BarcodeTemplatesManager() {
                                                     />
                                                 )}
 
+                                                {field.field_type === "extra_data" && (
+                                                    <div className="flex flex-col gap-2">
+                                                        <Select
+                                                            value={field.value || ""}
+                                                            onChange={(v) => updateField(idx, { value: v })}
+                                                            options={[
+                                                                { value: "", label: "— Выберите атрибут —" },
+                                                                ...attributes.map((attr) => ({
+                                                                    value: attr.name,
+                                                                    label: attr.name,
+                                                                })),
+                                                            ]}
+                                                        />
+                                                        <Input
+                                                            placeholder="Длина (значение по умолч.)"
+                                                            value={field.length || ""}
+                                                            onChange={(v) => updateField(idx, { length: v })}
+                                                        />
+                                                    </div>
+                                                )}
+
                                                 {[
                                                     "weight_netto_pack", "weight_brutto_pack",
                                                     "weight_netto_box", "weight_brutto_box",
@@ -496,7 +550,28 @@ export default function BarcodeTemplatesManager() {
             {/* Right Column: List & Preview */}
             <div className="md:col-span-5 space-y-6">
                 {/* Preview Card */}
-                <Card title="Предпросмотр">
+                <Card
+                    title="Предпросмотр"
+                    subtitle="Выберите товар для теста динамических полей"
+                >
+                    <div className="mb-4">
+                        <Select
+                            value={previewProductId}
+                            onChange={(v) => {
+                                setPreviewProductId(v);
+                                // Optional: auto-trigger preview when product changes
+                                // if (templateName) handlePreview();
+                            }}
+                            options={[
+                                { value: "", label: "— Без товара (фиктивные данные) —" },
+                                ...products.map((p) => ({
+                                    value: p.id.toString(),
+                                    label: `${p.article} — ${p.name}`,
+                                })),
+                            ]}
+                        />
+                    </div>
+
                     <div className="flex min-h-[200px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/20 bg-white p-4">
                         {previewPng ? (
                             <img

@@ -3,53 +3,24 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api as client } from "@/lib/api/client";
 
-type ElementType = "text" | "rect" | "barcode";
+import {
+  LabelDoc,
+  LabelElement,
+  TextElement,
+  RectElement,
+  BarcodeElement,
+  ElementType,
+  LabelElementBase,
+  BarcodeType,
+  PrintedZone,
+  CanvasConfig
+} from "@/lib/label/types";
+import { renderLabel, processDynamicText } from "@/lib/label/renderer";
 
-type LabelElementBase = {
-  id: string;
-  type: ElementType;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  rotation: number; // deg
-};
+const STORAGE_KEY = "label_designer_doc_v1";
 
-type TextElement = LabelElementBase & {
-  type: "text";
-  text: string;
-  fontSize: number;
-  fontWeight: number;
-  color: string;
-  fontFamily: string;
-  fontStyle: 'normal' | 'italic';
-  textAlign: 'left' | 'center' | 'right';
-  textDecoration: 'none' | 'underline';
-  minLength?: number;
-};
-
-export interface RectElement extends LabelElementBase {
-  type: "rect";
-  fill: string;
-  borderColor: string;
-  borderWidth: number;
-  borderRadius: number;
-}
-
-// BarcodeType now comes from database templates as string
-export type BarcodeType = string;
-
-export interface BarcodeElement extends LabelElementBase {
-  type: "barcode";
-  value: string;
-  barcodeType: string; // Using string to support arbitrary template names
-  showText: boolean;
-  templateId?: number;
-  imageData?: string; // base64 PNG
-  error?: string; // Error message from backend
-}
-
-export type LabelElement = TextElement | RectElement | BarcodeElement;
+const DPI_203 = 203;
+const CM_TO_INCH = 1 / 2.54;
 
 // Значения по умолчанию когда номенклатура не выбрана
 const FONTS = [
@@ -91,37 +62,6 @@ const FIXED_PRODUCT_ATTRIBUTES = [
   { key: "close_box_counter", label: "Вложений в короб" },
 ] as const;
 
-export interface PrintedZone {
-  id: string;
-  label: string;
-  side: "top" | "bottom" | "left" | "right";
-  sizeMm: number;
-  color: string;
-}
-
-export interface CanvasConfig {
-  width: number;
-  height: number;
-  widthCm: number;
-  heightCm: number;
-  dpi: number;
-  background: string;
-  showGrid: boolean;
-  gridSize: number;
-  printedZones: PrintedZone[];
-}
-
-type LabelDoc = {
-  version: 1;
-  canvas: CanvasConfig;
-  elements: LabelElement[];
-};
-
-const STORAGE_KEY = "label_designer_doc_v1";
-
-const DPI_203 = 203;
-const CM_TO_INCH = 1 / 2.54;
-
 function cmToPx(cm: number, dpi: number = DPI_203) {
   return Math.round(cm * CM_TO_INCH * dpi);
 }
@@ -159,23 +99,6 @@ function isFiniteNumber(v: unknown): v is number {
 
 function safeNumber(v: unknown, fallback: number) {
   return isFiniteNumber(v) ? v : fallback;
-}
-
-function processDynamicText(
-  text: string,
-  data: Record<string, string>,
-  opts?: { minLength?: number }
-) {
-  return text.replace(/{{\s*([^{}]+)\s*}}/g, (match, key) => {
-    const trimmedKey = key.trim();
-    let value = data[trimmedKey] || match;
-
-    // If minLength is set and the key ends with _number (counter) or is pack_counter, pad it if it's numeric
-    if (opts?.minLength && (trimmedKey === "pack_number" || trimmedKey === "box_number" || trimmedKey === "pallet_number" || trimmedKey === "pack_counter") && /^\d+$/.test(value)) {
-      value = value.padStart(opts.minLength, '0');
-    }
-    return value;
-  });
 }
 
 function Icon({
@@ -935,6 +858,7 @@ export default function LabelDesigner() {
   }, [previewData, barcodeTemplates, generateBarcodeImage, doc.elements.length, doc.elements.some(e => e.type === "barcode" && !(e as BarcodeElement).imageData)]);
 
   const canvasRef = useRef<HTMLDivElement | null>(null);
+  const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const mainRef = useRef<HTMLDivElement | null>(null);
 
@@ -1101,6 +1025,31 @@ export default function LabelDesigner() {
     };
   }, []);
 
+  // Canvas Rendering Effect
+  useEffect(() => {
+    const canvas = previewCanvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const dpi = doc.canvas.dpi || DPI_203;
+    const widthPx = cmToPx(doc.canvas.widthCm || 10, dpi);
+    const heightPx = cmToPx(doc.canvas.heightCm || 6, dpi);
+
+    // High-DPI support
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = widthPx * dpr;
+    canvas.height = heightPx * dpr;
+    canvas.style.width = `${widthPx}px`;
+    canvas.style.height = `${heightPx}px`;
+
+    renderLabel(ctx, doc, previewData, {
+      pixelRatio: dpr,
+      showZones: true
+    });
+  }, [doc, previewData]);
+
   // Native wheel event listener with passive: false to prevent page scroll
   useEffect(() => {
     const el = mainRef.current;
@@ -1173,6 +1122,31 @@ export default function LabelDesigner() {
       setSelectedId(doc.elements[doc.elements.length - 1]?.id ?? null);
     }
   }, [doc.elements, selectedId]);
+
+  // Canvas Rendering Effect
+  useEffect(() => {
+    const canvas = previewCanvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const dpi = doc.canvas.dpi || DPI_203;
+    const widthPx = cmToPx(doc.canvas.widthCm || 10, dpi);
+    const heightPx = cmToPx(doc.canvas.heightCm || 6, dpi);
+
+    // High-DPI support
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = widthPx * dpr;
+    canvas.height = heightPx * dpr;
+    canvas.style.width = `${widthPx}px`;
+    canvas.style.height = `${heightPx}px`;
+
+    renderLabel(ctx, doc, previewData, {
+      pixelRatio: dpr,
+      showZones: true
+    });
+  }, [doc, previewData]);
 
   // New state for API integration
   const [labelId, setLabelId] = useState<number | null>(null);
@@ -1386,7 +1360,7 @@ export default function LabelDesigner() {
     (patch: Partial<LabelElement>) => {
       if (!selectedId) return;
 
-      const el = doc.elements.find((e) => e.id === selectedId);
+      const el = doc.elements.find((e: LabelElement) => e.id === selectedId);
 
       // If updating text, detect if a counter variable was added manually or via helper
       const textPatch = (patch as any).text;
@@ -1407,10 +1381,20 @@ export default function LabelDesigner() {
         }
       }
 
+      let finalPatch = { ...patch };
+
+      // Handle barcode-specific snapping for EAN-13
+      if (el?.type === "barcode" && (el as BarcodeElement).barcodeType.toLowerCase().includes("ean13")) {
+        if (patch.w !== undefined) {
+          const mw = Math.round(patch.w / 95);
+          finalPatch.w = Math.max(1, mw) * 95;
+        }
+      }
+
       setDoc((d: LabelDoc) => ({
         ...d,
         elements: d.elements.map((e: LabelElement) =>
-          e.id === selectedId ? ({ ...e, ...patch } as LabelElement) : e
+          e.id === selectedId ? ({ ...e, ...finalPatch } as LabelElement) : e
         ),
       }));
     },
@@ -1486,25 +1470,24 @@ export default function LabelDesigner() {
       const { handle } = resize;
 
       if (handle.includes("e")) {
-        newW = Math.max(1, el.w + localDelta.x);
+        let w = el.w + localDelta.x;
+        if (el.type === "barcode" && (el as BarcodeElement).barcodeType.toLowerCase().includes("ean13")) {
+          const mw = Math.round(w / 95);
+          w = Math.max(mw, 1) * 95;
+        }
+        newW = Math.max(1, w);
       }
       if (handle.includes("w")) {
-        const d = Math.min(el.w - 1, localDelta.x); // changed max(1) logic slightly
-        // we need actual delta applied.
-        const actualD = Math.min(d, el.w - 1);
-        // actually simpler: just compute new width
-        newW = Math.max(1, el.w - localDelta.x);
+        let w = el.w - localDelta.x;
+        if (el.type === "barcode" && (el as BarcodeElement).barcodeType.toLowerCase().includes("ean13")) {
+          const mw = Math.round(w / 95);
+          w = Math.max(mw, 1) * 95;
+        }
+        newW = Math.max(1, w);
 
         if (newW !== el.w) {
-          // If we changed width from left, we must shift center/pos
-          const shiftLocal = { x: localDelta.x, y: 0 };
-          // Use exact logic:
-          // visual right edge = x + w (rotated).
-          // if we move left edge by dx, new x = x + dx (rotated). new w = w - dx.
-          // localDelta.x is positive moving right.
-
-          // Let's rely on simple shift:
-          const shiftWorld = rotatePoint(localDelta.x, 0, el.rotation);
+          const effectiveLocalDx = el.w - newW;
+          const shiftWorld = rotatePoint(effectiveLocalDx, 0, el.rotation);
           newX += shiftWorld.x;
           newY += shiftWorld.y;
         }
@@ -1522,9 +1505,9 @@ export default function LabelDesigner() {
         }
       }
 
-      setDoc((d) => ({
+      setDoc((d: LabelDoc) => ({
         ...d,
-        elements: d.elements.map((curr) =>
+        elements: d.elements.map((curr: LabelElement) =>
           curr.id === el.id ? { ...curr, x: newX, y: newY, w: newW, h: newH } : curr
         ),
       }));
@@ -1915,6 +1898,12 @@ export default function LabelDesigner() {
         {/* Workspace Info */}
         <div className="absolute top-4 left-4 z-10 flex cursor-default items-center gap-3 rounded-xl border border-slate-200 bg-white/80 p-2 px-3 text-xs font-medium text-slate-600 backdrop-blur-md shadow-sm">
           <div className="flex items-center gap-2">
+            <span className="text-slate-400">Макет:</span>
+            <span className="text-slate-900 font-bold max-w-[200px] truncate" title={labelName}>
+              {labelName}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 border-l border-slate-200 pl-3">
             <span className="text-slate-400">Масштаб:</span>
             <span className="text-slate-900 font-bold">{Math.round(zoom * 100)}%</span>
           </div>
@@ -1937,59 +1926,11 @@ export default function LabelDesigner() {
             className="relative shadow-2xl flex-shrink-0"
             style={canvasStyle}
           >
-            {/* Rendered printed zones (hatched overlays) */}
-            {doc.canvas.printedZones.map((zone) => {
-              const dpi = doc.canvas.dpi || DPI_203;
-              const zonePx = mmToPx(zone.sizeMm, dpi);
-              const canvasWidthPx = cmToPx(doc.canvas.widthCm || 10, dpi);
-              const canvasHeightPx = cmToPx(doc.canvas.heightCm || 6, dpi);
-
-              let style: React.CSSProperties = {
-                position: "absolute",
-                backgroundColor: zone.color,
-                backgroundImage: `repeating-linear-gradient(
-                  45deg,
-                  transparent,
-                  transparent 4px,
-                  rgba(255,255,255,0.35) 4px,
-                  rgba(255,255,255,0.35) 8px
-                )`,
-                pointerEvents: "none",
-                zIndex: 0,
-                boxSizing: "border-box",
-                border: "1px dashed rgba(0,0,0,0.25)",
-              };
-
-              if (zone.side === "top") {
-                style = { ...style, top: 0, left: 0, width: canvasWidthPx, height: zonePx };
-              } else if (zone.side === "bottom") {
-                style = { ...style, bottom: 0, left: 0, width: canvasWidthPx, height: zonePx };
-              } else if (zone.side === "left") {
-                style = { ...style, top: 0, left: 0, width: zonePx, height: canvasHeightPx };
-              } else {
-                style = { ...style, top: 0, right: 0, width: zonePx, height: canvasHeightPx };
-              }
-
-              return (
-                <div key={`zone-${zone.id}`} style={style}>
-                  <div style={{
-                    position: "absolute",
-                    bottom: zone.side === "top" ? 2 : undefined,
-                    top: zone.side === "bottom" ? 2 : (zone.side !== "top" ? 2 : undefined),
-                    left: zone.side === "right" ? undefined : 2,
-                    right: zone.side === "right" ? 2 : undefined,
-                    fontSize: 9,
-                    color: "rgba(255,255,255,0.7)",
-                    fontWeight: 600,
-                    textShadow: "0 1px 2px rgba(0,0,0,0.5)",
-                    whiteSpace: "nowrap",
-                    writingMode: (zone.side === "left" || zone.side === "right") ? "vertical-lr" : undefined,
-                  }}>
-                    {zone.label}
-                  </div>
-                </div>
-              );
-            })}
+            {/* The Unified Canvas Preview */}
+            <canvas
+              ref={previewCanvasRef}
+              className="absolute inset-0 pointer-events-none"
+            />
 
             {doc.elements.map((el: LabelElement) => {
               const commonProps = {
@@ -2060,81 +2001,16 @@ export default function LabelDesigner() {
 
 
 
-              if (el.type === "text") {
-                const t = el as TextElement;
-                const displayText = processDynamicText(t.text, previewData, { minLength: t.minLength });
-                return (
-                  <div key={el.id} {...commonProps}>
-                    <div
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        fontSize: `${t.fontSize}px`,
-                        color: t.color,
-                        fontWeight: t.fontWeight,
-                        fontFamily: t.fontFamily || "Inter",
-                        fontStyle: t.fontStyle || "normal",
-                        textDecoration: t.textDecoration || "none",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: t.textAlign === "center" ? "center" : t.textAlign === "right" ? "flex-end" : "flex-start",
-                        textAlign: t.textAlign || "left",
-                        overflow: "hidden",
-                        wordBreak: "break-word",
-                        lineHeight: 1.1,
-                      }}
-                    >
-                      {displayText}
-                    </div>
-                    {handles}
-                  </div>
-                );
-              }
-
-              if (el.type === "barcode") {
-                const b = el as BarcodeElement;
-                return (
-                  <div key={el.id} {...commonProps}>
-                    <div className="h-full w-full bg-white overflow-hidden rounded-sm flex items-center justify-center">
-                      {b.imageData ? (
-                        <img
-                          src={`data:image/png;base64,${b.imageData}`}
-                          alt="barcode"
-                          className="w-full h-full object-contain select-none"
-                          draggable={false}
-                        />
-                      ) : b.error ? (
-                        <div className="flex items-center justify-center text-red-500 font-mono text-[9px] border border-red-500/20 bg-red-500/5 px-2 text-center uppercase break-words overflow-hidden leading-tight">
-                          Error: {b.error}
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center text-black font-mono text-[10px] border border-black/10 px-2 uppercase italic opacity-60">
-                          [{b.barcodeType}]
-                        </div>
-                      )}
-                    </div>
-                    {handles}
-                  </div>
-                );
-              }
-
-              if (el.type === "rect") {
-                const r = el as RectElement;
-                return (
-                  <div key={el.id} {...commonProps}>
-                    <div
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        backgroundColor: r.fill,
-                        border: `${r.borderWidth}px solid ${r.borderColor}`,
-                        borderRadius: `${r.borderRadius}px`,
-                      }}
-                    />
-                    {handles}
-                  </div>
-                );
-              }
+              // 1. Interaction Layer (Transparent blocks for dragging/selecting)
+              return (
+                <div key={el.id} {...commonProps}>
+                  {/* Visual content is handled by the canvas below, except for rotation/selection highlight */}
+                  {isSelected && (
+                    <div className="absolute inset-0 border-2 border-blue-500 pointer-events-none" />
+                  )}
+                  {handles}
+                </div>
+              );
 
               return null;
             })}

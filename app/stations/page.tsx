@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api/client";
+import ErrorModal from "@/app/components/ErrorModal";
 
 function cx(...classes: (string | undefined | null | false)[]) {
     return classes.filter(Boolean).join(" ");
@@ -88,13 +89,30 @@ export default function StationsPage() {
         }
     };
 
+    const [errorModalOpen, setErrorModalOpen] = useState(false);
+    const [errorModalTitle, setErrorModalTitle] = useState("");
+    const [errorModalMessage, setErrorModalMessage] = useState("");
+    const [errorModalDetails, setErrorModalDetails] = useState<any>(null);
+
+    const showError = (title: string, message: string, details?: any) => {
+        setErrorModalTitle(title);
+        setErrorModalMessage(message);
+        setErrorModalDetails(details);
+        setErrorModalOpen(true);
+    };
+
     const syncStation = async (uuid: string, name: string) => {
         try {
             await api.stations.sync(uuid);
+            // Optional: nice toast here, but alert is fine for success for now
             alert(`Данные успешно отправлены на станцию "${name}"`);
         } catch (e: any) {
             console.error(e);
-            alert(`Ошибка при отправке данных на станцию "${name}":\n${e.message}`);
+            showError(
+                `Ошибка синхронизации`,
+                `Не удалось отправить данные на станцию "${name}".`,
+                e.message || e
+            );
         }
     };
 
@@ -103,10 +121,12 @@ export default function StationsPage() {
         try {
             await api.stations.delete(uuid);
             setStations((prev) => prev.filter((s) => s.station_uuid !== uuid));
-        } catch (e) {
-            alert("Ошибка при удалении");
+        } catch (e: any) {
+            showError("Ошибка удаления", "Не удалось удалить станцию", e.message || e);
         }
     };
+
+    // ... (keep logic for viewStationData, loading data etc as is, maybe use showError there too if desired later)
 
     const [previewData, setPreviewData] = useState<any>(null);
     const [previewName, setPreviewName] = useState("");
@@ -118,8 +138,8 @@ export default function StationsPage() {
             const data = await api.stations.getFullDump(uuid);
             setPreviewData(data);
             setPreviewName(name);
-        } catch (e) {
-            alert("Ошибка при загрузке данных");
+        } catch (e: any) {
+            showError("Ошибка загрузки", "Не удалось загрузить данные станции", e.message || e);
         } finally {
             setIsLoading(false);
         }
@@ -141,7 +161,7 @@ export default function StationsPage() {
             window.URL.revokeObjectURL(url);
             document.body.removeChild(a);
         } catch (e: any) {
-            alert(`Ошибка при скачивании обновления: ${e.message}`);
+            showError("Ошибка скачивания", "Не удалось скачать обновление", e.message || e);
         }
     };
 
@@ -157,7 +177,7 @@ export default function StationsPage() {
             window.URL.revokeObjectURL(url);
             document.body.removeChild(a);
         } catch (e: any) {
-            alert(`Ошибка при скачивании идентификатора: ${e.message}`);
+            showError("Ошибка скачивания", "Не удалось скачать идентификатор", e.message || e);
         }
     };
 
@@ -170,7 +190,7 @@ export default function StationsPage() {
             alert("Отчет успешно загружен");
             fetchStations(true);
         } catch (e: any) {
-            alert(`Ошибка при загрузке отчета: ${e.message}`);
+            showError("Ошибка загрузки отчета", "Не удалось обработать отчет", e.message || e);
         } finally {
             e.target.value = ''; // Reset input
         }
@@ -178,6 +198,13 @@ export default function StationsPage() {
 
     return (
         <div className="p-8">
+            <ErrorModal
+                isOpen={errorModalOpen}
+                onClose={() => setErrorModalOpen(false)}
+                title={errorModalTitle}
+                message={errorModalMessage}
+                details={errorModalDetails}
+            />
             <div className="mb-6 flex items-center justify-between">
                 <h1 className="text-2xl font-bold text-white">Станции маркировки</h1>
                 <div className="flex gap-4">

@@ -246,13 +246,13 @@ export const api = {
             const res = await fetch(`${API_BASE}/barcodes/${id}/`, { method: 'DELETE' });
             if (!res.ok) throw new Error('Failed to delete barcode template');
         },
-        generate: async (structure: any) => {
+        generate: async (payload: { barcode_structure: any, product_id?: string }) => {
             const res = await fetch(`${API_BASE}/barcodes/generate/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ barcode_structure: structure }),
+                body: JSON.stringify(payload),
             });
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}));

@@ -17,6 +17,9 @@ export const metadata: Metadata = {
   title: "Локальная система этикеток",
   description:
     "Дизайнер этикеток, номенклатура, упаковки, штрихкоды и пользователи — локально.",
+  icons: {
+    icon: "/icons/logo.svg",
+  },
 };
 
 export default function RootLayout({

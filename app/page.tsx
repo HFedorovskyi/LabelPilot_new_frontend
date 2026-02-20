@@ -8,7 +8,7 @@ import BarcodeTemplatesManager from "./components/barcodes/BarcodeTemplatesManag
 import StationsPage from "./stations/page";
 import SettingsPage from "./components/settings/SettingsPage";
 
-type TabKey = "labels" | "catalog" | "packaging" | "barcodes" | "users" | "stations" | "settings";
+type TabKey = "home" | "labels" | "catalog" | "packaging" | "barcodes" | "print_tasks" | "users" | "stations" | "settings";
 
 type Tab = {
   key: TabKey;
@@ -24,11 +24,25 @@ function Icon({
   name,
   className,
 }: {
-  name: "sparkles" | "tag" | "box" | "barcode" | "users" | "server" | "settings";
+  name: "home" | "sparkles" | "tag" | "box" | "barcode" | "printer" | "users" | "server" | "settings";
   className?: string;
 }) {
   const common = "h-5 w-5";
   switch (name) {
+    case "home":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={cx(common, className)} aria-hidden="true">
+          <path d="M3 9.5L12 3l9 6.5V20a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9.5Z" className="stroke-current" strokeWidth="1.6" />
+          <path d="M9 22V12h6v10" className="stroke-current" strokeWidth="1.6" />
+        </svg>
+      );
+    case "printer":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={cx(common, className)} aria-hidden="true">
+          <path d="M6 9V4h12v5M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" className="stroke-current" strokeWidth="1.6" />
+          <path d="M6 14h12v8H6v-8z" className="stroke-current" strokeWidth="1.6" />
+        </svg>
+      );
     case "sparkles":
       return (
         <svg viewBox="0 0 24 24" fill="none" className={cx(common, className)} aria-hidden="true">
@@ -153,10 +167,12 @@ function Button({
 export default function Home() {
   const tabs: Tab[] = useMemo(
     () => [
+      { key: "home", label: "Главная страница", description: "Обзор системы, аналитика и быстрые действия." },
       { key: "labels", label: "Дизайнер этикеток", description: "Создание макетов, слои, печать и экспорт." },
       { key: "catalog", label: "Номенклатурная база", description: "Справочник товаров, атрибуты и быстрый поиск." },
       { key: "packaging", label: "Упаковки", description: "Типы упаковок, размеры, привязка к товарам." },
       { key: "barcodes", label: "Штрихкоды", description: "Генерация, просмотр и печать штрихкодов." },
+      { key: "print_tasks", label: "Задание на печать", description: "Управление текущими очередями и заданиями на печать." },
       { key: "stations", label: "Станции", description: "Управление станциями маркировки." },
       { key: "users", label: "Пользователи", description: "Управление пользователями (только для админа)." },
       { key: "settings", label: "Настройки", description: "Обновления системы, версии и конфигурация." },
@@ -164,11 +180,13 @@ export default function Home() {
     []
   );
 
-  const [active, setActive] = useState<TabKey>("labels");
+  const [active, setActive] = useState<TabKey>("home");
   const activeTab = tabs.find((t) => t.key === active) ?? tabs[0];
 
   const tabIcon = (key: TabKey) => {
     switch (key) {
+      case "home":
+        return "home";
       case "labels":
         return "tag";
       case "catalog":
@@ -177,6 +195,8 @@ export default function Home() {
         return "box";
       case "barcodes":
         return "barcode";
+      case "print_tasks":
+        return "printer";
       case "stations":
         return "server";
       case "users":
@@ -193,35 +213,24 @@ export default function Home() {
         <div className="absolute bottom-[-120px] right-[-120px] h-[420px] w-[420px] rounded-full bg-gradient-to-tr from-emerald-400/10 via-cyan-400/10 to-indigo-400/10 blur-3xl" />
       </div>
 
-      <header className="relative z-10 border-b border-white/10 bg-neutral-950/60 backdrop-blur">
-        <div className="mx-auto max-w-6xl px-6 py-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded-2xl bg-white/10 ring-1 ring-white/15">
-                <Icon name="tag" className="text-white" />
+      <header className="relative z-50 border-b border-white/10 bg-neutral-950/90 backdrop-blur sticky top-0">
+        <div className="mx-auto max-w-7xl px-6 py-4">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 ring-1 ring-white/10 shadow-inner">
+                <img src="/icons/logo.svg" alt="LabelPilot Logo" className="h-10 w-10 object-contain" />
               </div>
-              <div>
-                <div className="text-sm font-semibold tracking-tight text-white/95">Локальная система этикеток</div>
-                <div className="text-xs text-white/60">Дизайн • Номенклатура • Упаковки • Штрихкоды • Доступы</div>
+              <div className="flex flex-col">
+                <div className="text-3xl font-extrabold tracking-tight text-white font-[family-name:var(--font-geist-sans)]">
+                  Label<span className="text-indigo-400">Pilot</span>
+                </div>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium">
+                  Industrial Labeling System
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <div className="hidden items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/75 sm:flex">
-                <span className="h-2 w-2 rounded-full bg-emerald-400/90" />
-                Локально • Offline
-              </div>
-              <Button variant="secondary" onClick={() => setActive("labels")}>
-                Открыть дизайнер
-              </Button>
-              <Button variant="ghost" onClick={() => setActive("users")}>
-                Пользователи
-              </Button>
-            </div>
-          </div>
-
-          <div className="mt-5">
-            <div role="tablist" aria-label="Разделы приложения" className="flex flex-wrap gap-2">
+            <nav role="tablist" aria-label="Разделы приложения" className="flex flex-wrap items-center gap-1.5 p-1 rounded-2xl bg-white/[0.03] border border-white/5">
               {tabs.map((t) => {
                 const isActive = t.key === active;
                 return (
@@ -231,21 +240,21 @@ export default function Home() {
                     aria-selected={isActive}
                     onClick={() => setActive(t.key)}
                     className={cx(
-                      "group inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-white/20",
+                      "group flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200 outline-none focus:ring-2 focus:ring-indigo-500/50",
                       isActive
-                        ? "border-white/20 bg-white/10 text-white"
-                        : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
+                        ? "bg-white text-neutral-950 shadow-[0_4px_20px_rgba(255,255,255,0.15)] scale-[1.02]"
+                        : "text-white/60 hover:text-white hover:bg-white/5"
                     )}
                   >
                     <Icon
                       name={tabIcon(t.key)}
-                      className={cx("transition", isActive ? "text-white" : "text-white/70 group-hover:text-white")}
+                      className={cx("h-4 w-4 transition-transform group-hover:scale-110", isActive ? "text-neutral-950" : "text-white/40 group-hover:text-indigo-400")}
                     />
                     <span className="whitespace-nowrap">{t.label}</span>
                   </button>
                 );
               })}
-            </div>
+            </nav>
           </div>
         </div>
       </header>
@@ -254,13 +263,7 @@ export default function Home() {
         <div className="mx-auto px-3 py-4">
           <div className="flex flex-col gap-6">
             <div className="flex flex-col gap-2">
-              <div className="inline-flex items-center gap-2 text-white/70">
-                <span className="text-xs uppercase tracking-wider">Раздел</span>
-                <span className="h-1 w-1 rounded-full bg-white/30" />
-                <span className="text-xs">{activeTab.label}</span>
-              </div>
 
-              <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">{activeTab.label}</h1>
               <p className="max-w-2xl text-sm text-white/65 sm:text-base">{activeTab.description}</p>
             </div>
 
@@ -286,6 +289,6 @@ export default function Home() {
           </div>
         </div>
       </main>
-    </div>
+    </div >
   );
 }
