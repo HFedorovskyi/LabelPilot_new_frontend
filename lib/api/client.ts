@@ -1,5 +1,15 @@
 declare const process: any;
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+
+// Runtime-resolved API base: works for a static export served from any LAN host.
+// In the browser → derive from the current host (so other machines on the LAN hit
+// the right server); during build/SSR → fall back to env or localhost.
+function resolveApiBase(): string {
+    if (typeof window !== "undefined") {
+        return `${window.location.protocol}//${window.location.hostname}:8000/api/v1`;
+    }
+    return (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) || "http://localhost:8000/api/v1";
+}
+const API_BASE = resolveApiBase();
 
 export const api = {
     nomenclature: {
@@ -38,6 +48,35 @@ export const api = {
                 body: JSON.stringify({ stations: stationIds }),
             });
             if (!res.ok) throw new Error('Failed to send to stations');
+            return res.json();
+        },
+        previewImport: async (file: File, separator: string) => {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('separator', separator);
+            const res = await fetch(`${API_BASE}/nomenclature/preview_import/`, {
+                method: 'POST',
+                body: formData,
+            });
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Failed to preview import');
+            }
+            return res.json();
+        },
+        executeImport: async (file: File, separator: string, mapping: any) => {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('separator', separator);
+            formData.append('mapping', JSON.stringify(mapping));
+            const res = await fetch(`${API_BASE}/nomenclature/execute_import/`, {
+                method: 'POST',
+                body: formData,
+            });
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Failed to execute import');
+            }
             return res.json();
         },
     },
@@ -230,7 +269,10 @@ export const api = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data),
             });
-            if (!res.ok) throw new Error('Failed to create barcode template');
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.name?.[0] || errorData.detail || errorData.error || 'Failed to create barcode template');
+            }
             return res.json();
         },
         update: async (id: number | string, data: any) => {
@@ -239,7 +281,10 @@ export const api = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data),
             });
-            if (!res.ok) throw new Error('Failed to update barcode template');
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.name?.[0] || errorData.detail || errorData.error || 'Failed to update barcode template');
+            }
             return res.json();
         },
         delete: async (id: number | string) => {
@@ -256,10 +301,83 @@ export const api = {
             });
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}));
+                // 400 validation failure returns { errors: [...] }; pass it through
+                // so the caller can render the list instead of throwing.
+                if (Array.isArray(errorData.errors)) {
+                    return errorData;
+                }
                 throw new Error(errorData.error || 'Failed to generate barcode preview');
             }
             return res.json();
         },
-    }
-
+    },
+    statistics: {
+        get: async () => {
+            const res = await fetch(`${API_BASE}/statistics/`);
+            if (!res.ok) throw new Error('Failed to fetch statistics');
+            return res.json();
+        }
+    },
+    printJobs: {
+        list: async () => {
+            const res = await fetch(`${API_BASE}/print_jobs/`);
+            if (!res.ok) throw new Error('Failed to fetch print jobs');
+            return res.json();
+        },
+        create: async (data: any) => {
+            const res = await fetch(`${API_BASE}/print_jobs/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+            });
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.detail || errorData.error || 'Failed to create print job');
+            }
+            return res.json();
+        },
+        update: async (id: number | string, data: any) => {
+            const res = await fetch(`${API_BASE}/print_jobs/${id}/`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+            });
+            if (!res.ok) throw new Error('Failed to update print job');
+            return res.json();
+        },
+        delete: async (id: number | string) => {
+            const res = await fetch(`${API_BASE}/print_jobs/${id}/`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Failed to delete print job');
+        },
+        sendToStation: async (id: number | string) => {
+            const res = await fetch(`${API_BASE}/print_jobs/${id}/send_to_station/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+            });
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Failed to send to station');
+            }
+            return res.json();
+        },
+        downloadForUsb: async (id: number | string) => {
+            const res = await fetch(`${API_BASE}/print_jobs/${id}/download_for_usb/`);
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Failed to download job');
+            }
+            return res.blob();
+        },
+        downloadUsbBundle: async (stationId?: number | string) => {
+            const url = stationId
+                ? `${API_BASE}/print_jobs/download_usb_bundle/?station_id=${stationId}`
+                : `${API_BASE}/print_jobs/download_usb_bundle/`;
+            const res = await fetch(url);
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Failed to download bundle');
+            }
+            return res.blob();
+        },
+    },
 };

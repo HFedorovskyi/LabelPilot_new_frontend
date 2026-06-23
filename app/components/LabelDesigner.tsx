@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api as client } from "@/lib/api/client";
+import TemplateHub from "./designer/TemplateHub";
 
 import {
   LabelDoc,
@@ -13,9 +14,12 @@ import {
   LabelElementBase,
   BarcodeType,
   PrintedZone,
-  CanvasConfig
+  CanvasConfig,
+  TableElement,
+  TableColumn
 } from "@/lib/label/types";
 import { renderLabel, processDynamicText } from "@/lib/label/renderer";
+import { labelToZpl } from "@/lib/label/zpl";
 
 const STORAGE_KEY = "label_designer_doc_v1";
 
@@ -35,24 +39,41 @@ const FONTS = [
   "Verdana"
 ];
 
-const DEFAULT_PREVIEW_DATA: Record<string, string> = {
+const DEFAULT_PREVIEW_DATA: Record<string, any> = {
   name: "Пример товара",
   article: "ART-00000",
   exp_date: "30",
   pack_counter: "1",
   weight_netto_pack: "99.999",
   weight_brutto_pack: "99.999",
+  close_box_counter: "10",
   weight_netto_box: "99.999",
   weight_brutto_box: "99.999",
   weight_netto_pallet: "99.999",
   weight_brutto_pallet: "99.999",
-  pack_number: "1",
-  box_number: "1",
-  pallet_number: "1",
+  pack_number: "000000000001",
+  box_number: "000000000001",
+  pallet_number: "000000000001",
   production_date: formatDate(new Date()),
   exp_date_full: formatDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
   batch_number: "9999999999",
 };
+
+// Ключи для колонок таблицы — это поля ОДНОЙ позиции (строки), а не паллеты-скаляра
+const TABLE_COLUMN_KEYS = [
+  { key: "name", label: "Наименование" },
+  { key: "article", label: "Артикул" },
+  { key: "quantity", label: "Кол-во" },
+  { key: "batch_number", label: "Партия" },
+  { key: "production_date_batch", label: "Дата производства" },
+  { key: "exp_date_full", label: "Годен до" },
+  { key: "weight_netto_pack", label: "Вес нетто (ед.)" },
+  { key: "weight_brutto_pack", label: "Вес брутто (ед.)" },
+  { key: "weight_netto_batch", label: "Вес нетто партии" },
+  { key: "weight_brutto_batch", label: "Вес брутто партии" },
+  { key: "weight_netto_nomenclature", label: "Вес нетто номенкл." },
+  { key: "weight_brutto_nomenclature", label: "Вес брутто номенкл." },
+];
 
 // Фиксированные атрибуты модели Nomenclature
 const FIXED_PRODUCT_ATTRIBUTES = [
@@ -121,7 +142,9 @@ function Icon({
   | "box"
   | "plus"
   | "minus"
-  | "sparkles";
+  | "table"
+  | "sparkles"
+  | "edit";
   className?: string;
 }) {
   const common = "h-4 w-4";
@@ -139,6 +162,13 @@ function Icon({
             d="m9.5 8 1 3.5 1.5 1m0 0-1.5 1-1 3.5-1-3.5-1.5-1 0 0 1.5-1 1-3.5Z"
             className="fill-current"
           />
+        </svg>
+      );
+    case "edit":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={cx(common, className)}>
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" className="stroke-current" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" className="stroke-current" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       );
     case "text":
@@ -229,6 +259,17 @@ function Icon({
           />
           <path
             d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"
+            className="stroke-current"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+          />
+        </svg>
+      );
+    case "table":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={cx(common, className)}>
+          <path
+            d="M3 10h18M3 14h18m-9-4v8m-7-8v8m14-8v8M5 6h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"
             className="stroke-current"
             strokeWidth="1.8"
             strokeLinecap="round"
@@ -382,7 +423,7 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label className="grid gap-1">
+    <label className="flex min-w-0 flex-col gap-1">
       <div className="text-[11px] font-medium uppercase tracking-wider text-white/55">
         {label}
       </div>
@@ -405,7 +446,7 @@ function TextInput({
       value={value}
       placeholder={placeholder}
       onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
-      className="h-10 w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white placeholder:text-white/35 outline-none focus:border-white/20 focus:bg-white/10"
+      className="h-10 w-full min-w-0 rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white placeholder:text-white/35 outline-none focus:border-white/20 focus:bg-white/10"
     />
   );
 }
@@ -529,7 +570,7 @@ function NumberInput({
       max={max}
       step={step}
       onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(Number(e.target.value))}
-      className="h-10 w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white outline-none focus:border-white/20 focus:bg-white/10"
+      className="h-10 w-full min-w-0 rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white outline-none focus:border-white/20 focus:bg-white/10"
     />
   );
 }
@@ -598,7 +639,7 @@ function CustomSelect<T extends string | number>({
         type="button"
         onClick={() => setOpen(!open)}
         className={cx(
-          "flex h-10 w-full items-center justify-between rounded-xl border px-3 text-xs font-medium text-white transition-all outline-none text-left",
+          "flex h-10 w-full min-w-0 items-center justify-between rounded-xl border px-3 text-xs font-medium text-white transition-all outline-none text-left",
           open
             ? "border-white/30 bg-white/10 shadow-[0_0_15px_rgba(255,255,255,0.05)]"
             : "border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20"
@@ -677,10 +718,97 @@ function defaultDoc(): LabelDoc {
       background: "#ffffff",
       showGrid: true,
       gridSize: 16,
+      labelType: "pack",
       printedZones: [],
     },
     elements: [],
   };
+}
+
+// ─── Дефолтная раскладка паллетного листа (пропорционально размеру холста) ───
+function palletText(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  text: string,
+  fontSize: number,
+  opts: { bold?: boolean; align?: "left" | "center" | "right" } = {}
+): TextElement {
+  return {
+    id: uid(),
+    type: "text",
+    x,
+    y,
+    w,
+    h,
+    rotation: 0,
+    text,
+    fontSize,
+    color: "#000000",
+    fontWeight: opts.bold ? 700 : 400,
+    fontFamily: "Inter",
+    textAlign: opts.align || "left",
+    fontStyle: "normal",
+    textDecoration: "none",
+  };
+}
+
+function buildPalletLayout(width: number, height: number): LabelElement[] {
+  const W = width;
+  const H = height;
+  const pad = Math.round(W * 0.05);
+  const innerW = W - pad * 2;
+  const titleFs = Math.max(18, Math.round(H * 0.026));
+  const fs = Math.max(12, Math.round(H * 0.015));
+  const lineH = Math.round(fs * 1.7);
+
+  const els: LabelElement[] = [];
+  let y = pad;
+
+  els.push(palletText(pad, y, innerW, Math.round(titleFs * 1.4), "ПАЛЛЕТНЫЙ ЛИСТ", titleFs, { bold: true, align: "center" }));
+  y += Math.round(titleFs * 1.4) + Math.round(H * 0.012);
+
+  els.push(palletText(pad, y, innerW, lineH, "Паллета №: {{pallet_number}}", fs, { bold: true }));
+  y += lineH;
+  els.push(palletText(pad, y, Math.round(innerW / 2), lineH, "Дата отгрузки: {{shipping_date}}", fs));
+  els.push(palletText(pad + Math.round(innerW / 2), y, Math.round(innerW / 2), lineH, "Дата произв.: {{production_date}}", fs));
+  y += lineH + Math.round(H * 0.015);
+
+  const totalsH = lineH * 2 + Math.round(H * 0.02);
+  const tableY = y;
+  const tableH = Math.max(160, H - tableY - totalsH - pad);
+
+  const table: TableElement = {
+    id: uid(),
+    type: "table",
+    x: pad,
+    y: tableY,
+    w: innerW,
+    h: tableH,
+    rotation: 0,
+    columns: [
+      { id: uid(), key: "name", title: "Наименование", widthRatio: 42 },
+      { id: uid(), key: "batch_number", title: "Партия", widthRatio: 20 },
+      { id: uid(), key: "quantity", title: "Кол-во", widthRatio: 13 },
+      { id: uid(), key: "weight_brutto_pack", title: "Вес, кг", widthRatio: 25 },
+    ],
+    groupBy: "none",
+    sortBy: "none",
+    fontSize: Math.max(10, Math.round(fs * 0.85)),
+    showHeaders: true,
+    showBorders: true,
+    fontFamily: "Inter",
+    fontStyle: "normal",
+  };
+  els.push(table);
+
+  let ty = tableY + tableH + Math.round(H * 0.012);
+  els.push(palletText(pad, ty, innerW, lineH, "Всего единиц: {{total_count}}        Кол-во коробов: {{total_boxes}}", fs, { bold: true }));
+  ty += lineH;
+  els.push(palletText(pad, ty, innerW, lineH, "Общий вес (брутто): {{weight_total}} кг", fs, { bold: true }));
+
+  return els;
 }
 
 function validateDoc(input: unknown): LabelDoc | null {
@@ -708,6 +836,7 @@ function validateDoc(input: unknown): LabelDoc | null {
       background: typeof canvas.background === "string" ? canvas.background : "#ffffff",
       showGrid: Boolean(canvas.showGrid),
       gridSize: clamp(safeNumber(canvas.gridSize, 16), 4, 64),
+      labelType: (["pack", "box", "pallet"].includes(canvas.labelType as string) ? canvas.labelType : "pack") as "pack" | "box" | "pallet",
       printedZones: Array.isArray((canvas as any).printedZones)
         ? (canvas as any).printedZones
           .filter((z: any) => z && typeof z === "object" && typeof z.id === "string")
@@ -750,6 +879,10 @@ function validateDoc(input: unknown): LabelDoc | null {
             textDecoration: (["none", "underline"].includes(t.textDecoration as string) ? t.textDecoration : "none") as "none" | "underline",
             minLength: typeof t.minLength === "number" ? t.minLength : undefined,
           };
+          // Force minLength = 12 for known counters
+          if (textEl.text.includes("{{ pack_number }}") || textEl.text.includes("{{ box_number }}")) {
+            textEl.minLength = 12;
+          }
           return textEl;
         }
 
@@ -781,6 +914,33 @@ function validateDoc(input: unknown): LabelDoc | null {
           return res;
         }
 
+        if (el.type === "table") {
+          const t = el as Partial<TableElement>;
+          const tableEl: TableElement = {
+            ...base,
+            type: "table",
+            columns: Array.isArray(t.columns)
+              ? t.columns.map((col: any) => ({
+                id: typeof col.id === "string" ? col.id : uid(),
+                key: typeof col.key === "string" ? col.key : "id",
+                title: typeof col.title === "string" ? col.title : "Column",
+                widthRatio: clamp(safeNumber(col.widthRatio, 25), 1, 100),
+              }))
+              : [
+                { id: uid(), key: "name", title: "Наименование", widthRatio: 50 },
+                { id: uid(), key: "weight_netto_pack", title: "Вес", widthRatio: 50 },
+              ],
+            groupBy: (["none", "nomenclature", "batch"].includes(t.groupBy as string) ? t.groupBy : "none") as any,
+            sortBy: (["name", "date", "none"].includes(t.sortBy as string) ? t.sortBy : "none") as any,
+            fontSize: clamp(safeNumber(t.fontSize, 12), 4, 100),
+            showHeaders: typeof t.showHeaders === "boolean" ? t.showHeaders : true,
+            showBorders: typeof t.showBorders === "boolean" ? t.showBorders : true,
+            fontFamily: typeof t.fontFamily === "string" ? t.fontFamily : "Inter",
+            fontStyle: (["normal", "italic"].includes(t.fontStyle as string) ? t.fontStyle : "normal") as any,
+          };
+          return tableEl;
+        }
+
         return null;
       })
       .filter((e): e is LabelElement => e !== null),
@@ -799,18 +959,29 @@ export default function LabelDesigner() {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
+  const [isSpacePressed, setIsSpacePressed] = useState(false);
   const [isAltPressed, setIsAltPressed] = useState(false);
   // Nomenclature selection state
   const [nomenclatures, setNomenclatures] = useState<any[]>([]);
   const [globalAttributes, setGlobalAttributes] = useState<any[]>([]);
   const [selectedNomenclatureId, setSelectedNomenclatureId] = useState<string>("");
-  const [previewData, setPreviewData] = useState<Record<string, string>>(DEFAULT_PREVIEW_DATA);
+  const [previewData, setPreviewData] = useState<Record<string, any>>(DEFAULT_PREVIEW_DATA);
   const [barcodeTemplates, setBarcodeTemplates] = useState<any[]>([]);
+
+  // Ref mirror of doc.elements — lets callbacks read elements without creating deps that trigger infinite loops
+  const elementsRef = useRef<LabelElement[]>([]);
+  useEffect(() => { elementsRef.current = doc.elements; }, [doc.elements]);
 
   const generateBarcodeImage = useCallback(async (template: any, elementId: string) => {
     try {
       console.log(`Generating barcode for ${elementId} with template ${template.name}`, template.structure);
-      const response = await client.barcodes.generate(template.structure);
+      const payload: { barcode_structure: any; product_id?: string } = {
+        barcode_structure: template.structure,
+      };
+      if (selectedNomenclatureId) {
+        payload.product_id = selectedNomenclatureId;
+      }
+      const response = await client.barcodes.generate(payload);
       if (response && response.png) {
         console.log(`Success generating barcode ${elementId}`);
         setDoc((d: LabelDoc) => ({
@@ -829,7 +1000,8 @@ export default function LabelDesigner() {
         )
       }));
     }
-  }, []);
+  }, [selectedNomenclatureId]);
+
 
   // Refresh barcodes when nomenclature/preview data changes OR when imageData is missing
   useEffect(() => {
@@ -861,6 +1033,7 @@ export default function LabelDesigner() {
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const mainRef = useRef<HTMLDivElement | null>(null);
+  const [view, setView] = useState<"hub" | "editor">("hub");
 
   const dragRef = useRef<{
     active: boolean;
@@ -941,25 +1114,88 @@ export default function LabelDesigner() {
     loadData();
   }, []);
 
-  const updatePreviewData = (item: any) => {
-    const data: Record<string, string> = {
+  const updatePreviewData = useCallback((item: any) => {
+    const data: Record<string, any> = {
       name: item.name || "",
       article: item.article || "",
       exp_date: String(item.exp_date || "30"),
       pack_counter: "1",
+      close_box_counter: String(item.close_box_counter || "10"),
       weight_netto_pack: "99.999",
       weight_brutto_pack: "99.999",
       weight_netto_box: "99.999",
       weight_brutto_box: "99.999",
       weight_netto_pallet: "99.999",
       weight_brutto_pallet: "99.999",
-      pack_number: "1",
-      box_number: "1",
-      pallet_number: "1",
+      pack_number: "000000000001",
+      box_number: "000000000001",
+      pallet_number: "000000000001",
       production_date: formatDate(new Date()),
       exp_date_full: formatDate(new Date(Date.now() + Number(item.exp_date || 30) * 24 * 60 * 60 * 1000)),
       batch_number: "9999999999",
+      items: []
     };
+
+    // Find if there's a table with maxRows — read from ref to avoid dep on doc.elements
+    const tableEl = elementsRef.current.find(e => e.type === "table") as TableElement | undefined;
+    const count = (tableEl?.maxRows && tableEl.maxRows > 0) ? tableEl.maxRows : 12;
+
+    const SAMPLE_SKUS = [
+      { name: "Колбаса «Молочная»", article: "ART-1001" },
+      { name: "Сосиски «Сливочные»", article: "ART-1002" },
+      { name: "Сардельки «Говяжьи»", article: "ART-1003" },
+      { name: "Ветчина «Особая»", article: "ART-1004" },
+      { name: "Карбонад «Классический»", article: "ART-1005" },
+      { name: "Грудинка «Копчёная»", article: "ART-1006" },
+      { name: "Бекон «Завтрак»", article: "ART-1007" },
+      { name: "Шпикачки «Охотничьи»", article: "ART-1008" },
+    ];
+    const today = formatDate(new Date());
+    const expiry = formatDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
+    const yesterday = formatDate(new Date(Date.now() - 24 * 60 * 60 * 1000));
+    const expiry2 = formatDate(new Date(Date.now() + 29 * 24 * 60 * 60 * 1000));
+    // Несколько партий с разными датами — чтобы группировка была наглядной
+    const BATCHES = [
+      { num: "LOT-1001", prod: today, exp: expiry },
+      { num: "LOT-1002", prod: yesterday, exp: expiry2 },
+    ];
+    let sumNetto = 0;
+    let sumBrutto = 0;
+    let sumQty = 0;
+    for (let i = 0; i < count; i++) {
+      const sku = SAMPLE_SKUS[i % 3];
+      const batch = BATCHES[i % BATCHES.length];
+      const qty = 8 + (i % 5) * 2;
+      const netto = 9.5 + (i % 4) * 0.75;
+      const brutto = netto + 0.4;
+      sumNetto += netto;
+      sumBrutto += brutto;
+      sumQty += qty;
+      data.items.push({
+        name: sku.name,
+        article: sku.article,
+        quantity: String(qty),
+        weight_netto_pack: netto.toFixed(3),
+        weight_brutto_pack: brutto.toFixed(3),
+        batch_number: batch.num,
+        production_date_batch: batch.prod,
+        exp_date_full: batch.exp,
+        weight_netto_batch: (netto * qty).toFixed(3),
+        weight_brutto_batch: (brutto * qty).toFixed(3),
+        weight_netto_nomenclature: netto.toFixed(3),
+        weight_brutto_nomenclature: brutto.toFixed(3),
+      });
+    }
+
+    // Итоги паллеты — считаются из тех же строк, чтобы шапка и таблица сходились
+    data.weight_total = sumBrutto.toFixed(3);
+    data.weight_netto_pallet = sumNetto.toFixed(3);
+    data.weight_brutto_pallet = sumBrutto.toFixed(3);
+    data.total_count = String(sumQty);
+    data.total_positions = String(count);
+    data.total_places = String(count);
+    data.total_boxes = String(sumQty);
+    data.shipping_date = today;
 
     if (item.extra_data) {
       Object.entries(item.extra_data).forEach(([k, v]) => {
@@ -967,7 +1203,8 @@ export default function LabelDesigner() {
       });
     }
     setPreviewData(data);
-  };
+    // elementsRef is a ref — safe to read without adding to deps; no dep on doc.elements to avoid re-render loops
+  }, []);
 
   const handleNomenclatureSelect = (id: string) => {
     setSelectedNomenclatureId(id);
@@ -980,42 +1217,96 @@ export default function LabelDesigner() {
       return;
     }
 
+    // Clear cached barcode images so they are re-generated with the new product's data
+    setDoc((d: LabelDoc) => ({
+      ...d,
+      elements: d.elements.map((el: LabelElement) =>
+        el.type === "barcode" ? { ...el, imageData: undefined } as BarcodeElement : el
+      )
+    }));
+
     updatePreviewData(item);
   };
 
-  const allAttributes = useMemo(() => {
-    const dynamic = globalAttributes.map((a: any) => ({
+
+  const mainAttributes = useMemo(() => {
+    const type = doc.canvas.labelType || "pack";
+
+    const common = [
+      { key: "name", label: "Наименование", icon: "📦" },
+      { key: "article", label: "Артикул", icon: "🏷️" },
+      { key: "exp_date", label: "Срок годности (сут)", icon: "⏳" },
+      { key: "production_date", label: "Дата производства", icon: "📅" },
+      { key: "exp_date_full", label: "Годен до (дата)", icon: "📅" },
+      { key: "batch_number", label: "Номер партии", icon: "🔢" },
+      { key: "operator_name", label: "Оператор", icon: "👤" },
+    ];
+
+    if (type === "pack") {
+      return [
+        ...common,
+        { key: "weight_netto_pack", label: "Вес нетто упаковки", icon: "⚖️" },
+        { key: "weight_brutto_pack", label: "Вес брутто упаковки", icon: "⚖️" },
+        { key: "pack_number", label: "Номер упаковки", icon: "#️⃣" },
+      ];
+    } else if (type === "box") {
+      return [
+        ...common,
+        { key: "close_box_counter", label: "Количество вложений", icon: "🔢" },
+        { key: "weight_netto_box", label: "Вес нетто короба", icon: "📦" },
+        { key: "weight_brutto_box", label: "Вес брутто короба", icon: "📦" },
+        { key: "box_number", label: "Номер короба", icon: "#️⃣" },
+      ];
+    } else {
+      // pallet
+      return [
+        { key: "pallet_number", label: "Номер паллеты", icon: "#️⃣" },
+        { key: "shipping_date", label: "Дата отгрузки", icon: "🚚" },
+        { key: "production_date", label: "Дата производства", icon: "📅" },
+        { key: "operator_name", label: "Оператор", icon: "👤" },
+        { key: "total_count", label: "Всего единиц", icon: "🔢" },
+        { key: "total_places", label: "Кол-во мест", icon: "📦" },
+        { key: "total_boxes", label: "Кол-во коробов", icon: "📦" },
+        { key: "weight_total", label: "Общий вес (брутто)", icon: "⚖️" },
+        { key: "weight_netto_pallet", label: "Вес нетто паллеты", icon: "🏗️" },
+        { key: "weight_brutto_pallet", label: "Вес брутто паллеты", icon: "🏗️" },
+        { key: "weight_netto_batch", label: "Вес нетто партии", icon: "⚖️" },
+        { key: "weight_brutto_batch", label: "Вес брутто партии", icon: "⚖️" },
+        { key: "production_date_batch", label: "Дата производства партии", icon: "📅" },
+        { key: "exp_date_full", label: "Годен до", icon: "📅" },
+        { key: "weight_netto_nomenclature", label: "Вес нетто номенклатуры", icon: "⚖️" },
+        { key: "weight_brutto_nomenclature", label: "Вес брутто номенклатуры", icon: "⚖️" },
+      ];
+    }
+  }, [doc.canvas.labelType]);
+
+  const customAttributes = useMemo(() => {
+    return globalAttributes.map((a: any) => ({
       key: a.name,
       label: a.name,
       icon: "✨"
     }));
-    return [
-      { key: "name", label: "Наименование", icon: "📦" },
-      { key: "article", label: "Артикул", icon: "🏷️" },
-      { key: "exp_date", label: "Срок годности (сут)", icon: "⏳" },
-      { key: "pack_counter", label: "Текущий счетчик (в коробе)", icon: "🔢" },
-      { key: "weight_netto_pack", label: "Вес нетто (уп)", icon: "⚖️" },
-      { key: "weight_brutto_pack", label: "Вес брутто (уп)", icon: "⚖️" },
-      { key: "weight_netto_box", label: "Вес нетто (кор)", icon: "📦" },
-      { key: "weight_brutto_box", label: "Вес брутто (кор)", icon: "📦" },
-      { key: "weight_netto_pallet", label: "Вес нетто (пал)", icon: "🏗️" },
-      { key: "weight_brutto_pallet", label: "Вес брутто (пал)", icon: "🏗️" },
-      { key: "pack_number", label: "Номер упаковки", icon: "#️⃣" },
-      { key: "box_number", label: "Номер короба", icon: "#️⃣" },
-      { key: "pallet_number", label: "Номер паллеты", icon: "#️⃣" },
-      { key: "production_date", label: "Дата производства", icon: "📅" },
-      { key: "exp_date_full", label: "Годен до (дата)", icon: "📅" },
-      { key: "batch_number", label: "Номер партии", icon: "🔢" },
-      ...dynamic
-    ];
   }, [globalAttributes]);
 
+  const allAttributes = useMemo(() => {
+    return [...mainAttributes, ...customAttributes];
+  }, [mainAttributes, customAttributes]);
+
   useEffect(() => {
+    const isEditable = (t: EventTarget | null) => {
+      const el = t as HTMLElement | null;
+      return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+    };
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.altKey) setIsAltPressed(true);
+      if (e.code === "Space" && !isEditable(e.target)) {
+        e.preventDefault();
+        setIsSpacePressed(true);
+      }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
       if (!e.altKey) setIsAltPressed(false);
+      if (e.code === "Space") setIsSpacePressed(false);
     };
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
@@ -1073,11 +1364,11 @@ export default function LabelDesigner() {
     return () => {
       el.removeEventListener("wheel", handleWheel);
     };
-  }, []);
+  }, [view]);
 
   const onPointerDownViewport = useCallback((e: React.PointerEvent) => {
     // Ctrl+Left click, Alt+Left click, or Middle mouse for panning
-    if (e.ctrlKey || isAltPressed || e.button === 1) {
+    if (e.ctrlKey || isAltPressed || isSpacePressed || e.button === 1) {
       e.preventDefault();
       setIsPanning(true);
       panRef.current = {
@@ -1090,7 +1381,7 @@ export default function LabelDesigner() {
     } else {
       setSelectedId(null);
     }
-  }, [isAltPressed, pan]);
+  }, [isAltPressed, isSpacePressed, pan]);
 
   const onPointerMoveViewport = useCallback((e: React.PointerEvent) => {
     if (panRef.current?.active) {
@@ -1102,8 +1393,13 @@ export default function LabelDesigner() {
       });
       return;
     }
+    // onPointerMove is defined later but stable — safe to call via closure
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     onPointerMove(e);
-  }, [pan]);
+    // Empty deps: panRef is a ref (not state), onPointerMove reads zoom via closure
+    // Adding pan/onPointerMove would cause infinite re-render loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onPointerUpViewport = useCallback((e: React.PointerEvent) => {
     if (panRef.current?.active) {
@@ -1115,7 +1411,9 @@ export default function LabelDesigner() {
       return;
     }
     onPointerUp(e);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
 
   useEffect(() => {
     if (selectedId && !doc.elements.some((e) => e.id === selectedId)) {
@@ -1150,6 +1448,7 @@ export default function LabelDesigner() {
 
   // New state for API integration
   const [labelId, setLabelId] = useState<number | null>(null);
+  const [inspectorTab, setInspectorTab] = useState<"element" | "canvas" | "zones">("element");
   const [labelName, setLabelName] = useState<string>("Новый макет");
 
   // Restore state from localStorage on mount
@@ -1158,8 +1457,8 @@ export default function LabelDesigner() {
 
     // Restoration logic
     try {
-      // 1. Label Doc
-      const savedDoc = localStorage.getItem(STORAGE_KEY);
+      // 1. Label Doc — sessionStorage is tab-local so two tabs don't overwrite each other
+      const savedDoc = sessionStorage.getItem(STORAGE_KEY);
       let currentDoc = doc;
       if (savedDoc) {
         const parsed = JSON.parse(savedDoc);
@@ -1171,18 +1470,18 @@ export default function LabelDesigner() {
       }
 
       // 2. Selected Element
-      const savedSelectedId = localStorage.getItem("labelDesigner_selectedId");
+      const savedSelectedId = sessionStorage.getItem("labelDesigner_selectedId");
       if (savedSelectedId && currentDoc.elements.some(e => e.id === savedSelectedId)) {
         setSelectedId(savedSelectedId);
       } else if (currentDoc.elements.length > 0) {
         setSelectedId(currentDoc.elements[currentDoc.elements.length - 1].id);
       }
 
-      // 3. View Port
-      const savedZoom = localStorage.getItem("labelDesigner_zoom");
+      // 3. View Port — also tab-local
+      const savedZoom = sessionStorage.getItem("labelDesigner_zoom");
       if (savedZoom) setZoom(Number(savedZoom));
 
-      const savedPan = localStorage.getItem("labelDesigner_pan");
+      const savedPan = sessionStorage.getItem("labelDesigner_pan");
       if (savedPan) {
         try { setPan(JSON.parse(savedPan)); } catch { }
       }
@@ -1191,7 +1490,7 @@ export default function LabelDesigner() {
       const savedLabelId = localStorage.getItem("labelDesigner_labelId");
       if (savedLabelId) setLabelId(Number(savedLabelId));
 
-      const savedLabelName = localStorage.getItem("labelDesigner_labelName");
+      const savedLabelName = sessionStorage.getItem("labelDesigner_labelName");
       if (savedLabelName) setLabelName(savedLabelName);
 
     } catch (err) {
@@ -1201,10 +1500,17 @@ export default function LabelDesigner() {
   const [savedLabels, setSavedLabels] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Persistence Effects
+  useEffect(() => {
+    if (!hasMounted || !selectedNomenclatureId) return;
+    const item = nomenclatures.find(n => n.id.toString() === selectedNomenclatureId);
+    if (item) {
+      updatePreviewData(item);
+    }
+  }, [selectedNomenclatureId, nomenclatures, updatePreviewData]);
+
   useEffect(() => {
     if (!hasMounted) return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(doc));
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(doc));
   }, [doc, hasMounted]);
 
   useEffect(() => {
@@ -1218,25 +1524,25 @@ export default function LabelDesigner() {
 
   useEffect(() => {
     if (!hasMounted) return;
-    localStorage.setItem("labelDesigner_labelName", labelName);
+    sessionStorage.setItem("labelDesigner_labelName", labelName);
   }, [labelName, hasMounted]);
 
   useEffect(() => {
     if (!hasMounted) return;
-    localStorage.setItem("labelDesigner_zoom", zoom.toString());
+    sessionStorage.setItem("labelDesigner_zoom", zoom.toString());
   }, [zoom, hasMounted]);
 
   useEffect(() => {
     if (!hasMounted) return;
-    localStorage.setItem("labelDesigner_pan", JSON.stringify(pan));
+    sessionStorage.setItem("labelDesigner_pan", JSON.stringify(pan));
   }, [pan, hasMounted]);
 
   useEffect(() => {
     if (!hasMounted) return;
     if (selectedId) {
-      localStorage.setItem("labelDesigner_selectedId", selectedId);
+      sessionStorage.setItem("labelDesigner_selectedId", selectedId);
     } else {
-      localStorage.removeItem("labelDesigner_selectedId");
+      sessionStorage.removeItem("labelDesigner_selectedId");
     }
   }, [selectedId, hasMounted]);
 
@@ -1322,6 +1628,32 @@ export default function LabelDesigner() {
     await generateBarcodeImage(template, el.id);
   }, [barcodeTemplates, generateBarcodeImage]);
 
+  const addTable = useCallback(() => {
+    const el: TableElement = {
+      id: uid(),
+      type: "table",
+      x: 40,
+      y: 300,
+      w: 600,
+      h: 400,
+      rotation: 0,
+      columns: [
+        { id: uid(), key: "name", title: "Наименование", widthRatio: 40 },
+        { id: uid(), key: "batch_number", title: "Партия", widthRatio: 30 },
+        { id: uid(), key: "weight_netto_pack", title: "Вес", widthRatio: 30 },
+      ],
+      groupBy: "none",
+      sortBy: "none",
+      fontSize: 12,
+      showHeaders: true,
+      showBorders: true,
+      fontFamily: "Inter",
+      fontStyle: "normal",
+    };
+    setDoc((d) => ({ ...d, elements: [...d.elements, el] }));
+    setSelectedId(el.id);
+  }, []);
+
   const addAttribute = useCallback((attributeKey: string, label: string) => {
     const el: TextElement = {
       id: uid(),
@@ -1331,7 +1663,7 @@ export default function LabelDesigner() {
       w: 260,
       h: 36,
       rotation: 0,
-      text: `{{${attributeKey}}}`,
+      text: `{{ ${attributeKey}}}`,
       fontSize: 14,
       color: "#000000",
       fontWeight: 500,
@@ -1341,15 +1673,9 @@ export default function LabelDesigner() {
       textDecoration: "none",
     };
 
-    // If adding a counter variable, prompt for minLength
+    // If adding a counter variable, fixed minLength to 12
     if (attributeKey.includes("pack_number") || attributeKey.includes("box_number")) {
-      const lenStr = window.prompt("Введите длину счетчика (количество символов). Оставьте пустым, чтобы не использовать дополнение нулями.", "8");
-      if (lenStr) {
-        const len = parseInt(lenStr, 10);
-        if (!isNaN(len) && len > 0) {
-          el.minLength = len;
-        }
-      }
+      el.minLength = 12;
     }
 
     setDoc((d) => ({ ...d, elements: [...d.elements, el] }));
@@ -1367,17 +1693,11 @@ export default function LabelDesigner() {
       if (el?.type === "text" && textPatch !== undefined && typeof textPatch === "string") {
         const oldText = (el as TextElement).text;
         const newText = textPatch;
-        const counters = ["{{pack_number}}", "{{box_number}}"];
+        const counters = ["{{ pack_number }}", "{{ box_number }}"];
         const addedCounter = counters.find(c => newText.includes(c) && !oldText.includes(c));
 
         if (addedCounter && !(el as TextElement).minLength) {
-          const lenStr = window.prompt("Введите длину счетчика (количество символов). Оставьте пустым, чтобы не использовать дополнение нулями.", "8");
-          if (lenStr) {
-            const len = parseInt(lenStr, 10);
-            if (!isNaN(len) && len > 0) {
-              (patch as any).minLength = len;
-            }
-          }
+          (patch as any).minLength = 12;
         }
       }
 
@@ -1425,6 +1745,8 @@ export default function LabelDesigner() {
 
   const onPointerDownElement = useCallback(
     (e: React.PointerEvent, elementId: string) => {
+      // В режиме пана (пробел / ctrl / alt / средняя кнопка) не хватаем элемент — пусть холст панорамируется
+      if (isSpacePressed || e.ctrlKey || isAltPressed || e.button === 1) return;
       e.preventDefault();
       e.stopPropagation();
       const el = doc.elements.find((x) => x.id === elementId);
@@ -1644,6 +1966,63 @@ export default function LabelDesigner() {
     setSelectedId(d.elements[d.elements.length - 1]?.id ?? null);
   }, []);
 
+  // ── Template-first: открыть существующий / создать новый, затем войти в редактор ──
+  const openTemplate = useCallback((label: any) => {
+    let scheme = label?.scheme;
+    if (!scheme || typeof scheme !== "object") {
+      const structure = label?.structure ?? label?.scheme;
+      if (typeof structure === "string") {
+        try {
+          scheme = JSON.parse(structure);
+        } catch {
+          scheme = null;
+        }
+      }
+    }
+    const v = validateDoc(scheme);
+    if (!v) {
+      alert("Ошибка: некорректный формат данных шаблона");
+      return;
+    }
+    setDoc(v);
+    setLabelId(label.id);
+    setLabelName(label.name);
+    setSelectedId(null);
+    setView("editor");
+    if (v.canvas.labelType === "pallet") {
+      updatePreviewData({});
+    }
+  }, [updatePreviewData]);
+
+  const createTemplate = useCallback(
+    (opts: { name: string; labelType: "pack" | "box" | "pallet"; widthCm: number; heightCm: number }) => {
+      const base = defaultDoc();
+      const width = cmToPx(opts.widthCm, base.canvas.dpi);
+      const height = cmToPx(opts.heightCm, base.canvas.dpi);
+      const d: LabelDoc = {
+        ...base,
+        canvas: {
+          ...base.canvas,
+          labelType: opts.labelType,
+          widthCm: opts.widthCm,
+          heightCm: opts.heightCm,
+          width,
+          height,
+        },
+        elements: opts.labelType === "pallet" ? buildPalletLayout(width, height) : base.elements,
+      };
+      setDoc(d);
+      setLabelId(null);
+      setLabelName(opts.name || "Новый шаблон");
+      setSelectedId(null);
+      setView("editor");
+      if (opts.labelType === "pallet") {
+        updatePreviewData({});
+      }
+    },
+    [updatePreviewData]
+  );
+
   // ... (copyJson, canvasStyle) ...
 
 
@@ -1651,10 +2030,78 @@ export default function LabelDesigner() {
     const text = JSON.stringify(doc, null, 2);
     try {
       await navigator.clipboard.writeText(text);
+      alert("JSON скопирован!");
     } catch {
       // ignore
     }
   }, [doc]);
+
+  const copyZpl = useCallback(async () => {
+    const zpl = labelToZpl(doc, previewData);
+    try {
+      await navigator.clipboard.writeText(zpl);
+      alert("ZPL скопирован!");
+    } catch {
+      // ignore
+    }
+  }, [doc, previewData]);
+
+  const printLabel = useCallback(() => {
+    // High-resolution print implementation
+    const dpi = doc.canvas.dpi || 203;
+    const widthPx = cmToPx(doc.canvas.widthCm || 10, dpi);
+    const heightPx = cmToPx(doc.canvas.heightCm || 6, dpi);
+
+    // Create a temporary canvas for high-res rendering
+    // We increase resolution for printing (300 DPI equivalent or scale x2)
+    const printScale = 2; // Simple scale multiplier for clarity
+    const tempCanvas = document.createElement("canvas");
+    tempCanvas.width = widthPx * printScale;
+    tempCanvas.height = heightPx * printScale;
+    const tempCtx = tempCanvas.getContext("2d");
+
+    if (!tempCtx) return;
+
+    renderLabel(tempCtx, doc, previewData, {
+      pixelRatio: printScale,
+      showZones: false
+    });
+
+    const dataUrl = tempCanvas.toDataURL("image/png");
+
+    // Open a new window and print
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("Пожалуйста, разрешите всплывающие окна для печати");
+      return;
+    }
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Печать этикетки - ${labelName}</title>
+          <style>
+            body { margin: 0; display: flex; justify-content: center; align-items: flex-start; background: white; }
+            img { width: 100%; max-width: ${doc.canvas.widthCm}cm; height: auto; display: block; }
+            @page { margin: 0; size: ${doc.canvas.widthCm}cm ${doc.canvas.heightCm}cm; }
+            @media print {
+              img { width: ${doc.canvas.widthCm}cm; height: ${doc.canvas.heightCm}cm; }
+            }
+          </style>
+        </head>
+        <body>
+          <img src="${dataUrl}" />
+          <script>
+            window.onload = () => {
+              window.print();
+              setTimeout(() => window.close(), 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  }, [doc, previewData, labelName]);
 
   const selected = useMemo(
     () => doc.elements.find((e) => e.id === selectedId) ?? null,
@@ -1670,9 +2117,9 @@ export default function LabelDesigner() {
       doc.canvas.showGrid && doc.canvas.gridSize > 0
         ? {
           backgroundImage: `
-              linear-gradient(to right, rgba(0,0,0,0.15) 1px, transparent 1px),
-              linear-gradient(to bottom, rgba(0,0,0,0.15) 1px, transparent 1px)
-            `,
+                                    linear-gradient(to right, rgba(0,0,0,0.15) 1px, transparent 1px),
+                                    linear-gradient(to bottom, rgba(0,0,0,0.15) 1px, transparent 1px)
+                                    `,
           backgroundSize: `${doc.canvas.gridSize}px ${doc.canvas.gridSize}px`,
         }
         : {};
@@ -1689,123 +2136,120 @@ export default function LabelDesigner() {
     } as React.CSSProperties;
   }, [doc.canvas, zoom, pan, isPanning]);
 
+  if (view === "hub") {
+    return (
+      <TemplateHub
+        templates={savedLabels}
+        onOpen={openTemplate}
+        onCreate={createTemplate}
+        onDelete={deleteLabelEntry}
+      />
+    );
+  }
+
   return (
-    <div className="grid h-[calc(100vh-140px)] gap-4 md:grid-cols-12 overflow-hidden">
-      {/* Left: tools + layers */}
-      <aside className="md:col-span-3 h-full overflow-y-auto pr-2 custom-scrollbar">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-sm font-semibold text-white">Инструменты</div>
-            <SmallButton variant="ghost" onClick={resetDoc} title="Сбросить макет">
-              <Icon name="reset" />
-            </SmallButton>
-          </div>
-
-          <div className="mt-3 grid gap-2">
-            <SmallButton variant="secondary" onClick={addText}>
-              <Icon name="text" />
-              Текст
-            </SmallButton>
-            <SmallButton variant="secondary" onClick={addRect}>
-              <Icon name="rect" />
-              Прямоугольник
-            </SmallButton>
-            {/* Barcode dropdown - styled dark */}
-            {barcodeTemplates.length > 0 ? (
-              <div className="relative group">
-                <select
-                  className="w-full h-9 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-medium text-white outline-none cursor-pointer hover:bg-white/15 transition-all appearance-none"
-                  defaultValue=""
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      addBarcode(e.target.value);
-                      e.target.value = "";
-                    }
-                  }}
-                >
-                  <option value="" disabled className="bg-[#1A1D24]">➕ Добавить штрихкод...</option>
-                  {barcodeTemplates.map((t: any) => (
-                    <option key={t.id} value={t.name} className="bg-[#1A1D24]">{t.name}</option>
-                  ))}
-                </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-white/40">
-                  <Icon name="chevron-down" className="h-3 w-3" />
-                </div>
-              </div>
-            ) : (
-              <SmallButton variant="secondary" disabled title="Нет шаблонов штрихкодов" className="w-full">
-                <Icon name="barcode" />
-                Штрихкод
-              </SmallButton>
-            )}
-
-            <div className="my-2 h-px bg-white/10" />
-
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <div className="relative col-span-2">
-                <select
-                  className="w-full h-9 rounded-xl border border-white/10 bg-white/10 pl-10 pr-8 py-2 text-xs font-medium text-white outline-none cursor-pointer hover:bg-white/15 transition-all appearance-none"
-                  value={selectedNomenclatureId}
-                  onChange={(e) => handleNomenclatureSelect(e.target.value)}
-                >
-                  <option value="" className="bg-[#1A1D24]">📦 Выберите товар...</option>
-                  {nomenclatures.map((n) => (
-                    <option key={n.id} value={n.id} className="bg-[#1A1D24]">
-                      {n.article} - {n.name}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-white/40">
-                  <Icon name="box" />
-                </div>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-white/40">
-                  <Icon name="chevron-down" className="h-3 w-3" />
-                </div>
-              </div>
-
-              <div className="col-span-1">
-                <SmallButton
-                  variant={doc.canvas.showGrid ? "primary" : "ghost"}
-                  onClick={toggleGrid}
-                  className="w-full"
-                >
-                  <Icon name="grid" />
-                  Сетка
-                </SmallButton>
-              </div>
-
-              <div className="col-span-1">
-                <SmallButton variant="ghost" onClick={copyJson} title="Скопировать JSON" className="w-full">
-                  <Icon name="copy" />
-                  JSON
-                </SmallButton>
-              </div>
-
-              <div className="col-span-1">
-                <CustomSelect<string | number>
-                  value={""}
-                  onChange={(v) => {
-                    const l = savedLabels.find((x: any) => x.id === v);
-                    if (l) loadLabelEntry(l);
-                  }}
-                  onDelete={(v) => deleteLabelEntry(Number(v))}
-                  options={[
-                    { value: "", label: "📂 Загрузить..." },
-                    ...savedLabels.map((l: any) => ({ value: l.id, label: l.name }))
-                  ]}
-                  className="w-full"
-                />
-              </div>
-
-              <div className="col-span-1">
-                <SmallButton variant="primary" onClick={saveToApi} title="Сохранить" disabled={isLoading} className="w-full">
-                  <Icon name="save" />
-                  Save
-                </SmallButton>
-              </div>
-            </div>
+    <div className="flex h-[calc(100vh-140px)] flex-col gap-3 overflow-hidden">
+      {/* Top: template anchor + add tools */}
+      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+        <button
+          onClick={() => setView("hub")}
+          title="К шаблонам"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white/70 transition hover:bg-white/10 hover:text-white"
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" aria-hidden="true">
+            <path d="m14 6-6 6 6 6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Шаблоны
+        </button>
+        <div className="leading-tight">
+          <div className="text-sm font-semibold text-white">{labelName}</div>
+          <div className="font-[family-name:var(--font-geist-mono)] text-[10px] text-white/45">
+            {doc.canvas.widthCm}×{doc.canvas.heightCm} см · {doc.canvas.labelType === "pack" ? "Пачка" : doc.canvas.labelType === "box" ? "Коробка" : "Паллета"}
           </div>
         </div>
+
+        <div className="mx-1 h-6 w-px bg-white/10" />
+
+        <span className="font-[family-name:var(--font-geist-mono)] text-[9px] uppercase tracking-wider text-indigo-300/70">Добавить</span>
+        <SmallButton variant="secondary" onClick={addText}>
+          <Icon name="text" />
+          Текст
+        </SmallButton>
+        <SmallButton variant="secondary" onClick={addRect}>
+          <Icon name="rect" />
+          Фигура
+        </SmallButton>
+        {barcodeTemplates.length > 0 && (
+          <div className="relative">
+            <select
+              className="h-8 w-[150px] cursor-pointer appearance-none rounded-lg border border-white/10 bg-white/10 pl-3 pr-7 text-xs font-medium text-white outline-none transition-all hover:bg-white/15"
+              defaultValue=""
+              onChange={(e) => {
+                if (e.target.value) {
+                  addBarcode(e.target.value);
+                  e.target.value = "";
+                }
+              }}
+            >
+              <option value="" disabled className="bg-[#1A1D24]">Штрихкод…</option>
+              {barcodeTemplates.map((t: any) => (
+                <option key={t.id} value={t.name} className="bg-[#1A1D24]">{t.name}</option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-white/40">
+              <Icon name="chevron-down" className="h-3 w-3" />
+            </div>
+          </div>
+        )}
+        {doc.canvas.labelType === "pallet" && (
+          <SmallButton variant="secondary" onClick={addTable}>
+            <Icon name="table" />
+            Таблица
+          </SmallButton>
+        )}
+
+        <div className="mx-1 h-6 w-px bg-white/10" />
+
+        <div className="relative">
+          <select
+            className="h-8 w-[190px] cursor-pointer appearance-none rounded-lg border border-white/10 bg-white/10 pl-9 pr-7 text-xs font-medium text-white outline-none transition-all hover:bg-white/15"
+            value={selectedNomenclatureId}
+            onChange={(e) => handleNomenclatureSelect(e.target.value)}
+          >
+            <option value="" className="bg-[#1A1D24]">Выберите товар…</option>
+            {nomenclatures.map((n) => (
+              <option key={n.id} value={n.id} className="bg-[#1A1D24]">
+                {n.article} - {n.name}
+              </option>
+            ))}
+          </select>
+          <div className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-white/40">
+            <Icon name="box" className="h-4 w-4" />
+          </div>
+          <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-white/40">
+            <Icon name="chevron-down" className="h-3 w-3" />
+          </div>
+        </div>
+
+        <span className="flex-1" />
+
+        <SmallButton variant={doc.canvas.showGrid ? "primary" : "ghost"} onClick={toggleGrid} title="Сетка">
+          <Icon name="grid" />
+        </SmallButton>
+        <SmallButton variant="primary" onClick={saveToApi} disabled={isLoading} title="Сохранить">
+          <Icon name="save" />
+          Сохранить
+        </SmallButton>
+        <SmallButton variant="secondary" onClick={copyZpl} title="Экспорт ZPL">ZPL</SmallButton>
+        <SmallButton variant="ghost" onClick={copyJson} title="Скопировать JSON">JSON</SmallButton>
+        <SmallButton variant="ghost" onClick={resetDoc} title="Сбросить макет">
+          <Icon name="reset" />
+        </SmallButton>
+      </div>
+
+      <div className="flex min-h-0 flex-1 gap-3 overflow-hidden">
+        {/* Left: tools + layers */}
+        <aside style={{ width: 208, minWidth: 0, flexGrow: 0, flexShrink: 0 }} className="overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar">
 
         {/* Product Attributes Section */}
         <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -1814,17 +2258,49 @@ export default function LabelDesigner() {
               <span>Атрибуты товара</span>
               <span className="text-white/50 transition-transform duration-200 group-open:rotate-90">▶</span>
             </summary>
-            <div className="mt-3 grid gap-1 max-h-64 overflow-y-auto custom-scrollbar">
-              {allAttributes.map((attr) => (
-                <button
-                  key={attr.key}
-                  onClick={() => addAttribute(attr.key, attr.label)}
-                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-white/80 hover:bg-white/10 transition-colors"
-                >
-                  <span className="text-sm">{attr.icon}</span>
-                  <span>{attr.label}</span>
-                </button>
-              ))}
+            <div className="mt-3 max-h-64 overflow-y-auto custom-scrollbar flex flex-col gap-4">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-white/40 mb-2 px-1">Основные атрибуты</div>
+                <div className="flex flex-col gap-1">
+                  {mainAttributes.map((attr) => (
+                    <button
+                      key={attr.key}
+                      onClick={() => addAttribute(attr.key, attr.label)}
+                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-white/80 hover:bg-white/10 transition-colors"
+                    >
+                      <span className="text-sm">{attr.icon}</span>
+                      <span>{attr.label}</span>
+                    </button>
+                  ))}
+                  {doc.canvas.labelType === "pallet" && (
+                    <button
+                      onClick={addTable}
+                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 border border-blue-500/20 transition-all font-semibold mt-1"
+                    >
+                      <Icon name="table" />
+                      <span>Добавить таблицу</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {customAttributes.length > 0 && (
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-white/40 mb-2 px-1">Пользовательские</div>
+                  <div className="flex flex-col gap-1">
+                    {customAttributes.map((attr: any) => (
+                      <button
+                        key={attr.key}
+                        onClick={() => addAttribute(attr.key, attr.label)}
+                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-white/80 hover:bg-white/10 transition-colors"
+                      >
+                        <span className="text-sm">{attr.icon}</span>
+                        <span>{attr.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </details>
         </div>
@@ -1854,25 +2330,32 @@ export default function LabelDesigner() {
 
           <div className="my-4 h-px bg-white/10" />
 
-          <div className="mt-3 grid gap-1">
+          <div className="mt-3 flex flex-col gap-1">
             {doc.elements.map((el: LabelElement, i: number) => (
               <button
                 key={el.id}
                 onClick={() => setSelectedId(el.id)}
+                title={el.type === "text" ? (el as TextElement).text : el.type}
                 className={cx(
-                  "flex items-center gap-3 rounded-xl border px-3 py-2 text-left transition-all",
+                  "flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left transition-all",
                   selectedId === el.id
                     ? "border-blue-500/50 bg-blue-500/10 text-white"
-                    : "border-transparent text-white/60 hover:bg-white/5"
+                    : "border-transparent text-white/60 hover:bg-white/5 hover:text-white/90"
                 )}
               >
-                <div className="flex h-5 w-5 items-center justify-center rounded bg-white/5 text-[10px] font-bold">
+                <div className="flex h-5 w-5 flex-none items-center justify-center rounded bg-white/5 text-[10px] font-semibold text-white/50">
                   {i + 1}
                 </div>
-                <div className="grow truncate text-xs font-medium">
-                  {el.type === "text" ? (el as TextElement).text : el.type}
-                </div>
-                <Icon name={el.type as any} className="opacity-40" />
+                <Icon name={el.type as any} className="h-4 w-4 flex-none opacity-40" />
+                <span className="min-w-0 grow truncate text-xs font-medium">
+                  {el.type === "text"
+                    ? ((el as TextElement).text?.trim() || "Текст")
+                    : el.type === "barcode" ? "Штрихкод"
+                      : el.type === "rect" ? "Фигура"
+                        : el.type === "table" ? "Таблица"
+                          : el.type === "image" ? "Изображение"
+                            : el.type}
+                </span>
               </button>
             ))}
             {doc.elements.length === 0 && (
@@ -1888,7 +2371,8 @@ export default function LabelDesigner() {
       <main
         ref={mainRef}
         className={cx(
-          "md:col-span-6 relative flex items-center justify-center bg-white overflow-hidden rounded-2xl border border-slate-200 shadow-inner",
+          "relative flex min-w-0 flex-1 items-center justify-center bg-white overflow-hidden rounded-2xl border border-slate-200 shadow-inner",
+          isSpacePressed && !isPanning && "cursor-grab",
           isPanning && "cursor-grabbing"
         )}
         onPointerDown={onPointerDownViewport}
@@ -1902,6 +2386,16 @@ export default function LabelDesigner() {
             <span className="text-slate-900 font-bold max-w-[200px] truncate" title={labelName}>
               {labelName}
             </span>
+            <button
+              onClick={() => {
+                const name = window.prompt("Введите новое название макета:", labelName);
+                if (name && name.trim()) setLabelName(name.trim());
+              }}
+              className="ml-1 text-slate-400 hover:text-indigo-600 transition-colors"
+              title="Переименовать"
+            >
+              <Icon name="edit" className="h-3.5 w-3.5" />
+            </button>
           </div>
           <div className="flex items-center gap-2 border-l border-slate-200 pl-3">
             <span className="text-slate-400">Масштаб:</span>
@@ -2051,7 +2545,29 @@ export default function LabelDesigner() {
       </main>
 
       {/* Right: properties */}
-      <aside className="md:col-span-3 h-full overflow-y-auto pl-2 custom-scrollbar">
+        <aside style={{ width: 320, minWidth: 0, flexGrow: 0, flexShrink: 0 }} className="overflow-y-auto overflow-x-hidden pl-2 custom-scrollbar">
+        <div className="mb-3 flex gap-1.5 rounded-xl border border-white/10 bg-white/5 p-1">
+          {([
+            { k: "element", label: "Элемент" },
+            { k: "canvas", label: "Холст" },
+            { k: "zones", label: "Зоны" },
+          ] as const).map((t) => (
+            <button
+              key={t.k}
+              onClick={() => setInspectorTab(t.k)}
+              className={cx(
+                "flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition border",
+                inspectorTab === t.k
+                  ? "border-indigo-400/30 bg-indigo-400/15 text-indigo-200"
+                  : "border-transparent text-white/55 hover:bg-white/5 hover:text-white"
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {inspectorTab === "element" && (
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -2070,10 +2586,10 @@ export default function LabelDesigner() {
             </SmallButton>
           </div>
 
-          <div className="mt-4 grid gap-3">
+          <div className="mt-4 flex flex-col gap-3">
             {selected ? (
               <>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
                   <Field label="X (px)">
                     <NumberInput
                       value={Math.round(selected.x)}
@@ -2111,7 +2627,7 @@ export default function LabelDesigner() {
                 <div className="my-2 h-px bg-white/10" />
 
                 {selected.type === "text" && (
-                  <div className="grid gap-3">
+                  <div className="flex flex-col gap-3">
                     <Field label="Текст">
                       <VariableTextInput
                         value={(selected as TextElement).text}
@@ -2134,7 +2650,7 @@ export default function LabelDesigner() {
                       />
                     </Field>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
                       <Field label="Шрифт">
                         <CustomSelect
                           value={(selected as TextElement).fontFamily || "Inter"}
@@ -2157,7 +2673,7 @@ export default function LabelDesigner() {
                       </Field>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
                       <Field label="Выравнивание">
                         <div className="flex bg-white/5 rounded-xl border border-white/10 p-1">
                           {(['left', 'center', 'right'] as const).map((align) => (
@@ -2213,7 +2729,7 @@ export default function LabelDesigner() {
                 )}
 
                 {selected.type === "rect" && (
-                  <div className="grid gap-3">
+                  <div className="flex flex-col gap-3">
                     <Field label="Фон">
                       <ColorInput
                         value={(selected as RectElement).fill}
@@ -2226,7 +2742,7 @@ export default function LabelDesigner() {
                         onChange={(v) => updateSelected({ borderColor: v })}
                       />
                     </Field>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
                       <Field label="Толщина">
                         <NumberInput
                           value={(selected as RectElement).borderWidth}
@@ -2244,7 +2760,7 @@ export default function LabelDesigner() {
                 )}
 
                 {selected.type === "barcode" && (
-                  <div className="grid gap-3">
+                  <div className="flex flex-col gap-3">
                     <Field label="Тип штрихкода">
                       <select
                         className="h-9 w-full rounded-xl border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white outline-none hover:bg-white/15 transition-all"
@@ -2282,6 +2798,145 @@ export default function LabelDesigner() {
                     </div>
                   </div>
                 )}
+
+                {selected.type === "table" && (
+                  <div className="flex flex-col gap-4">
+                    {/* Колонки */}
+                    <div>
+                      <div className="mb-2 flex items-center justify-between">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-white/55">Колонки</span>
+                        <SmallButton variant="secondary" onClick={() => {
+                          const t = selected as TableElement;
+                          updateSelected({ columns: [...t.columns, { id: uid(), key: "name", title: "Новая", widthRatio: 15 }] });
+                        }}>
+                          <Icon name="plus" /> Добавить
+                        </SmallButton>
+                      </div>
+                      <div className="flex max-h-60 flex-col gap-1.5 overflow-y-auto overflow-x-hidden pr-1 custom-scrollbar">
+                        {(selected as TableElement).columns.map((col) => (
+                          <div key={col.id} className="flex items-center gap-1.5">
+                            <input
+                              value={col.title}
+                              placeholder="Заголовок"
+                              onChange={(e) => {
+                                const t = selected as TableElement;
+                                updateSelected({ columns: t.columns.map(c => c.id === col.id ? { ...c, title: e.target.value } : c) });
+                              }}
+                              className="h-8 min-w-0 flex-1 rounded-lg border border-white/10 bg-white/5 px-2.5 text-xs text-white placeholder:text-white/35 outline-none focus:border-white/20"
+                            />
+                            <select
+                              value={col.key}
+                              onChange={(e) => {
+                                const t = selected as TableElement;
+                                updateSelected({ columns: t.columns.map(c => c.id === col.id ? { ...c, key: e.target.value } : c) });
+                              }}
+                              className="h-8 w-[116px] flex-none cursor-pointer rounded-lg border border-white/10 bg-white/10 px-1.5 text-xs text-white outline-none"
+                            >
+                              {TABLE_COLUMN_KEYS.map(a => <option key={a.key} value={a.key} className="bg-[#1A1D24]">{a.label}</option>)}
+                            </select>
+                            <input
+                              type="number"
+                              value={col.widthRatio}
+                              min={1}
+                              max={100}
+                              title="Ширина, %"
+                              onChange={(e) => {
+                                const t = selected as TableElement;
+                                updateSelected({ columns: t.columns.map(c => c.id === col.id ? { ...c, widthRatio: clamp(Number(e.target.value), 1, 100) } : c) });
+                              }}
+                              className="h-8 w-[46px] flex-none rounded-lg border border-white/10 bg-white/5 px-1 text-center text-xs text-white outline-none focus:border-white/20"
+                            />
+                            <button
+                              onClick={() => {
+                                const t = selected as TableElement;
+                                updateSelected({ columns: t.columns.filter(c => c.id !== col.id) });
+                              }}
+                              title="Удалить колонку"
+                              className="flex-none p-1 text-red-400/50 transition-colors hover:text-red-400"
+                            >
+                              <Icon name="trash" className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Данные */}
+                    <div className="flex flex-col gap-2.5">
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-white/55">Данные</span>
+                      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
+                        <Field label="Группировка">
+                          <CustomSelect
+                            value={(selected as TableElement).groupBy}
+                            onChange={(v) => updateSelected({ groupBy: v as any })}
+                            options={[
+                              { value: "none", label: "Нет" },
+                              { value: "nomenclature", label: "По товару" },
+                              { value: "batch", label: "По партии" },
+                            ]}
+                          />
+                        </Field>
+                        <Field label="Сортировка">
+                          <CustomSelect
+                            value={(selected as TableElement).sortBy}
+                            onChange={(v) => updateSelected({ sortBy: v as any })}
+                            options={[
+                              { value: "none", label: "Нет" },
+                              { value: "name", label: "По имени" },
+                              { value: "date", label: "По дате" },
+                            ]}
+                          />
+                        </Field>
+                      </div>
+                      <Field label="Макс. строк (0 = авто)">
+                        <NumberInput
+                          value={(selected as TableElement).maxRows || 0}
+                          onChange={(v) => updateSelected({ maxRows: v > 0 ? v : undefined })}
+                          min={0}
+                          max={100}
+                        />
+                      </Field>
+                    </div>
+
+                    {/* Оформление */}
+                    <div className="flex flex-col gap-2.5">
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-white/55">Оформление</span>
+                      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
+                        <Field label="Шрифт">
+                          <CustomSelect
+                            value={(selected as TableElement).fontFamily || "Inter"}
+                            onChange={(v) => updateSelected({ fontFamily: v })}
+                            options={FONTS.map(f => ({ value: f, label: f }))}
+                          />
+                        </Field>
+                        <Field label="Размер">
+                          <NumberInput
+                            value={(selected as TableElement).fontSize}
+                            onChange={(v) => updateSelected({ fontSize: v })}
+                          />
+                        </Field>
+                      </div>
+                      <div className="flex items-center gap-6 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5">
+                        <label className="flex cursor-pointer items-center gap-2 text-xs text-white/70">
+                          <input
+                            type="checkbox"
+                            checked={(selected as TableElement).showHeaders}
+                            onChange={(e) => updateSelected({ showHeaders: e.target.checked })}
+                          />
+                          Заголовки
+                        </label>
+                        <label className="flex cursor-pointer items-center gap-2 text-xs text-white/70">
+                          <input
+                            type="checkbox"
+                            checked={(selected as TableElement).showBorders}
+                            onChange={(e) => updateSelected({ showBorders: e.target.checked })}
+                          />
+                          Границы
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </>
             ) : (
               <div className="py-12 text-center text-xs text-white/30 italic">
@@ -2290,11 +2945,13 @@ export default function LabelDesigner() {
             )}
           </div>
         </div>
+        )}
 
-        <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+        {inspectorTab === "canvas" && (
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
           <div className="text-sm font-semibold text-white">Настройки холста</div>
-          <div className="mt-4 grid gap-3">
-            <div className="grid grid-cols-2 gap-3">
+          <div className="mt-4 flex flex-col gap-3">
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
               <Field label="Ширина (см)">
                 <NumberInput
                   value={doc.canvas.widthCm ?? 10}
@@ -2322,6 +2979,22 @@ export default function LabelDesigner() {
                 />
               </Field>
             </div>
+
+            <Field label="Тип этикетки">
+              <select
+                className="h-9 w-full rounded-xl border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white outline-none hover:bg-white/15 transition-all"
+                value={doc.canvas.labelType || "pack"}
+                onChange={(e) => {
+                  const val = e.target.value as "pack" | "box" | "pallet";
+                  setDoc(d => ({ ...d, canvas: { ...d.canvas, labelType: val } }));
+                }}
+              >
+                <option value="pack" className="bg-[#1A1D24]">Этикетка на упаковку</option>
+                <option value="box" className="bg-[#1A1D24]">Этикетка на короб</option>
+                <option value="pallet" className="bg-[#1A1D24]">Паллетный лист</option>
+              </select>
+            </Field>
+
             <Field label="Разрешение (DPI)">
               <NumberInput
                 value={doc.canvas.dpi ?? DPI_203}
@@ -2354,14 +3027,16 @@ export default function LabelDesigner() {
           </div>
         </div>
 
-        {/* Pre-printed Zones Section */}
-        <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-          <details className="group">
+        )}
+
+        {inspectorTab === "zones" && (
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <details className="group" open>
             <summary className="flex cursor-pointer items-center justify-between text-sm font-semibold text-white list-none">
               <span>Преднапечатанные зоны</span>
               <span className="text-white/50 transition-transform duration-200 group-open:rotate-90">▶</span>
             </summary>
-            <div className="mt-3 grid gap-3">
+            <div className="mt-3 flex flex-col gap-3">
               <SmallButton
                 variant="secondary"
                 onClick={() => {
@@ -2389,7 +3064,7 @@ export default function LabelDesigner() {
               {doc.canvas.printedZones.map((zone, idx) => (
                 <div
                   key={zone.id}
-                  className="rounded-xl border border-white/10 bg-white/5 p-3 grid gap-2"
+                  className="rounded-xl border border-white/10 bg-white/5 p-3 flex flex-col gap-2"
                 >
                   <div className="flex items-center justify-between">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-white/40">
@@ -2500,7 +3175,9 @@ export default function LabelDesigner() {
             </div>
           </details>
         </div>
-      </aside>
-    </div>
+        )}
+      </aside >
+      </div>
+    </div >
   );
 }

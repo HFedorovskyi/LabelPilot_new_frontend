@@ -4,8 +4,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import type { Product, Packaging, LabelTemplate, Station, GlobalAttribute } from "./types";
 import { api } from "@/lib/api/client";
 import { cx, makeEan13 } from "./utils";
+import ImportModal from "./ImportModal";
 
-function Card({
+export function Card({
   title,
   subtitle,
   right,
@@ -30,7 +31,7 @@ function Card({
   );
 }
 
-function SmallButton({
+export function SmallButton({
   children,
   onClick,
   variant = "secondary",
@@ -68,7 +69,7 @@ function SmallButton({
   );
 }
 
-function Input({
+export function Input({
   value,
   onChange,
   placeholder,
@@ -90,7 +91,7 @@ function Input({
   );
 }
 
-function Select({
+export function Select({
   value,
   onChange,
   options,
@@ -117,6 +118,87 @@ function Select({
   );
 }
 
+// ── small presentational helpers ─────────────────────────────────────────────
+
+function Eyebrow({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="text-[11px] font-medium uppercase tracking-wider text-white/55">
+      {children}
+    </div>
+  );
+}
+
+function RequiredTag() {
+  return (
+    <span className="rounded-md bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-300">
+      обязательно
+    </span>
+  );
+}
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      fill="none"
+      className={cx("shrink-0 text-white/40 transition-transform duration-300", open && "rotate-90")}
+      aria-hidden="true"
+    >
+      <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/* Collapsible section (progressive disclosure) */
+function Section({
+  open,
+  onToggle,
+  label,
+  summary,
+  children,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  label: string;
+  summary: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.035] overflow-hidden">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center gap-3 px-3.5 py-3 text-left transition-colors hover:bg-white/5"
+      >
+        <Chevron open={open} />
+        <span className="flex-1 text-sm font-medium text-white">{label}</span>
+        <span className="max-w-[55%] truncate text-xs text-white/45">{summary}</span>
+      </button>
+      {open && (
+        <div className="grid gap-3 border-t border-white/5 px-3.5 pb-4 pt-3">{children}</div>
+      )}
+    </div>
+  );
+}
+
+function EmptyCatalog({ onImport }: { onImport: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 py-14 text-center">
+      <svg viewBox="0 0 24 24" width="40" height="40" fill="none" className="text-white/20" aria-hidden="true">
+        <path d="M21 8.5 12 13 3 8.5M12 13v9" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+        <path d="M21 8.5V17a2 2 0 0 1-1.1 1.8l-7.8 3.9a2 2 0 0 1-1.8 0l-7.8-3.9A2 2 0 0 1 2 17V8.5a2 2 0 0 1 1.1-1.8l7.8-3.9a2 2 0 0 1 1.8 0l7.8 3.9A2 2 0 0 1 21 8.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      </svg>
+      <div className="text-sm font-medium text-white/70">Пока нет товаров</div>
+      <div className="text-xs text-white/40">Добавьте первый товар слева или импортируйте из таблицы</div>
+      <div className="mt-1">
+        <SmallButton onClick={onImport}>Импорт из таблицы</SmallButton>
+      </div>
+    </div>
+  );
+}
+
 export default function ProductCatalog() {
   const [products, setProducts] = useState<Product[]>([]);
   const [packs, setPacks] = useState<Packaging[]>([]);
@@ -130,6 +212,10 @@ export default function ProductCatalog() {
   const [name, setName] = useState("");
   const [expDate, setExpDate] = useState("30");
   const [closeBoxCounter, setCloseBoxCounter] = useState("10");
+  const [isFixedWeight, setIsFixedWeight] = useState(false);
+  const [fixedWeightGrams, setFixedWeightGrams] = useState("");
+  const [minWeightGrams, setMinWeightGrams] = useState("");
+  const [maxWeightGrams, setMaxWeightGrams] = useState("");
 
   // Relation states
   const [portionContainerId, setPortionContainerId] = useState("");
@@ -148,6 +234,20 @@ export default function ProductCatalog() {
 
   const [isLoading, setIsLoading] = useState(false);
 
+  // Inline form feedback (replaces alert()/silent-fail)
+  const [formError, setFormError] = useState("");
+  const [formSuccess, setFormSuccess] = useState(false);
+
+  // Progressive-disclosure section open state (remembered for the session)
+  const [openSections, setOpenSections] = useState({
+    params: false,
+    packaging: false,
+    extra: false,
+  });
+
+  // Directory: which product cards have their extra attributes expanded
+  const [expandedAttrs, setExpandedAttrs] = useState<Set<string>>(new Set());
+
   // Send to stations modal state
   const [isSendModalOpen, setIsSendModalOpen] = useState(false);
   const [selectedStationIds, setSelectedStationIds] = useState<Set<string>>(new Set());
@@ -155,6 +255,7 @@ export default function ProductCatalog() {
 
   // Manage Attributes Modal state
   const [isAttrModalOpen, setIsAttrModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -175,6 +276,10 @@ export default function ProductCatalog() {
         createdAt: new Date(item.created).getTime(),
         expDate: item.exp_date,
         closeBoxCounter: item.close_box_counter,
+        isFixedWeight: item.is_fixed_weight,
+        fixedWeightGrams: item.fixed_weight_grams,
+        minWeightGrams: item.min_weight_grams,
+        maxWeightGrams: item.max_weight_grams,
         portionContainerId: item.portion_container,
         boxContainerId: item.box_container,
         packLabelId: item.templates_pack_label,
@@ -214,13 +319,24 @@ export default function ProductCatalog() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return products;
-    return products.filter((p) => {
+    return products.filter((p: Product) => {
       return (
         p.sku.toLowerCase().includes(q) ||
         p.name.toLowerCase().includes(q)
       );
     });
   }, [products, query]);
+
+  const toggleSection = (key: "params" | "packaging" | "extra") =>
+    setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  const toggleAttrs = (id: string) =>
+    setExpandedAttrs((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const handleAddGlobalAttribute = async () => {
     const n = newAttrName.trim();
@@ -239,7 +355,8 @@ export default function ProductCatalog() {
   };
 
   const handleDeleteGlobalAttribute = async (id: number, name: string) => {
-    if (!confirm(`Удалить поле "${name}"? ВНИМАНИЕ: Это поле и его данные удалятся у ВСЕХ товаров!`)) return;
+    const affected = products.filter((p) => p.extra_data && p.extra_data[name] != null).length;
+    if (!confirm(`Удалить поле "${name}"?\n\nВНИМАНИЕ: это поле и его значения будут удалены у ВСЕХ товаров (затронуто: ${affected}). Действие необратимо.`)) return;
     try {
       await api.attributes.delete(id);
       setGlobalAttributes(prev => prev.filter(attr => attr.id !== id));
@@ -259,10 +376,16 @@ export default function ProductCatalog() {
 
   const handleEdit = (p: Product) => {
     setEditingId(p.id);
+    setFormError("");
+    setFormSuccess(false);
     setSku(p.sku);
     setName(p.name);
     setExpDate(String(p.expDate));
     setCloseBoxCounter(String(p.closeBoxCounter));
+    setIsFixedWeight(!!p.isFixedWeight);
+    setFixedWeightGrams(p.fixedWeightGrams ? String(p.fixedWeightGrams) : "");
+    setMinWeightGrams(p.minWeightGrams ? String(p.minWeightGrams) : "");
+    setMaxWeightGrams(p.maxWeightGrams ? String(p.maxWeightGrams) : "");
 
     // Set relations or empty strings
     setPortionContainerId(p.portionContainerId ? String(p.portionContainerId) : "");
@@ -271,6 +394,7 @@ export default function ProductCatalog() {
     setBoxLabelId(p.boxLabelId ? String(p.boxLabelId) : "");
 
     // Set extra data
+    let extraKeys = 0;
     if (p.extra_data) {
       // Convert all values to strings for input state
       const stringifiedExtras: Record<string, string> = {};
@@ -278,9 +402,19 @@ export default function ProductCatalog() {
         stringifiedExtras[k] = String(v);
       });
       setExtraDataState(stringifiedExtras);
+      extraKeys = Object.keys(stringifiedExtras).length;
     } else {
       setExtraDataState({});
     }
+
+    // Auto-expand sections that hold data so the user sees their values
+    setOpenSections({
+      params: !!p.isFixedWeight,
+      packaging: !!(p.portionContainerId || p.boxContainerId || p.packLabelId || p.boxLabelId),
+      extra: extraKeys > 0,
+    });
+
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const cancelEdit = () => {
@@ -293,17 +427,35 @@ export default function ProductCatalog() {
     setName("");
     setExpDate("30");
     setCloseBoxCounter("10");
+    setIsFixedWeight(false);
+    setFixedWeightGrams("");
+    setMinWeightGrams("");
+    setMaxWeightGrams("");
     setPortionContainerId("");
     setBoxContainerId("");
     setPackLabelId("");
     setBoxLabelId("");
     setExtraDataState({});
+    setFormError("");
+    // NB: deliberately do NOT collapse the sections here. For bulk entry, once the
+    // user opens "Упаковка"/"Доп. сведения" they stay open for the next product.
   };
 
   const addProduct = async () => {
     const s = sku.trim();
     const n = name.trim();
-    if (!s || !n) return;
+    setFormError("");
+    if (!s || !n) {
+      setFormError("Заполните артикул и название");
+      return;
+    }
+
+    // Check for SKU uniqueness
+    const isDuplicateSku = products.some(p => p.sku === s && p.id !== editingId);
+    if (isDuplicateSku) {
+      setFormError("Этот артикул уже используется — укажите другой");
+      return;
+    }
 
     // Filter extra data to only include keys that currently exist as global attributes
     const extra_data: any = {};
@@ -317,6 +469,10 @@ export default function ProductCatalog() {
       article: s,
       exp_date: parseInt(expDate) || 0,
       close_box_counter: parseInt(closeBoxCounter) || 0,
+      is_fixed_weight: isFixedWeight,
+      fixed_weight_grams: isFixedWeight ? (parseFloat(fixedWeightGrams) || 0) : 0,
+      min_weight_grams: isFixedWeight ? (parseFloat(minWeightGrams) || 0) : 0,
+      max_weight_grams: isFixedWeight ? (parseFloat(maxWeightGrams) || 0) : 0,
       portion_container: portionContainerId || null,
       box_container: boxContainerId || null,
       templates_pack_label: packLabelId || null,
@@ -334,15 +490,17 @@ export default function ProductCatalog() {
 
       fetchData();
       resetForm();
+      setFormSuccess(true);
+      window.setTimeout(() => setFormSuccess(false), 2500);
 
     } catch (e) {
       console.error("Failed to save product", e);
-      alert("Ошибка при сохранении номенклатуры");
+      setFormError("Ошибка при сохранении. Проверьте данные и попробуйте ещё раз.");
     }
   };
 
   const removeProduct = async (id: string) => {
-    if (!confirm("Вы уверены?")) return;
+    if (!confirm("Удалить этот товар? Действие необратимо.")) return;
     try {
       await api.nomenclature.delete(id);
       setProducts((prev) => prev.filter((p) => p.id !== id));
@@ -377,6 +535,20 @@ export default function ProductCatalog() {
 
   const packOptions = useMemo(() => packs.map(p => ({ value: p.id.toString(), label: p.name })), [packs]);
   const templateOptions = useMemo(() => templates.map(t => ({ value: t.id.toString(), label: t.name })), [templates]);
+
+  // ── derived summaries for the collapsible sections ──────────────────────────
+  const paramsSummary = `${expDate || "30"} дн · ${closeBoxCounter || "10"} в короб · ${isFixedWeight ? `фикс ${fixedWeightGrams || 0} г` : "вес по факту"}`;
+  const packagingCount = [portionContainerId, boxContainerId, packLabelId, boxLabelId].filter(Boolean).length;
+  const packagingSummary = packagingCount > 0 ? `выбрано: ${packagingCount}` : "необязательно";
+  const extraFilled = globalAttributes.filter((a) => (extraDataState[a.name] || "").trim() !== "").length;
+  const extraSummary =
+    globalAttributes.length === 0
+      ? "нет полей"
+      : extraFilled > 0
+        ? `заполнено: ${extraFilled} из ${globalAttributes.length}`
+        : "необязательно";
+
+  const canSave = sku.trim() !== "" && name.trim() !== "";
 
   return (
     <div className="grid gap-4 md:grid-cols-12 relative">
@@ -424,8 +596,8 @@ export default function ProductCatalog() {
       {isAttrModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl">
-            <h3 className="text-xl font-semibold text-white mb-4">Управление атрибутами</h3>
-            <p className="text-sm text-white/60 mb-4">Добавьте поля, которые должны быть у всех товаров. Удаление поля приведет к удалению данных из всех номенклатур.</p>
+            <h3 className="text-xl font-semibold text-white mb-4">Управление полями</h3>
+            <p className="text-sm text-white/60 mb-4">Это поля, общие для всех товаров. Удаление поля убирает его значения у ВСЕХ номенклатур — будьте осторожны.</p>
 
             <div className="flex gap-2 mb-4">
               <div className="flex-1">
@@ -438,7 +610,7 @@ export default function ProductCatalog() {
 
             <div className="mb-4 max-h-[300px] overflow-y-auto space-y-2 border-t border-white/10 pt-4">
               {globalAttributes.length === 0 ? (
-                <div className="text-white/50 text-sm italic">Нет созданных атрибутов.</div>
+                <div className="text-white/50 text-sm italic">Нет созданных полей.</div>
               ) : (
                 globalAttributes.map(attr => (
                   <div key={attr.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5">
@@ -461,104 +633,170 @@ export default function ProductCatalog() {
         </div>
       )}
 
+      {/* Import Modal */}
+      {isImportModalOpen && (
+        <ImportModal
+          onClose={() => setIsImportModalOpen(false)}
+          onSuccess={() => {
+            setIsImportModalOpen(false);
+            fetchData();
+          }}
+          globalAttributes={globalAttributes}
+          packs={packs}
+          templates={templates}
+        />
+      )}
+
       <div className="md:col-span-5">
         <Card
           title={editingId ? "Редактирование товара" : "Добавить товар"}
-          subtitle={editingId ? "Изменение существующей номенклатуры" : "Создание новой номенклатуры"}
+          subtitle={editingId ? "Изменение существующей номенклатуры" : "Введите артикул и название — остальное можно заполнить позже"}
           right={
-            <div className="flex gap-2">
-              {editingId && (
-                <SmallButton onClick={cancelEdit}>
-                  Отмена
-                </SmallButton>
-              )}
-              <SmallButton variant="primary" onClick={addProduct}>
-                {editingId ? "Сохранить" : "Добавить"}
+            !editingId ? (
+              <SmallButton onClick={() => setIsImportModalOpen(true)}>
+                Импорт
               </SmallButton>
-            </div>
+            ) : null
           }
         >
           <div className="grid gap-3">
-            <div className="grid gap-1">
-              <div className="text-[11px] font-medium uppercase tracking-wider text-white/55">
-                Артикул / SKU
+            {/* Essentials — the clear starting point */}
+            <div
+              className="relative grid gap-3 rounded-xl border border-white/10 bg-white/[0.06] p-4 pl-5"
+              style={{ boxShadow: "inset 0 1px 0 rgba(255,255,255,0.10)" }}
+            >
+              <span className="absolute left-0 top-3 bottom-3 w-[2.5px] rounded-full bg-indigo-400/80" />
+
+              <div className="grid gap-1.5">
+                <div className="flex items-center gap-2">
+                  <Eyebrow>Артикул / SKU</Eyebrow>
+                  <RequiredTag />
+                </div>
+                <Input value={sku} onChange={(v) => setSku(v.replace(/\D/g, ""))} placeholder="Напр. 22032" />
+                <div className="text-xs text-white/45">Уникальный код товара — только цифры</div>
               </div>
-              <Input value={sku} onChange={(v) => setSku(v.replace(/\D/g, ""))} placeholder="Напр. 22032" />
+
+              <div className="grid gap-1.5">
+                <div className="flex items-center gap-2">
+                  <Eyebrow>Название</Eyebrow>
+                  <RequiredTag />
+                </div>
+                <Input value={name} onChange={setName} placeholder="Напр. Чай зелёный" />
+              </div>
+
+              {formError && (
+                <div className="rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-200">{formError}</div>
+              )}
             </div>
 
-            <div className="grid gap-1">
-              <div className="text-[11px] font-medium uppercase tracking-wider text-white/55">
-                Название
+            {/* Optional details — collapsed by default */}
+            <Section
+              open={openSections.params}
+              onToggle={() => toggleSection("params")}
+              label="Параметры"
+              summary={paramsSummary}
+            >
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1">
+                  <Eyebrow>Срок годности (сут)</Eyebrow>
+                  <Input value={expDate} onChange={setExpDate} type="number" placeholder="30" />
+                </div>
+                <div className="grid gap-1">
+                  <Eyebrow>Вложений в короб</Eyebrow>
+                  <Input value={closeBoxCounter} onChange={setCloseBoxCounter} type="number" placeholder="10" />
+                </div>
               </div>
-              <Input value={name} onChange={setName} placeholder="Напр. Чай зелёный" />
-            </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-1">
-                <div className="text-[11px] font-medium uppercase tracking-wider text-white/55">
-                  Срок годности (сут)
-                </div>
-                <Input value={expDate} onChange={setExpDate} type="number" placeholder="30" />
+              <div className="grid gap-2 border-t border-white/10 pt-3">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isFixedWeight}
+                    onChange={(e) => setIsFixedWeight(e.target.checked)}
+                    className="w-4 h-4 rounded border-white/20 bg-transparent text-emerald-500 focus:ring-emerald-500/20"
+                  />
+                  <span className="text-sm font-medium text-white">Фиксированный вес</span>
+                </label>
+                {isFixedWeight && (
+                  <div className="grid gap-3">
+                    <div className="grid gap-1">
+                      <Eyebrow>Значение фикс. веса (г)</Eyebrow>
+                      <Input value={fixedWeightGrams} onChange={setFixedWeightGrams} type="number" placeholder="0" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="grid gap-1">
+                        <Eyebrow>Мин. вес (г)</Eyebrow>
+                        <Input value={minWeightGrams} onChange={setMinWeightGrams} type="number" placeholder="0" />
+                      </div>
+                      <div className="grid gap-1">
+                        <Eyebrow>Макс. вес (г)</Eyebrow>
+                        <Input value={maxWeightGrams} onChange={setMaxWeightGrams} type="number" placeholder="0" />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="grid gap-1">
-                <div className="text-[11px] font-medium uppercase tracking-wider text-white/55">
-                  Вложений в короб
-                </div>
-                <Input value={closeBoxCounter} onChange={setCloseBoxCounter} type="number" placeholder="10" />
-              </div>
-            </div>
+            </Section>
 
-            {/* Relations */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-1">
-                <div className="text-[11px] font-medium uppercase tracking-wider text-white/55">
-                  Упаковка (порция)
+            <Section
+              open={openSections.packaging}
+              onToggle={() => toggleSection("packaging")}
+              label="Упаковка и этикетки"
+              summary={packagingSummary}
+            >
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1">
+                  <Eyebrow>Упаковка (порция)</Eyebrow>
+                  <Select value={portionContainerId} onChange={setPortionContainerId} options={packOptions} placeholder="Не выбрано" />
                 </div>
-                <Select value={portionContainerId} onChange={setPortionContainerId} options={packOptions} placeholder="Не выбрано" />
-              </div>
-              <div className="grid gap-1">
-                <div className="text-[11px] font-medium uppercase tracking-wider text-white/55">
-                  Упаковка (короб)
+                <div className="grid gap-1">
+                  <Eyebrow>Упаковка (короб)</Eyebrow>
+                  <Select value={boxContainerId} onChange={setBoxContainerId} options={packOptions} placeholder="Не выбрано" />
                 </div>
-                <Select value={boxContainerId} onChange={setBoxContainerId} options={packOptions} placeholder="Не выбрано" />
               </div>
-            </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1">
+                  <Eyebrow>Этикетка (порция)</Eyebrow>
+                  <Select value={packLabelId} onChange={setPackLabelId} options={
+                    templates
+                      .filter(t => !t.scheme?.canvas?.labelType || t.scheme.canvas.labelType === "pack")
+                      .map((t) => ({ value: t.id.toString(), label: t.name }))
+                  } placeholder="Не выбрано" />
+                </div>
+                <div className="grid gap-1">
+                  <Eyebrow>Этикетка (короб)</Eyebrow>
+                  <Select value={boxLabelId} onChange={setBoxLabelId} options={
+                    templates
+                      .filter(t => t.scheme?.canvas?.labelType === "box")
+                      .map((t) => ({ value: t.id.toString(), label: t.name }))
+                  } placeholder="Не выбрано" />
+                </div>
+              </div>
+            </Section>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-1">
-                <div className="text-[11px] font-medium uppercase tracking-wider text-white/55">
-                  Этикетка (порция)
-                </div>
-                <Select value={packLabelId} onChange={setPackLabelId} options={templateOptions} placeholder="Не выбрано" />
-              </div>
-              <div className="grid gap-1">
-                <div className="text-[11px] font-medium uppercase tracking-wider text-white/55">
-                  Этикетка (короб)
-                </div>
-                <Select value={boxLabelId} onChange={setBoxLabelId} options={templateOptions} placeholder="Не выбрано" />
-              </div>
-            </div>
-
-            {/* Global Attributes Values */}
-            <div className="grid gap-2 pt-2 border-t border-white/10 mt-2">
-              <div className="flex items-center justify-between mb-1">
-                <div className="text-[11px] font-medium uppercase tracking-wider text-white/55">
-                  Доп. параметры
-                </div>
+            <Section
+              open={openSections.extra}
+              onToggle={() => toggleSection("extra")}
+              label={`Доп. сведения · ${globalAttributes.length}`}
+              summary={extraSummary}
+            >
+              <div className="flex items-center justify-end">
                 <SmallButton
+                  variant="ghost"
                   onClick={() => setIsAttrModalOpen(true)}
-                  variant="secondary"
-                  title="Управление глобальными полями"
+                  title="Управление общими полями (для всех товаров)"
                 >
                   Настроить поля
                 </SmallButton>
               </div>
 
-              {globalAttributes.length === 0 && <div className="text-xs text-white/30 italic mb-2">Нет настроенных полей</div>}
+              {globalAttributes.length === 0 && (
+                <div className="text-xs text-white/30 italic">Нет настроенных полей. Нажмите «Настроить поля», чтобы добавить.</div>
+              )}
 
               {globalAttributes.map((attr) => (
                 <div key={attr.id} className="grid gap-1">
-                  <div className="text-[11px] font-medium uppercase tracking-wider text-white/55">{attr.name}</div>
+                  <Eyebrow>{attr.name}</Eyebrow>
                   <Input
                     value={extraDataState[attr.name] || ""}
                     onChange={(v) => handleExtraDataChange(attr.name, v)}
@@ -566,8 +804,33 @@ export default function ProductCatalog() {
                   />
                 </div>
               ))}
-            </div>
+            </Section>
 
+            {/* Sticky footer — primary action always reachable */}
+            <div className="sticky bottom-0 -mx-5 -mb-5 mt-1 border-t border-white/10 bg-neutral-950/70 px-5 py-3 backdrop-blur-md">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <SmallButton variant="primary" disabled={!canSave} onClick={addProduct}>
+                    {editingId ? "Сохранить" : "Добавить товар"}
+                  </SmallButton>
+                  {editingId && <SmallButton onClick={cancelEdit}>Отмена</SmallButton>}
+                  {!canSave && (
+                    <span className="text-xs text-white/40">Заполните артикул и название</span>
+                  )}
+                  {formSuccess && (
+                    <span className="inline-flex items-center gap-1.5 text-xs text-emerald-300">
+                      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
+                        <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      Товар добавлен
+                    </span>
+                  )}
+                </div>
+                {!editingId && (
+                  <span className="text-[11px] text-white/40">Срок {expDate || "30"} дн · {closeBoxCounter || "10"} в короб · по умолчанию</span>
+                )}
+              </div>
+            </div>
           </div>
         </Card>
       </div>
@@ -577,95 +840,88 @@ export default function ProductCatalog() {
           title="Справочник товаров"
           subtitle={`Всего: ${products.length} ${isLoading ? '(Загрузка...)' : ''}`}
           right={
-            <div className="flex gap-2">
-              <div className="w-48">
-                <Input value={query} onChange={setQuery} placeholder="Поиск..." />
-              </div>
+            <div className="w-48">
+              <Input value={query} onChange={setQuery} placeholder="Поиск..." />
             </div>
           }
         >
-          <div className="overflow-hidden rounded-2xl border border-white/10">
-            <div className="grid grid-cols-12 gap-0 bg-white/5 px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-white/55">
-              <div className="col-span-5">Номенклатура</div>
-              <div className="col-span-3">Св-ва</div>
-              <div className="col-span-4 text-right">Детали</div>
-            </div>
-
-            <div className="divide-y divide-white/10">
-              {filtered.length === 0 ? (
-                <div className="p-4 text-sm text-white/60">Нет записей</div>
-              ) : (
-                filtered.map((p) => (
+          {products.length === 0 && !isLoading ? (
+            <EmptyCatalog onImport={() => setIsImportModalOpen(true)} />
+          ) : filtered.length === 0 ? (
+            <div className="py-10 text-center text-sm text-white/50">Ничего не найдено по запросу «{query}»</div>
+          ) : (
+            <div className="grid gap-2.5">
+              {filtered.map((p) => {
+                const attrEntries = p.extra_data
+                  ? Object.entries(p.extra_data).filter(([, v]) => v != null && String(v).trim() !== "")
+                  : [];
+                const expanded = expandedAttrs.has(p.id);
+                const pkg = p.boxContainerName || p.portionContainerName;
+                return (
                   <div
                     key={p.id}
-                    className="grid grid-cols-12 items-start gap-4 px-3 py-3 hover:bg-white/5 transition-colors"
+                    className="rounded-xl border border-white/10 bg-white/[0.03] p-3.5 transition-colors hover:bg-white/5"
                   >
-                    {/* Identity Column */}
-                    <div className="col-span-5 grid gap-1">
-                      <div className="font-mono text-sm font-bold text-white/90">{p.sku}</div>
-                      <div className="text-sm text-white font-medium leading-snug">{p.name}</div>
-                    </div>
-
-                    {/* Properties Column */}
-                    <div className="col-span-3 text-xs text-white/60 space-y-1">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] uppercase tracking-wider opacity-50">Упаковка</span>
-                        <span className="text-white/90">{p.portionContainerName || "—"}</span>
-                        <span className="text-white/80">{p.boxContainerName || "—"}</span>
-                      </div>
-                      <div className="flex flex-col pt-1">
-                        <span className="text-[10px] uppercase tracking-wider opacity-50">Шаблоны</span>
-                        <span className="text-white/90">{p.packLabelName || "—"}</span>
-                      </div>
-                    </div>
-
-                    {/* Details & Actions Column */}
-                    <div className="col-span-4 flex flex-col items-end gap-2">
-                      <div className="text-right text-xs text-white/60">
-                        <div>Срок: <span className="text-white">{p.expDate} дн.</span></div>
-                        <div>Вложений: <span className="text-white">{p.closeBoxCounter}</span></div>
-                      </div>
-                      <div className="flex gap-1">
-                        <SmallButton
-                          onClick={() => handleEdit(p)}
-                          title="Редактировать"
-                        >
-                          Изм.
-                        </SmallButton>
-                        <SmallButton
-                          variant="danger"
-                          title="Удалить"
-                          onClick={() => removeProduct(p.id)}
-                        >
-                          Удал.
-                        </SmallButton>
-                      </div>
-                    </div>
-
-                    {/* Global Attributes Row (Full Width) */}
-                    {p.extra_data && Object.keys(p.extra_data).length > 0 && (
-                      <div className="col-span-12 mt-2 pt-3 border-t border-white/5">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
-                          {Object.entries(p.extra_data).map(([k, v]) => (
-                            <div key={k} className="flex flex-col gap-1 rounded-xl bg-white/[0.03] p-2.5 border border-white/5 hover:bg-white/5 transition-colors">
-                              <span className="text-[10px] font-bold uppercase tracking-widest text-white/40 leading-none">
-                                {k}
-                              </span>
-                              <span className="text-xs text-white/90 leading-normal line-clamp-2" title={String(v)}>
-                                {String(v)}
-                              </span>
-                            </div>
-                          ))}
+                    <div className="flex items-start gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-mono text-xs text-white/55">{p.sku}</div>
+                        <div className="mt-0.5 text-sm font-medium leading-snug text-white">{p.name}</div>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-white/50">
+                          <span>Срок {p.expDate} дн</span>
+                          <span className="text-white/20">·</span>
+                          <span>{p.closeBoxCounter} в короб</span>
+                          {pkg && (
+                            <>
+                              <span className="text-white/20">·</span>
+                              <span>{pkg}</span>
+                            </>
+                          )}
+                          {p.isFixedWeight && (
+                            <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] text-emerald-300">
+                              фикс {p.fixedWeightGrams} г
+                            </span>
+                          )}
                         </div>
+                      </div>
+                      <div className="flex shrink-0 gap-1">
+                        <SmallButton variant="ghost" onClick={() => handleEdit(p)} title="Редактировать">Изм.</SmallButton>
+                        <SmallButton variant="ghost" onClick={() => removeProduct(p.id)} title="Удалить">Удал.</SmallButton>
+                      </div>
+                    </div>
+
+                    {attrEntries.length > 0 && (
+                      <div className="mt-2.5">
+                        <button
+                          type="button"
+                          onClick={() => toggleAttrs(p.id)}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-400/10 px-2.5 py-1 text-xs text-indigo-200 transition-colors hover:bg-indigo-400/15"
+                        >
+                          <Chevron open={expanded} />
+                          {attrEntries.length} доп. параметров
+                        </button>
+                        {expanded && (
+                          <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                            {attrEntries.map(([k, v]) => (
+                              <div key={k} className="rounded-xl border border-white/5 bg-white/[0.03] p-2.5">
+                                <span className="block text-[11px] font-medium uppercase tracking-wide leading-none text-white/60">
+                                  {k}
+                                </span>
+                                <span className="mt-1 block text-xs leading-normal text-white/90 line-clamp-2" title={String(v)}>
+                                  {String(v)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                ))
-              )}
+                );
+              })}
             </div>
-          </div>
-        </Card >
-      </div >
-    </div >
+          )}
+        </Card>
+      </div>
+    </div>
   );
 }

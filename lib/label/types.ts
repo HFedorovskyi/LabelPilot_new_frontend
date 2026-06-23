@@ -1,4 +1,4 @@
-export type ElementType = "text" | "rect" | "barcode";
+export type ElementType = "text" | "rect" | "barcode" | "table";
 
 export interface LabelElementBase {
     id: string;
@@ -43,7 +43,27 @@ export interface BarcodeElement extends LabelElementBase {
     error?: string;
 }
 
-export type LabelElement = TextElement | RectElement | BarcodeElement;
+export interface TableColumn {
+    id: string; // unique internal id for dragging/react keys
+    key: string; // The data field identifier (e.g. 'article', 'weight_netto_pack')
+    title: string;
+    widthRatio: number; // Percentage 0-100 indicating relative width
+}
+
+export interface TableElement extends LabelElementBase {
+    type: "table";
+    columns: TableColumn[];
+    groupBy: 'none' | 'nomenclature' | 'batch';
+    sortBy: 'name' | 'date' | 'none';
+    fontSize: number;
+    showHeaders: boolean;
+    showBorders: boolean;
+    fontFamily?: string;
+    fontStyle?: "normal" | "italic";
+    maxRows?: number;
+}
+
+export type LabelElement = TextElement | RectElement | BarcodeElement | TableElement;
 
 export interface PrintedZone {
     id: string;
@@ -62,6 +82,7 @@ export interface CanvasConfig {
     background: string;
     showGrid: boolean;
     gridSize: number;
+    labelType?: 'pack' | 'box' | 'pallet';
     printedZones: PrintedZone[];
 }
 

@@ -7,6 +7,11 @@ export type Product = {
   createdAt: number;
   expDate?: number;
   closeBoxCounter?: number;
+  isFixedWeight?: boolean;
+  fixedWeightGrams?: number;
+  minWeightGrams?: number;
+  maxWeightGrams?: number;
+  extra_data?: any;
 
   // Relations
   portionContainerId?: string | null;
@@ -33,6 +38,7 @@ export type LabelTemplate = {
   name: string;
   width?: number;
   height?: number;
+  scheme?: any;
 };
 
 export type Station = {

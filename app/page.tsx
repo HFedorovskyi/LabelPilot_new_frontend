@@ -1,12 +1,16 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import LabelDesigner from "./components/LabelDesigner";
 import ProductCatalog from "./components/catalog/ProductCatalog";
 import PackagingManager from "./components/catalog/PackagingManager";
 import BarcodeTemplatesManager from "./components/barcodes/BarcodeTemplatesManager";
 import StationsPage from "./stations/page";
 import SettingsPage from "./components/settings/SettingsPage";
+import PrintJobsManager from "./components/print_jobs/PrintJobsManager";
+import Dashboard from "./components/home/Dashboard";
+
+const APP_VERSION = "1.0.3";
 
 type TabKey = "home" | "labels" | "catalog" | "packaging" | "barcodes" | "print_tasks" | "users" | "stations" | "settings";
 
@@ -138,32 +142,6 @@ function Icon({
   }
 }
 
-function Button({
-  children,
-  onClick,
-  variant = "primary",
-  className,
-}: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  variant?: "primary" | "secondary" | "ghost";
-  className?: string;
-}) {
-  const base =
-    "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-60 disabled:cursor-not-allowed";
-  const styles =
-    variant === "primary"
-      ? "bg-white text-neutral-950 hover:bg-white/90"
-      : variant === "secondary"
-        ? "bg-white/10 text-white hover:bg-white/15 border border-white/10"
-        : "text-white/80 hover:text-white hover:bg-white/10";
-  return (
-    <button onClick={onClick} className={cx(base, styles, className)}>
-      {children}
-    </button>
-  );
-}
-
 export default function Home() {
   const tabs: Tab[] = useMemo(
     () => [
@@ -182,6 +160,41 @@ export default function Home() {
 
   const [active, setActive] = useState<TabKey>("home");
   const activeTab = tabs.find((t) => t.key === active) ?? tabs[0];
+
+  const [host, setHost] = useState("localhost:8000");
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setHost(`${window.location.hostname}:8000`);
+    }
+  }, []);
+
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    const s = typeof window !== "undefined" ? window.localStorage.getItem("lp_sidebar_collapsed") : null;
+    if (s !== null) setCollapsed(s === "1");
+  }, []);
+  useEffect(() => {
+    // Дизайнеру этикеток нужно максимум места — авто-сворачиваем меню при входе в него
+    if (active === "labels") setCollapsed(true);
+  }, [active]);
+  const toggleCollapsed = () =>
+    setCollapsed((v) => {
+      if (typeof window !== "undefined") window.localStorage.setItem("lp_sidebar_collapsed", v ? "0" : "1");
+      return !v;
+    });
+
+  const navLabel = (key: TabKey) => {
+    switch (key) {
+      case "home":
+        return "Главная";
+      case "print_tasks":
+        return "Печать";
+      case "catalog":
+        return "Номенклатура";
+      default:
+        return tabs.find((t) => t.key === key)?.label ?? "";
+    }
+  };
 
   const tabIcon = (key: TabKey) => {
     switch (key) {
@@ -207,70 +220,180 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white">
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -top-24 left-1/2 h-[520px] w-[900px] -translate-x-1/2 rounded-full bg-gradient-to-r from-indigo-500/20 via-fuchsia-500/15 to-sky-500/20 blur-3xl" />
-        <div className="absolute bottom-[-120px] right-[-120px] h-[420px] w-[420px] rounded-full bg-gradient-to-tr from-emerald-400/10 via-cyan-400/10 to-indigo-400/10 blur-3xl" />
+    <div className="relative flex h-screen overflow-hidden bg-[#06070b] text-white font-[family-name:var(--font-geist-sans)]">
+      {/* Атмосферный фон: световые пятна + техническая сетка */}
+      <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+        <div className="absolute -left-24 -top-32 h-[420px] w-[420px] rounded-full blur-[80px]" style={{ background: "rgba(99,102,241,0.13)" }} />
+        <div className="absolute bottom-[-120px] left-[120px] h-[360px] w-[360px] rounded-full blur-[80px]" style={{ background: "rgba(217,70,239,0.06)" }} />
+        <div className="absolute right-[-110px] top-10 h-[320px] w-[320px] rounded-full blur-[80px]" style={{ background: "rgba(34,211,238,0.045)" }} />
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(255,255,255,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.025) 1px,transparent 1px)",
+            backgroundSize: "46px 46px",
+          }}
+        />
       </div>
 
-      <header className="relative z-50 border-b border-white/10 bg-neutral-950/90 backdrop-blur sticky top-0">
-        <div className="mx-auto max-w-7xl px-6 py-4">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 ring-1 ring-white/10 shadow-inner">
-                <img src="/icons/logo.svg" alt="LabelPilot Logo" className="h-10 w-10 object-contain" />
-              </div>
-              <div className="flex flex-col">
-                <div className="text-3xl font-extrabold tracking-tight text-white font-[family-name:var(--font-geist-sans)]">
-                  Label<span className="text-indigo-400">Pilot</span>
-                </div>
-                <div className="text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium">
-                  Industrial Labeling System
-                </div>
-              </div>
-            </div>
+      {/* Боковое меню */}
+      <aside
+        className={cx(
+          "relative z-20 flex flex-none flex-col border-r border-white/[0.08] bg-white/[0.045] py-[18px] backdrop-blur-xl transition-all duration-300",
+          collapsed ? "w-[68px] px-2.5" : "w-[236px] px-3.5"
+        )}
+      >
+        <button
+          onClick={toggleCollapsed}
+          aria-label={collapsed ? "Развернуть меню" : "Свернуть меню"}
+          title={collapsed ? "Развернуть меню" : "Свернуть меню"}
+          className="absolute -right-3 top-[26px] z-30 flex h-6 w-6 items-center justify-center rounded-full border border-white/15 bg-[#0d0e13] text-white/55 transition hover:border-white/30 hover:text-white"
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" aria-hidden="true">
+            <path d={collapsed ? "m9 6 6 6-6 6" : "m15 6-6 6 6 6"} stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
 
-            <nav role="tablist" aria-label="Разделы приложения" className="flex flex-wrap items-center gap-1.5 p-1 rounded-2xl bg-white/[0.03] border border-white/5">
-              {tabs.map((t) => {
-                const isActive = t.key === active;
-                return (
-                  <button
-                    key={t.key}
-                    role="tab"
-                    aria-selected={isActive}
-                    onClick={() => setActive(t.key)}
-                    className={cx(
-                      "group flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200 outline-none focus:ring-2 focus:ring-indigo-500/50",
-                      isActive
-                        ? "bg-white text-neutral-950 shadow-[0_4px_20px_rgba(255,255,255,0.15)] scale-[1.02]"
-                        : "text-white/60 hover:text-white hover:bg-white/5"
-                    )}
-                  >
-                    <Icon
-                      name={tabIcon(t.key)}
-                      className={cx("h-4 w-4 transition-transform group-hover:scale-110", isActive ? "text-neutral-950" : "text-white/40 group-hover:text-indigo-400")}
-                    />
-                    <span className="whitespace-nowrap">{t.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
+        <div className={cx("flex items-center pb-[18px]", collapsed ? "justify-center" : "gap-[11px] px-1")}>
+          <div
+            className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-indigo-400/[0.16] text-indigo-300 ring-1 ring-indigo-400/30"
+            style={{ boxShadow: "inset 0 1px 0 rgba(255,255,255,0.10)" }}
+          >
+            <img src="/icons/logo.svg" alt="LabelPilot" className="h-6 w-6 object-contain" />
           </div>
-        </div>
-      </header>
-
-      <main className="relative z-10">
-        <div className="mx-auto px-3 py-4">
-          <div className="flex flex-col gap-6">
-            <div className="flex flex-col gap-2">
-
-              <p className="max-w-2xl text-sm text-white/65 sm:text-base">{activeTab.description}</p>
+          {!collapsed && (
+            <div>
+              <div className="text-[17px] font-extrabold tracking-tight">
+                Label<span className="text-indigo-400">Pilot</span>
+              </div>
+              <div className="text-[8px] uppercase tracking-[0.16em] text-white/35 font-[family-name:var(--font-geist-mono)]">
+                Industrial Labeling
+              </div>
             </div>
+          )}
+        </div>
 
+        {!collapsed && (
+          <div className="px-2 pb-2 text-[9px] uppercase tracking-[0.14em] text-white/30 font-[family-name:var(--font-geist-mono)]">
+            Навигация
+          </div>
+        )}
+        <nav role="tablist" aria-label="Разделы приложения" className="flex flex-col gap-[3px]">
+          {tabs.map((t) => {
+            const isActive = t.key === active;
+            return (
+              <button
+                key={t.key}
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => setActive(t.key)}
+                title={collapsed ? navLabel(t.key) : undefined}
+                className={cx(
+                  "group relative flex items-center rounded-xl border text-[13px] outline-none transition-all focus:ring-2 focus:ring-indigo-500/40",
+                  collapsed ? "justify-center py-[10px]" : "gap-3 px-[11px] py-[9px]",
+                  isActive
+                    ? "border-indigo-400/40 bg-indigo-400/[0.13] text-indigo-200"
+                    : "border-transparent text-white/55 hover:bg-white/[0.04] hover:text-white"
+                )}
+                style={isActive ? { boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)" } : undefined}
+              >
+                {isActive && (
+                  <span className="absolute -left-px bottom-2 top-2 w-[2.5px] rounded bg-indigo-400/80" />
+                )}
+                <Icon
+                  name={tabIcon(t.key)}
+                  className={cx("h-[18px] w-[18px] flex-none", isActive ? "text-indigo-300" : "text-white/45 group-hover:text-indigo-300")}
+                />
+                {!collapsed && <span className="whitespace-nowrap">{navLabel(t.key)}</span>}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="mt-auto flex flex-col gap-[10px] pt-4">
+          {collapsed ? (
+            <div className="flex flex-col items-center gap-3">
+              <span
+                className="h-[9px] w-[9px] rounded-full bg-emerald-400"
+                title={`Сервер онлайн · ${host}`}
+                style={{ boxShadow: "none" }}
+              />
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-400/20 text-[12px] text-indigo-200 ring-1 ring-indigo-400/30" title="Администратор">
+                Н
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="rounded-xl border border-white/[0.07] bg-white/[0.035] px-3 py-[10px]">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-[7px] text-[12px] text-white/75">
+                    <span className="h-[7px] w-[7px] rounded-full bg-emerald-400" style={{ boxShadow: "none" }} />
+                    Сервер онлайн
+                  </span>
+                  <span className="text-[10px] text-white/40 font-[family-name:var(--font-geist-mono)]">v{APP_VERSION}</span>
+                </div>
+                <div className="mt-[5px] text-[10px] text-white/35 font-[family-name:var(--font-geist-mono)]">{host}</div>
+              </div>
+              <div className="flex items-center gap-[10px] px-1 pt-1">
+                <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-indigo-400/20 text-[12px] text-indigo-200 ring-1 ring-indigo-400/30">
+                  Н
+                </div>
+                <div className="leading-tight">
+                  <div className="text-[12.5px] text-white">Администратор</div>
+                  <div className="text-[10.5px] text-white/40">Полный доступ</div>
+                </div>
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" className="ml-auto text-white/35" aria-hidden="true">
+                  <path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+            </>
+          )}
+        </div>
+      </aside>
+
+      {/* Основная колонка */}
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
+        <header className="flex items-center justify-between gap-3 border-b border-white/[0.07] bg-white/[0.045] px-[18px] py-[13px] backdrop-blur-xl">
+          <div>
+            <div className="text-[15px] font-semibold tracking-tight">{activeTab.label}</div>
+            <div className="text-[11.5px] text-white/45">{activeTab.description}</div>
+          </div>
+          <div className="flex items-center gap-[9px]">
+            <div className="hidden items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.04] px-[9px] py-[6px] text-white/40 sm:flex">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
+                <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.6" />
+                <path d="m20 20-3-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+              <span className="text-[12px]">Поиск</span>
+              <span className="rounded border border-white/15 px-[5px] py-px text-[10px] font-[family-name:var(--font-geist-mono)]">⌘K</span>
+            </div>
+            <button
+              onClick={() => setActive("settings")}
+              className="inline-flex items-center gap-[6px] rounded-lg border border-indigo-400/30 bg-indigo-400/[0.13] px-[10px] py-[6px] text-[11.5px] text-indigo-200 transition hover:bg-indigo-400/20"
+            >
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
+                <path d="M12 16V8m0 0-3 3m3-3 3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Обновления
+            </button>
+            <button aria-label="Уведомления" className="text-white/45 transition hover:text-white">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
+                <path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+                <path d="M10 20a2 2 0 0 0 4 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <main className="relative flex-1 overflow-y-auto px-[18px] py-4">
+          <div className="flex flex-col gap-6">
+            {active === "home" ? <Dashboard /> : null}
             {active === "labels" ? <LabelDesigner /> : null}
             {active === "catalog" ? <ProductCatalog /> : null}
             {active === "packaging" ? <PackagingManager /> : null}
             {active === "barcodes" ? <BarcodeTemplatesManager /> : null}
+            {active === "print_tasks" ? <PrintJobsManager /> : null}
             {active === "stations" ? <StationsPage /> : null}
             {active === "settings" ? <SettingsPage /> : null}
 
@@ -283,12 +406,12 @@ export default function Home() {
               </section>
             ) : null}
 
-            <footer className="border-t border-white/10 pt-6 text-xs text-white/50">
+            <footer className="border-t border-white/10 pt-6 text-xs text-white/40">
               © {new Date().getFullYear()} — Локальная система этикеток (offline).
             </footer>
           </div>
-        </div>
-      </main>
-    </div >
+        </main>
+      </div>
+    </div>
   );
 }
