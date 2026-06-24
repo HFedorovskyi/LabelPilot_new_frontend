@@ -28,6 +28,9 @@ export default function ImportModal({ onClose, onSuccess, globalAttributes, pack
         name: "",
         exp_date: "",
         close_box_counter: "",
+        fixed_weight_grams: "",
+        min_weight_grams: "",
+        max_weight_grams: "",
         extra_data_map: {} as Record<string, string>
     });
 
@@ -59,6 +62,9 @@ export default function ImportModal({ onClose, onSuccess, globalAttributes, pack
             name: "",
             exp_date: "",
             close_box_counter: "",
+            fixed_weight_grams: "",
+            min_weight_grams: "",
+            max_weight_grams: "",
             extra_data_map: {} as Record<string, string>
         };
 
@@ -74,6 +80,9 @@ export default function ImportModal({ onClose, onSuccess, globalAttributes, pack
             else if (!guess.name && (lower.includes("наим") || lower.includes("назв") || lower.includes("тов") || lower.includes("name"))) guess.name = c;
             else if (!guess.exp_date && (lower.includes("срок") || lower.includes("годн"))) guess.exp_date = c;
             else if (!guess.close_box_counter && (lower.includes("влож") || lower.includes("короб") || lower.includes("шт"))) guess.close_box_counter = c;
+            else if (!guess.min_weight_grams && lower.includes("мин")) guess.min_weight_grams = c;
+            else if (!guess.max_weight_grams && lower.includes("макс")) guess.max_weight_grams = c;
+            else if (!guess.fixed_weight_grams && lower.includes("фикс")) guess.fixed_weight_grams = c;
             // if it matched a global attribute exactly
             const matchedAttr = globalAttributes.find(attr => attr.name.toLowerCase() === lower);
             if (matchedAttr) {
@@ -241,6 +250,25 @@ export default function ImportModal({ onClose, onSuccess, globalAttributes, pack
                                             onChange={v => setMapping({ ...mapping, close_box_counter: v })}
                                             placeholder="Пропустить"
                                         />
+                                    </div>
+
+                                    <div className="pt-3 mt-2 border-t border-white/10">
+                                        <div className="text-[11px] text-white/40 mb-2">Фиксированный вес (если есть — товар станет «фикс. вес»)</div>
+                                        <div className="grid gap-1">
+                                            <label className="text-xs text-white/70 font-medium">Фикс. вес (г)</label>
+                                            <Select options={colOptions} value={mapping.fixed_weight_grams}
+                                                onChange={v => setMapping({ ...mapping, fixed_weight_grams: v })} placeholder="Пропустить" />
+                                        </div>
+                                        <div className="grid gap-1 mt-2">
+                                            <label className="text-xs text-white/70 font-medium">Мин. вес (г)</label>
+                                            <Select options={colOptions} value={mapping.min_weight_grams}
+                                                onChange={v => setMapping({ ...mapping, min_weight_grams: v })} placeholder="Пропустить" />
+                                        </div>
+                                        <div className="grid gap-1 mt-2">
+                                            <label className="text-xs text-white/70 font-medium">Макс. вес (г)</label>
+                                            <Select options={colOptions} value={mapping.max_weight_grams}
+                                                onChange={v => setMapping({ ...mapping, max_weight_grams: v })} placeholder="Пропустить" />
+                                        </div>
                                     </div>
                                 </div>
 
