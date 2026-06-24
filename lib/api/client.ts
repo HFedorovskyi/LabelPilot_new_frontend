@@ -1,3 +1,5 @@
+import { getSavedLang } from "@/lib/i18n";
+
 declare const process: any;
 
 // Runtime-resolved API base: works for a static export served from any LAN host.
@@ -51,6 +53,8 @@ export function setUnauthorizedHandler(fn: UnauthorizedHandler | null): void {
 export async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
     const method = (init.method ?? "GET").toUpperCase();
     const headers = new Headers(init.headers);
+    // Tell the backend which language to localize its messages in (errors, validation).
+    if (!headers.has("X-Lang")) headers.set("X-Lang", getSavedLang());
     if (UNSAFE_METHODS.has(method)) {
         const token = getCookie("csrftoken");
         if (token && !headers.has("X-CSRFToken")) headers.set("X-CSRFToken", token);
