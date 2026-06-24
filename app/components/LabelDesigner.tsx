@@ -57,6 +57,8 @@ const DEFAULT_PREVIEW_DATA: Record<string, any> = {
   production_date: formatDate(new Date()),
   exp_date_full: formatDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
   batch_number: "9999999999",
+  operator: "07",
+  operator_name: "Иванов И.И.",
 };
 
 // Ключи для колонок таблицы — это поля ОДНОЙ позиции (строки), а не паллеты-скаляра
@@ -1133,6 +1135,8 @@ export default function LabelDesigner() {
       production_date: formatDate(new Date()),
       exp_date_full: formatDate(new Date(Date.now() + Number(item.exp_date || 30) * 24 * 60 * 60 * 1000)),
       batch_number: "9999999999",
+      operator: "07",
+      operator_name: "Иванов И.И.",
       items: []
     };
 
@@ -1239,7 +1243,8 @@ export default function LabelDesigner() {
       { key: "production_date", label: "Дата производства", icon: "📅" },
       { key: "exp_date_full", label: "Годен до (дата)", icon: "📅" },
       { key: "batch_number", label: "Номер партии", icon: "🔢" },
-      { key: "operator_name", label: "Оператор", icon: "👤" },
+      { key: "operator", label: "Оператор (№)", icon: "👤" },
+      { key: "operator_name", label: "Оператор (ФИО)", icon: "👤" },
     ];
 
     if (type === "pack") {
@@ -1263,7 +1268,8 @@ export default function LabelDesigner() {
         { key: "pallet_number", label: "Номер паллеты", icon: "#️⃣" },
         { key: "shipping_date", label: "Дата отгрузки", icon: "🚚" },
         { key: "production_date", label: "Дата производства", icon: "📅" },
-        { key: "operator_name", label: "Оператор", icon: "👤" },
+        { key: "operator", label: "Оператор (№)", icon: "👤" },
+        { key: "operator_name", label: "Оператор (ФИО)", icon: "👤" },
         { key: "total_count", label: "Всего единиц", icon: "🔢" },
         { key: "total_places", label: "Кол-во мест", icon: "📦" },
         { key: "total_boxes", label: "Кол-во коробов", icon: "📦" },
