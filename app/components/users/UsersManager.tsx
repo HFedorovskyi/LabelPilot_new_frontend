@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { usersApi, type ManagedUser } from "@/lib/api/users";
 import type { Role } from "@/lib/api/auth";
 import { useAuth } from "../auth/AuthProvider";
+import { useTranslation } from "@/lib/i18n";
 
 // ─── Helpers (match SettingsPage conventions) ─────────────────────────────────
 
@@ -72,14 +73,14 @@ function Spinner({ className }: { className?: string }) {
 const fieldCls =
     "w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-sm text-white placeholder-white/30 outline-none transition focus:border-indigo-400/40 focus:ring-2 focus:ring-indigo-500/30";
 
-const roleLabel: Record<Role, string> = {
-    admin: "Администратор",
-    manager: "Менеджер",
-};
+function roleLabel(t: (key: string) => string, role: Role): string {
+    return role === "admin" ? t("users.roleAdmin") : t("users.roleManager");
+}
 
 // ─── Create user form ─────────────────────────────────────────────────────────
 
 function CreateUserForm({ onCreated }: { onCreated: () => void }) {
+    const { t } = useTranslation();
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [role, setRole] = useState<Role>("manager");
@@ -90,7 +91,7 @@ function CreateUserForm({ onCreated }: { onCreated: () => void }) {
         e.preventDefault();
         if (busy) return;
         if (!username.trim() || !password) {
-            setError("Укажите логин и пароль.");
+            setError(t("users.errLoginPasswordRequired"));
             return;
         }
         setBusy(true);
@@ -102,7 +103,7 @@ function CreateUserForm({ onCreated }: { onCreated: () => void }) {
             setRole("manager");
             onCreated();
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Не удалось создать пользователя");
+            setError(err instanceof Error ? err.message : t("users.errCreateFailed"));
         } finally {
             setBusy(false);
         }
@@ -110,26 +111,26 @@ function CreateUserForm({ onCreated }: { onCreated: () => void }) {
 
     return (
         <Card>
-            <div className="mb-4 text-sm font-semibold text-white">Новый пользователь</div>
+            <div className="mb-4 text-sm font-semibold text-white">{t("users.newUser")}</div>
             <form onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-end">
                 <div>
-                    <label className="mb-1.5 block text-xs font-medium text-white/55">Логин</label>
+                    <label className="mb-1.5 block text-xs font-medium text-white/55">{t("users.login")}</label>
                     <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} className={fieldCls} placeholder="user" autoComplete="off" />
                 </div>
                 <div>
-                    <label className="mb-1.5 block text-xs font-medium text-white/55">Пароль</label>
+                    <label className="mb-1.5 block text-xs font-medium text-white/55">{t("users.password")}</label>
                     <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className={fieldCls} placeholder="••••••••" autoComplete="new-password" />
                 </div>
                 <div>
-                    <label className="mb-1.5 block text-xs font-medium text-white/55">Роль</label>
+                    <label className="mb-1.5 block text-xs font-medium text-white/55">{t("users.role")}</label>
                     <select value={role} onChange={(e) => setRole(e.target.value as Role)} className={cx(fieldCls, "cursor-pointer")}>
-                        <option value="manager" className="bg-[#0d0e13]">Менеджер</option>
-                        <option value="admin" className="bg-[#0d0e13]">Администратор</option>
+                        <option value="manager" className="bg-[#0d0e13]">{t("users.roleManager")}</option>
+                        <option value="admin" className="bg-[#0d0e13]">{t("users.roleAdmin")}</option>
                     </select>
                 </div>
                 <Btn type="submit" disabled={busy}>
                     {busy ? <Spinner className="h-4 w-4" /> : null}
-                    Добавить
+                    {t("users.add")}
                 </Btn>
             </form>
             {error && (
@@ -157,6 +158,7 @@ function UserRow({
     onChanged: () => void;
     onError: (msg: string) => void;
 }) {
+    const { t } = useTranslation();
     const [busy, setBusy] = useState(false);
 
     const run = async (fn: () => Promise<unknown>) => {
@@ -166,7 +168,7 @@ function UserRow({
             await fn();
             onChanged();
         } catch (err) {
-            onError(err instanceof Error ? err.message : "Операция не выполнена");
+            onError(err instanceof Error ? err.message : t("users.errOperationFailed"));
         } finally {
             setBusy(false);
         }
@@ -180,7 +182,7 @@ function UserRow({
     const toggleActive = () => void run(() => usersApi.update(u.id, { is_active: !u.is_active }));
 
     const remove = () => {
-        if (!confirm(`Удалить пользователя «${u.username}»? Это действие необратимо.`)) return;
+        if (!confirm(t("users.confirmDelete", { username: u.username }))) return;
         void run(() => usersApi.remove(u.id));
     };
 
@@ -193,11 +195,11 @@ function UserRow({
                 <div className="min-w-0">
                     <div className="flex items-center gap-2">
                         <span className="truncate text-sm font-medium text-white">{u.username}</span>
-                        {isSelf && <Badge color="blue">Вы</Badge>}
-                        {!u.is_active && <Badge color="red">Отключён</Badge>}
+                        {isSelf && <Badge color="blue">{t("users.you")}</Badge>}
+                        {!u.is_active && <Badge color="red">{t("users.disabled")}</Badge>}
                     </div>
                     <div className="mt-0.5 flex items-center gap-2 text-xs text-white/45">
-                        <Badge color={u.role === "admin" ? "yellow" : "neutral"}>{roleLabel[u.role]}</Badge>
+                        <Badge color={u.role === "admin" ? "yellow" : "neutral"}>{roleLabel(t, u.role)}</Badge>
                     </div>
                 </div>
             </div>
@@ -208,19 +210,19 @@ function UserRow({
                     value={u.role}
                     onChange={(e) => changeRole(e.target.value as Role)}
                     disabled={busy || isSelf}
-                    title={isSelf ? "Нельзя менять собственную роль" : "Изменить роль"}
+                    title={isSelf ? t("users.cannotChangeOwnRole") : t("users.changeRole")}
                     className="cursor-pointer rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white outline-none transition focus:border-indigo-400/40 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                    <option value="manager" className="bg-[#0d0e13]">Менеджер</option>
-                    <option value="admin" className="bg-[#0d0e13]">Администратор</option>
+                    <option value="manager" className="bg-[#0d0e13]">{t("users.roleManager")}</option>
+                    <option value="admin" className="bg-[#0d0e13]">{t("users.roleAdmin")}</option>
                 </select>
 
                 <Btn variant="secondary" onClick={toggleActive} disabled={busy || isSelf} className="px-3 py-1.5 text-xs">
-                    {u.is_active ? "Отключить" : "Включить"}
+                    {u.is_active ? t("users.deactivate") : t("users.activate")}
                 </Btn>
 
                 <Btn variant="danger" onClick={remove} disabled={busy || isSelf} className="px-3 py-1.5 text-xs">
-                    Удалить
+                    {t("users.delete")}
                 </Btn>
 
                 {busy && <Spinner className="h-4 w-4 text-white/50" />}
@@ -232,6 +234,7 @@ function UserRow({
 // ─── UsersManager ─────────────────────────────────────────────────────────────
 
 export default function UsersManager() {
+    const { t } = useTranslation();
     const { user } = useAuth();
     const [users, setUsers] = useState<ManagedUser[] | null>(null);
     const [loading, setLoading] = useState(true);
@@ -243,11 +246,11 @@ export default function UsersManager() {
             const data = await usersApi.list();
             setUsers(data);
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Не удалось загрузить пользователей");
+            setError(err instanceof Error ? err.message : t("users.errLoadFailed"));
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [t]);
 
     useEffect(() => {
         void load();
@@ -259,15 +262,15 @@ export default function UsersManager() {
 
             <Card>
                 <div className="mb-4 flex items-center justify-between">
-                    <div className="text-sm font-semibold text-white">Пользователи</div>
+                    <div className="text-sm font-semibold text-white">{t("users.users")}</div>
                     <Btn variant="ghost" onClick={load} className="px-3 py-1.5 text-xs">
-                        Обновить
+                        {t("users.refresh")}
                     </Btn>
                 </div>
 
                 {loading ? (
                     <div className="flex items-center gap-2 text-sm text-white/60">
-                        <Spinner className="h-4 w-4" /> Загрузка пользователей…
+                        <Spinner className="h-4 w-4" /> {t("users.loadingUsers")}
                     </div>
                 ) : error ? (
                     <div className="flex items-start gap-3 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300">
@@ -283,7 +286,7 @@ export default function UsersManager() {
                         ))}
                     </div>
                 ) : (
-                    <div className="text-sm text-white/50">Пользователей пока нет.</div>
+                    <div className="text-sm text-white/50">{t("users.noUsersYet")}</div>
                 )}
             </Card>
         </div>

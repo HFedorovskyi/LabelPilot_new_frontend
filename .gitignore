@@ -47,3 +47,6 @@ backend/data/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# i18n intermediate work data
+.i18n_work/

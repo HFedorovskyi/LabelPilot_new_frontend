@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api/client";
+import { useTranslation } from "@/lib/i18n";
 
 function cx(...classes: (string | undefined | null | false)[]) {
     return classes.filter(Boolean).join(" ");
@@ -39,14 +40,15 @@ type PrintJob = {
     updated_at: string;
 };
 
-const STATUS_CONFIG: Record<PrintJob["status"], { label: string; color: string; bg: string; icon: string }> = {
-    pending: { label: "Ожидает", color: "text-amber-400", bg: "bg-amber-500/15 border-amber-500/20", icon: "⏳" },
-    sent: { label: "Отправлено", color: "text-blue-400", bg: "bg-blue-500/15 border-blue-500/20", icon: "📨" },
-    completed: { label: "Выполнено", color: "text-emerald-400", bg: "bg-emerald-500/15 border-emerald-500/20", icon: "✅" },
-    error: { label: "Ошибка", color: "text-rose-400", bg: "bg-rose-500/15 border-rose-500/20", icon: "❌" },
+const STATUS_CONFIG: Record<PrintJob["status"], { labelKey: string; color: string; bg: string; icon: string }> = {
+    pending: { labelKey: "printjobs.statusPending", color: "text-amber-400", bg: "bg-amber-500/15 border-amber-500/20", icon: "⏳" },
+    sent: { labelKey: "printjobs.statusSent", color: "text-blue-400", bg: "bg-blue-500/15 border-blue-500/20", icon: "📨" },
+    completed: { labelKey: "printjobs.statusCompleted", color: "text-emerald-400", bg: "bg-emerald-500/15 border-emerald-500/20", icon: "✅" },
+    error: { labelKey: "printjobs.statusError", color: "text-rose-400", bg: "bg-rose-500/15 border-rose-500/20", icon: "❌" },
 };
 
 export default function PrintJobsManager() {
+    const { t } = useTranslation();
     const [jobs, setJobs] = useState<PrintJob[]>([]);
     const [stations, setStations] = useState<Station[]>([]);
     const [nomenclatures, setNomenclatures] = useState<Nomenclature[]>([]);
@@ -101,12 +103,12 @@ export default function PrintJobsManager() {
 
     const handleCreate = async () => {
         if (!selectedStation || !selectedNomenclature || !quantity) {
-            setFormError("Заполните обязательные поля (станция, номенклатура, количество)");
+            setFormError(t("printjobs.errorRequiredFields"));
             return;
         }
         const qtyNum = parseFloat(quantity);
         if (isNaN(qtyNum) || qtyNum <= 0) {
-            setFormError("Введите корректное количество");
+            setFormError(t("printjobs.errorInvalidQuantity"));
             return;
         }
 
@@ -125,7 +127,7 @@ export default function PrintJobsManager() {
             const updatedJobs = await api.printJobs.list();
             setJobs(updatedJobs);
         } catch (e: any) {
-            setFormError(e.message || "Ошибка при создании задания");
+            setFormError(e.message || t("printjobs.errorCreate"));
         } finally {
             setIsCreating(false);
         }
@@ -138,19 +140,19 @@ export default function PrintJobsManager() {
             const updatedJobs = await api.printJobs.list();
             setJobs(updatedJobs);
         } catch (e: any) {
-            alert(e.message || "Ошибка отправки");
+            alert(e.message || t("printjobs.errorSend"));
         } finally {
             setIsSending(null);
         }
     };
 
     const handleDelete = async (jobId: number) => {
-        if (!confirm("Удалить задание?")) return;
+        if (!confirm(t("printjobs.confirmDelete"))) return;
         try {
             await api.printJobs.delete(jobId);
             setJobs((prev) => prev.filter((j) => j.id !== jobId));
         } catch (e: any) {
-            alert(e.message || "Ошибка удаления");
+            alert(e.message || t("printjobs.errorDelete"));
         }
     };
 
@@ -160,7 +162,7 @@ export default function PrintJobsManager() {
             const updatedJobs = await api.printJobs.list();
             setJobs(updatedJobs);
         } catch (e: any) {
-            alert(e.message || "Ошибка обновления статуса");
+            alert(e.message || t("printjobs.errorUpdateStatus"));
         }
     };
 
@@ -182,7 +184,7 @@ export default function PrintJobsManager() {
             const updatedJobs = await api.printJobs.list();
             setJobs(updatedJobs);
         } catch (e: any) {
-            alert(e.message || "Ошибка скачивания");
+            alert(e.message || t("printjobs.errorDownload"));
         }
     };
 
@@ -195,7 +197,7 @@ export default function PrintJobsManager() {
             const updatedJobs = await api.printJobs.list();
             setJobs(updatedJobs);
         } catch (e: any) {
-            alert(e.message || "Нет ожидающих заданий для скачивания");
+            alert(e.message || t("printjobs.errorNoPendingJobs"));
         }
     };
 
@@ -211,7 +213,7 @@ export default function PrintJobsManager() {
             <div className="flex items-center justify-center py-24">
                 <div className="flex flex-col items-center gap-3">
                     <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-indigo-400" />
-                    <span className="text-sm text-white/50">Загрузка данных...</span>
+                    <span className="text-sm text-white/50">{t("printjobs.loadingData")}</span>
                 </div>
             </div>
         );
@@ -227,21 +229,21 @@ export default function PrintJobsManager() {
                             <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                         </svg>
                     </span>
-                    Новое задание на печать
+                    {t("printjobs.newJobTitle")}
                 </h2>
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {/* Station Selector */}
                     <div className="space-y-1.5">
                         <label className="block text-xs font-medium uppercase tracking-wider text-white/50">
-                            Станция
+                            {t("printjobs.labelStation")}
                         </label>
                         <select
                             value={selectedStation}
                             onChange={(e) => setSelectedStation(e.target.value)}
                             className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white outline-none transition focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 [&>option]:bg-neutral-900 [&>option]:text-white"
                         >
-                            <option value="">Выберите станцию...</option>
+                            <option value="">{t("printjobs.selectStationPlaceholder")}</option>
                             {stations.map((s) => (
                                 <option key={s.id} value={s.id}>
                                     {s.station_number ? `[${s.station_number}] ` : ""}
@@ -255,7 +257,7 @@ export default function PrintJobsManager() {
                     {/* Nomenclature Selector with search */}
                     <div className="space-y-1.5 relative">
                         <label className="block text-xs font-medium uppercase tracking-wider text-white/50">
-                            Номенклатура
+                            {t("printjobs.labelNomenclature")}
                         </label>
                         <div className="relative">
                             <input
@@ -267,7 +269,7 @@ export default function PrintJobsManager() {
                                     setShowNomenclatureDropdown(true);
                                 }}
                                 onFocus={() => setShowNomenclatureDropdown(true)}
-                                placeholder="Поиск по артикулу или названию..."
+                                placeholder={t("printjobs.searchNomenclaturePlaceholder")}
                                 className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white outline-none transition focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20"
                             />
                             {selectedNomObj && (
@@ -285,7 +287,7 @@ export default function PrintJobsManager() {
                         {showNomenclatureDropdown && !selectedNomObj && (
                             <div className="absolute z-30 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-white/10 bg-neutral-900/95 backdrop-blur shadow-2xl">
                                 {filteredNomenclatures.length === 0 ? (
-                                    <div className="px-4 py-3 text-sm text-white/40">Ничего не найдено</div>
+                                    <div className="px-4 py-3 text-sm text-white/40">{t("printjobs.nothingFound")}</div>
                                 ) : (
                                     filteredNomenclatures.slice(0, 50).map((n) => (
                                         <button
@@ -309,13 +311,13 @@ export default function PrintJobsManager() {
                     {/* Batch Number */}
                     <div className="space-y-1.5">
                         <label className="block text-xs font-medium uppercase tracking-wider text-white/50">
-                            Номер партии
+                            {t("printjobs.labelBatchNumber")}
                         </label>
                         <input
                             type="text"
                             value={batchNumber}
                             onChange={(e) => setBatchNumber(e.target.value)}
-                            placeholder="Введите номер партии..."
+                            placeholder={t("printjobs.batchNumberPlaceholder")}
                             className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white outline-none transition focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20"
                         />
                     </div>
@@ -323,7 +325,7 @@ export default function PrintJobsManager() {
                     {/* Marking Date */}
                     <div className="space-y-1.5">
                         <label className="block text-xs font-medium uppercase tracking-wider text-white/50">
-                            Дата маркировки
+                            {t("printjobs.labelMarkingDate")}
                         </label>
                         <input
                             type="date"
@@ -336,7 +338,7 @@ export default function PrintJobsManager() {
                     {/* Quantity + Unit */}
                     <div className="space-y-1.5 md:col-span-2 lg:col-span-1">
                         <label className="block text-xs font-medium uppercase tracking-wider text-white/50">
-                            Количество
+                            {t("printjobs.labelQuantity")}
                         </label>
                         <div className="flex gap-2">
                             <input
@@ -358,7 +360,7 @@ export default function PrintJobsManager() {
                                             : "text-white/50 hover:text-white hover:bg-white/5"
                                     )}
                                 >
-                                    шт
+                                    {t("printjobs.unitPcs")}
                                 </button>
                                 <button
                                     onClick={() => setQuantityUnit("kg")}
@@ -369,7 +371,7 @@ export default function PrintJobsManager() {
                                             : "text-white/50 hover:text-white hover:bg-white/5"
                                     )}
                                 >
-                                    кг
+                                    {t("printjobs.unitKg")}
                                 </button>
                             </div>
                         </div>
@@ -391,10 +393,10 @@ export default function PrintJobsManager() {
                         {isCreating ? (
                             <>
                                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-neutral-400 border-t-neutral-950" />
-                                Создание...
+                                {t("printjobs.creating")}
                             </>
                         ) : (
-                            <>Создать задание</>
+                            <>{t("printjobs.createJob")}</>
                         )}
                     </button>
                 </div>
@@ -409,7 +411,7 @@ export default function PrintJobsManager() {
             <div>
                 <div className="mb-4 flex items-center justify-between">
                     <h2 className="text-lg font-semibold text-white">
-                        Задания
+                        {t("printjobs.jobsHeader")}
                         <span className="ml-2 text-sm font-normal text-white/40">({jobs.length})</span>
                     </h2>
                     <div className="flex items-center gap-2">
@@ -417,16 +419,16 @@ export default function PrintJobsManager() {
                             <button
                                 onClick={handleDownloadBundle}
                                 className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-500/15 px-3 py-1.5 text-xs font-medium text-cyan-300 border border-cyan-500/20 hover:bg-cyan-500/25 transition"
-                                title="Скачать все ожидающие задания для USB-носителя"
+                                title={t("printjobs.downloadAllUsbTitle")}
                             >
-                                💾 Скачать все на USB (.lpj)
+                                💾 {t("printjobs.downloadAllUsb")}
                             </button>
                         )}
                         <button
                             onClick={fetchData}
                             className="rounded-lg bg-white/5 px-3 py-1.5 text-xs font-medium text-white/60 hover:bg-white/10 hover:text-white transition"
                         >
-                            🔄 Обновить
+                            🔄 {t("printjobs.refresh")}
                         </button>
                     </div>
                 </div>
@@ -434,8 +436,8 @@ export default function PrintJobsManager() {
                 {jobs.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-white/10 py-16 text-center">
                         <div className="text-3xl mb-2">📋</div>
-                        <div className="text-sm text-white/40">Нет заданий на печать</div>
-                        <div className="text-xs text-white/25 mt-1">Создайте первое задание, используя форму выше</div>
+                        <div className="text-sm text-white/40">{t("printjobs.emptyTitle")}</div>
+                        <div className="text-xs text-white/25 mt-1">{t("printjobs.emptyHint")}</div>
                     </div>
                 ) : (
                     <div className="space-y-3">
@@ -457,7 +459,7 @@ export default function PrintJobsManager() {
                                                         status.color
                                                     )}
                                                 >
-                                                    {status.icon} {status.label}
+                                                    {status.icon} {t(status.labelKey)}
                                                 </span>
                                                 <span className="text-sm font-semibold text-white">
                                                     {job.nomenclature_name}
@@ -470,27 +472,27 @@ export default function PrintJobsManager() {
                                             {/* Details row */}
                                             <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-white/50">
                                                 <span className="flex items-center gap-1.5">
-                                                    <span className="text-white/30">Станция:</span>
+                                                    <span className="text-white/30">{t("printjobs.detailStation")}</span>
                                                     <span className="text-white/70">{job.station_name}</span>
                                                 </span>
                                                 <span className="flex items-center gap-1.5">
-                                                    <span className="text-white/30">Кол-во:</span>
+                                                    <span className="text-white/30">{t("printjobs.detailQuantity")}</span>
                                                     <span className="font-mono font-semibold text-white/70">
-                                                        {job.quantity} {job.quantity_unit === "kg" ? "кг" : "шт"}
+                                                        {job.quantity} {job.quantity_unit === "kg" ? t("printjobs.unitKg") : t("printjobs.unitPcs")}
                                                     </span>
                                                 </span>
                                                 {job.batch_number && (
                                                     <span className="flex items-center gap-1.5">
-                                                        <span className="text-white/30">Партия:</span>
+                                                        <span className="text-white/30">{t("printjobs.detailBatch")}</span>
                                                         <span className="font-mono text-white/70">{job.batch_number}</span>
                                                     </span>
                                                 )}
                                                 <span className="flex items-center gap-1.5">
-                                                    <span className="text-white/30">Дата маркировки:</span>
+                                                    <span className="text-white/30">{t("printjobs.detailMarkingDate")}</span>
                                                     <span className="text-white/70">{job.marking_date ? new Date(job.marking_date).toLocaleDateString() : '—'}</span>
                                                 </span>
                                                 <span className="flex items-center gap-1.5">
-                                                    <span className="text-white/30">Создано:</span>
+                                                    <span className="text-white/30">{t("printjobs.detailCreated")}</span>
                                                     <span>{new Date(job.created_at).toLocaleString()}</span>
                                                 </span>
                                             </div>
@@ -510,12 +512,12 @@ export default function PrintJobsManager() {
                                                         ) : (
                                                             "📤"
                                                         )}
-                                                        Отправить
+                                                        {t("printjobs.send")}
                                                     </button>
                                                     <button
                                                         onClick={() => handleDownloadUsb(job.id)}
                                                         className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-500/15 px-3 py-1.5 text-xs font-medium text-cyan-300 border border-cyan-500/20 hover:bg-cyan-500/25 transition"
-                                                        title="Скачать для USB-носителя (.lpj)"
+                                                        title={t("printjobs.downloadUsbTitle")}
                                                     >
                                                         💾 USB
                                                     </button>
@@ -526,7 +528,7 @@ export default function PrintJobsManager() {
                                                     onClick={() => handleStatusChange(job.id, "pending")}
                                                     className="rounded-lg bg-amber-500/20 px-3 py-1.5 text-xs font-medium text-amber-300 border border-amber-500/20 hover:bg-amber-500/30 transition"
                                                 >
-                                                    🔁 Повторить
+                                                    🔁 {t("printjobs.retry")}
                                                 </button>
                                             )}
                                             {job.status === "sent" && (
@@ -534,7 +536,7 @@ export default function PrintJobsManager() {
                                                     onClick={() => handleStatusChange(job.id, "completed")}
                                                     className="rounded-lg bg-emerald-500/20 px-3 py-1.5 text-xs font-medium text-emerald-300 border border-emerald-500/20 hover:bg-emerald-500/30 transition"
                                                 >
-                                                    ✅ Выполнено
+                                                    ✅ {t("printjobs.markCompleted")}
                                                 </button>
                                             )}
                                             <button

@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { operatorsApi, type Operator } from "@/lib/api/operators";
+import { useTranslation } from "@/lib/i18n";
 
 // ─── Helpers (match UsersManager / SettingsPage conventions) ──────────────────
 
@@ -78,6 +79,7 @@ function digitsOnly(v: string): string {
 // ─── Create operator form ─────────────────────────────────────────────────────
 
 function CreateOperatorForm({ onCreated }: { onCreated: () => void }) {
+    const { t } = useTranslation();
     const [fullName, setFullName] = useState("");
     const [shortCode, setShortCode] = useState("");
     const [pin, setPin] = useState("");
@@ -89,7 +91,7 @@ function CreateOperatorForm({ onCreated }: { onCreated: () => void }) {
         e.preventDefault();
         if (busy) return;
         if (!fullName.trim()) {
-            setError("Укажите ФИО оператора.");
+            setError(t("operators.errFullNameRequired"));
             return;
         }
         setBusy(true);
@@ -110,7 +112,7 @@ function CreateOperatorForm({ onCreated }: { onCreated: () => void }) {
             setIsActive(true);
             onCreated();
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Не удалось создать оператора");
+            setError(err instanceof Error ? err.message : t("operators.errCreateFailed"));
         } finally {
             setBusy(false);
         }
@@ -118,21 +120,21 @@ function CreateOperatorForm({ onCreated }: { onCreated: () => void }) {
 
     return (
         <Card>
-            <div className="mb-4 text-sm font-semibold text-white">Новый оператор</div>
+            <div className="mb-4 text-sm font-semibold text-white">{t("operators.newOperator")}</div>
             <form onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
                 <div>
-                    <label className="mb-1.5 block text-xs font-medium text-white/55">ФИО</label>
+                    <label className="mb-1.5 block text-xs font-medium text-white/55">{t("operators.fullName")}</label>
                     <input
                         type="text"
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
                         className={fieldCls}
-                        placeholder="Иванов Иван"
+                        placeholder={t("operators.fullNamePlaceholder")}
                         autoComplete="off"
                     />
                 </div>
                 <div>
-                    <label className="mb-1.5 block text-xs font-medium text-white/55">Код (необязательно)</label>
+                    <label className="mb-1.5 block text-xs font-medium text-white/55">{t("operators.codeOptional")}</label>
                     <input
                         type="text"
                         value={shortCode}
@@ -143,7 +145,7 @@ function CreateOperatorForm({ onCreated }: { onCreated: () => void }) {
                     />
                 </div>
                 <div>
-                    <label className="mb-1.5 block text-xs font-medium text-white/55">PIN (необязательно)</label>
+                    <label className="mb-1.5 block text-xs font-medium text-white/55">{t("operators.pinOptional")}</label>
                     <input
                         type="text"
                         inputMode="numeric"
@@ -156,7 +158,7 @@ function CreateOperatorForm({ onCreated }: { onCreated: () => void }) {
                 </div>
                 <Btn type="submit" disabled={busy}>
                     {busy ? <Spinner className="h-4 w-4" /> : null}
-                    Добавить
+                    {t("operators.add")}
                 </Btn>
             </form>
             <label className="mt-3 inline-flex cursor-pointer items-center gap-2 text-xs text-white/60">
@@ -166,9 +168,9 @@ function CreateOperatorForm({ onCreated }: { onCreated: () => void }) {
                     onChange={(e) => setIsActive(e.target.checked)}
                     className="h-4 w-4 cursor-pointer rounded border-white/20 bg-white/5"
                 />
-                Активен
+                {t("operators.active")}
             </label>
-            <div className="mt-1 text-[11px] text-white/35">Станция: все станции (по умолчанию).</div>
+            <div className="mt-1 text-[11px] text-white/35">{t("operators.stationAllDefault")}</div>
             {error && (
                 <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-red-400/20 bg-red-400/10 px-3.5 py-2.5 text-sm text-red-300">
                     <svg viewBox="0 0 24 24" fill="none" className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true">
@@ -192,6 +194,7 @@ function OperatorRow({
     onChanged: () => void;
     onError: (msg: string) => void;
 }) {
+    const { t } = useTranslation();
     const [busy, setBusy] = useState(false);
     const [editing, setEditing] = useState(false);
     const [editName, setEditName] = useState(op.full_name);
@@ -206,7 +209,7 @@ function OperatorRow({
             await fn();
             onChanged();
         } catch (err) {
-            onError(err instanceof Error ? err.message : "Операция не выполнена");
+            onError(err instanceof Error ? err.message : t("operators.errOperationFailed"));
         } finally {
             setBusy(false);
         }
@@ -215,7 +218,7 @@ function OperatorRow({
     const toggleActive = () => void run(() => operatorsApi.update(op.id, { is_active: !op.is_active }));
 
     const remove = () => {
-        if (!confirm(`Удалить оператора «${op.full_name}»? Это действие необратимо.`)) return;
+        if (!confirm(t("operators.confirmDelete", { name: op.full_name }))) return;
         void run(() => operatorsApi.remove(op.id));
     };
 
@@ -235,7 +238,7 @@ function OperatorRow({
 
     const saveEdit = () => {
         if (!editName.trim()) {
-            onError("Укажите ФИО оператора.");
+            onError(t("operators.errFullNameRequired"));
             return;
         }
         const payload: Parameters<typeof operatorsApi.update>[1] = {
@@ -264,11 +267,11 @@ function OperatorRow({
                         <div className="flex flex-wrap items-center gap-2">
                             <span className="truncate text-sm font-medium text-white">{op.full_name}</span>
                             {op.short_code && <Badge color="neutral">{op.short_code}</Badge>}
-                            <Badge color={op.is_active ? "green" : "red"}>{op.is_active ? "Активен" : "Отключён"}</Badge>
-                            <Badge color={op.has_pin ? "blue" : "neutral"}>{op.has_pin ? "PIN задан" : "без PIN"}</Badge>
+                            <Badge color={op.is_active ? "green" : "red"}>{op.is_active ? t("operators.active") : t("operators.disabled")}</Badge>
+                            <Badge color={op.has_pin ? "blue" : "neutral"}>{op.has_pin ? t("operators.pinSet") : t("operators.noPin")}</Badge>
                         </div>
                         <div className="mt-0.5 text-xs text-white/40">
-                            {op.station == null ? "Все станции" : `Станция #${op.station}`}
+                            {op.station == null ? t("operators.allStations") : t("operators.stationNumber", { station: op.station })}
                         </div>
                     </div>
                 </div>
@@ -276,14 +279,14 @@ function OperatorRow({
                 <div className="flex flex-wrap items-center gap-2">
                     {!editing && (
                         <Btn variant="secondary" onClick={startEdit} disabled={busy} className="px-3 py-1.5 text-xs">
-                            Изменить
+                            {t("operators.edit")}
                         </Btn>
                     )}
                     <Btn variant="secondary" onClick={toggleActive} disabled={busy} className="px-3 py-1.5 text-xs">
-                        {op.is_active ? "Отключить" : "Включить"}
+                        {op.is_active ? t("operators.disable") : t("operators.enable")}
                     </Btn>
                     <Btn variant="danger" onClick={remove} disabled={busy} className="px-3 py-1.5 text-xs">
-                        Удалить
+                        {t("operators.delete")}
                     </Btn>
                     {busy && <Spinner className="h-4 w-4 text-white/50" />}
                 </div>
@@ -293,18 +296,18 @@ function OperatorRow({
                 <div className="rounded-xl border border-white/10 bg-black/20 p-3.5">
                     <div className="grid gap-3 sm:grid-cols-2">
                         <div>
-                            <label className="mb-1.5 block text-xs font-medium text-white/55">ФИО</label>
+                            <label className="mb-1.5 block text-xs font-medium text-white/55">{t("operators.fullName")}</label>
                             <input
                                 type="text"
                                 value={editName}
                                 onChange={(e) => setEditName(e.target.value)}
                                 className={fieldCls}
-                                placeholder="Иванов Иван"
+                                placeholder={t("operators.fullNamePlaceholder")}
                                 autoComplete="off"
                             />
                         </div>
                         <div>
-                            <label className="mb-1.5 block text-xs font-medium text-white/55">Код</label>
+                            <label className="mb-1.5 block text-xs font-medium text-white/55">{t("operators.code")}</label>
                             <input
                                 type="text"
                                 value={editCode}
@@ -316,7 +319,7 @@ function OperatorRow({
                         </div>
                         <div>
                             <label className="mb-1.5 block text-xs font-medium text-white/55">
-                                Новый PIN (оставьте пустым, чтобы не менять)
+                                {t("operators.newPinHint")}
                             </label>
                             <input
                                 type="text"
@@ -328,7 +331,7 @@ function OperatorRow({
                                 }}
                                 disabled={clearPin}
                                 className={fieldCls}
-                                placeholder={op.has_pin ? "PIN задан" : "••••"}
+                                placeholder={op.has_pin ? t("operators.pinSet") : "••••"}
                                 autoComplete="off"
                             />
                         </div>
@@ -343,16 +346,16 @@ function OperatorRow({
                                 disabled={!op.has_pin}
                                 className="h-4 w-4 cursor-pointer rounded border-white/20 bg-white/5 disabled:opacity-40"
                             />
-                            Удалить PIN
+                            {t("operators.removePin")}
                         </label>
                     </div>
                     <div className="mt-3 flex items-center gap-2">
                         <Btn onClick={saveEdit} disabled={busy} className="px-3 py-1.5 text-xs">
                             {busy ? <Spinner className="h-4 w-4" /> : null}
-                            Сохранить
+                            {t("operators.save")}
                         </Btn>
                         <Btn variant="ghost" onClick={cancelEdit} disabled={busy} className="px-3 py-1.5 text-xs">
-                            Отмена
+                            {t("operators.cancel")}
                         </Btn>
                     </div>
                 </div>
@@ -364,6 +367,7 @@ function OperatorRow({
 // ─── OperatorsManager ─────────────────────────────────────────────────────────
 
 export default function OperatorsManager() {
+    const { t } = useTranslation();
     const [operators, setOperators] = useState<Operator[] | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -374,11 +378,11 @@ export default function OperatorsManager() {
             const data = await operatorsApi.list();
             setOperators(data);
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Не удалось загрузить операторов");
+            setError(err instanceof Error ? err.message : t("operators.errLoadFailed"));
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [t]);
 
     useEffect(() => {
         void load();
@@ -390,15 +394,15 @@ export default function OperatorsManager() {
 
             <Card>
                 <div className="mb-4 flex items-center justify-between">
-                    <div className="text-sm font-semibold text-white">Операторы</div>
+                    <div className="text-sm font-semibold text-white">{t("operators.operators")}</div>
                     <Btn variant="ghost" onClick={load} className="px-3 py-1.5 text-xs">
-                        Обновить
+                        {t("operators.refresh")}
                     </Btn>
                 </div>
 
                 {loading ? (
                     <div className="flex items-center gap-2 text-sm text-white/60">
-                        <Spinner className="h-4 w-4" /> Загрузка операторов…
+                        <Spinner className="h-4 w-4" /> {t("operators.loadingOperators")}
                     </div>
                 ) : error ? (
                     <div className="flex items-start gap-3 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300">
@@ -414,7 +418,7 @@ export default function OperatorsManager() {
                         ))}
                     </div>
                 ) : (
-                    <div className="text-sm text-white/50">Операторов пока нет.</div>
+                    <div className="text-sm text-white/50">{t("operators.empty")}</div>
                 )}
             </Card>
         </div>

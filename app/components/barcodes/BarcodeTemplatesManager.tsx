@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api/client";
+import { useTranslation } from "@/lib/i18n";
 import { cx } from "../catalog/utils";
 
 // --- Components ---
@@ -157,54 +158,56 @@ const ALLOWED_FIELD_TYPES = [
     "fnc1", "gs", "ai", "extra_data",
 ];
 
-const FIELD_TYPES = [
-    { value: "constanta", label: "Константа" },
-    { value: "weight_netto_pack", label: "Вес нетто упаковки" },
-    { value: "weight_brutto_pack", label: "Вес брутто упаковки" },
-    { value: "weight_netto_box", label: "Вес нетто короба" },
-    { value: "weight_brutto_box", label: "Вес брутто короба" },
-    { value: "weight_netto_pallet", label: "Вес нетто паллета" },
-    { value: "weight_brutto_pallet", label: "Вес брутто паллета" },
-    { value: "weight_brutto_all", label: "Общий вес брутто паллета (с поддоном)" },
-    { value: "production_date", label: "Дата производства" },
-    { value: "exp_date", label: "Годен до" },
-    { value: "pack_number", label: "Номер упаковки" },
-    { value: "box_number", label: "Номер короба" },
-    { value: "pallet_number", label: "Номер паллеты" },
-    { value: "article", label: "Артикул" },
-    { value: "pack_count", label: "Количество вложений в коробе" },
-    { value: "box_count", label: "Количество коробов на паллете" },
-    { value: "batch_number", label: "Номер партии" },
-    { value: "fnc1", label: "FNC1 (GS1)" },
-    { value: "gs", label: "Group Separator (ASCII 29)" },
-    { value: "ai", label: "Идентификатор AI" },
-    { value: "extra_data", label: "Глобальный атрибут (Доп. поле)" },
+type TFn = (key: string, params?: Record<string, string | number>) => string;
+
+const buildFieldTypes = (t: TFn) => [
+    { value: "constanta", label: t("barcodes.fieldConstanta") },
+    { value: "weight_netto_pack", label: t("barcodes.fieldWeightNettoPack") },
+    { value: "weight_brutto_pack", label: t("barcodes.fieldWeightBruttoPack") },
+    { value: "weight_netto_box", label: t("barcodes.fieldWeightNettoBox") },
+    { value: "weight_brutto_box", label: t("barcodes.fieldWeightBruttoBox") },
+    { value: "weight_netto_pallet", label: t("barcodes.fieldWeightNettoPallet") },
+    { value: "weight_brutto_pallet", label: t("barcodes.fieldWeightBruttoPallet") },
+    { value: "weight_brutto_all", label: t("barcodes.fieldWeightBruttoAll") },
+    { value: "production_date", label: t("barcodes.fieldProductionDate") },
+    { value: "exp_date", label: t("barcodes.fieldExpDate") },
+    { value: "pack_number", label: t("barcodes.fieldPackNumber") },
+    { value: "box_number", label: t("barcodes.fieldBoxNumber") },
+    { value: "pallet_number", label: t("barcodes.fieldPalletNumber") },
+    { value: "article", label: t("barcodes.fieldArticle") },
+    { value: "pack_count", label: t("barcodes.fieldPackCount") },
+    { value: "box_count", label: t("barcodes.fieldBoxCount") },
+    { value: "batch_number", label: t("barcodes.fieldBatchNumber") },
+    { value: "fnc1", label: t("barcodes.fieldFnc1") },
+    { value: "gs", label: t("barcodes.fieldGs") },
+    { value: "ai", label: t("barcodes.fieldAi") },
+    { value: "extra_data", label: t("barcodes.fieldExtraData") },
 ];
 
 // One-line help per field type
-const FIELD_HELP: Record<string, string> = {
-    constanta: "Фиксированный текст. Для EAN13 значение должно быть только из цифр.",
-    weight_netto_pack: "Вес нетто упаковки из товара (граммы → кг). Длина/Точек форматируют число.",
-    weight_brutto_pack: "Вес брутто упаковки из товара (граммы → кг). Длина/Точек форматируют число.",
-    weight_netto_box: "Вес нетто короба из товара (граммы → кг). Длина/Точек форматируют число.",
-    weight_brutto_box: "Вес брутто короба из товара (граммы → кг). Длина/Точек форматируют число.",
-    weight_netto_pallet: "Вес нетто паллета из товара (граммы → кг). Длина/Точек форматируют число.",
-    weight_brutto_pallet: "Вес брутто паллета из товара (граммы → кг). Длина/Точек форматируют число.",
-    weight_brutto_all: "Общий вес брутто паллета с поддоном. Длина/Точек форматируют число.",
-    production_date: "Дата производства (сегодня). Формат задаётся ниже.",
-    exp_date: "Срок годности (сегодня + срок из товара). Формат задаётся ниже.",
-    pack_number: "Номер упаковки. В предпросмотре используются образцовые данные.",
-    box_number: "Номер короба. В предпросмотре используются образцовые данные.",
-    pallet_number: "Номер паллеты. В предпросмотре используются образцовые данные.",
-    article: "Артикул товара. Берётся из выбранного товара.",
-    pack_count: "Количество вложений в коробе. Берётся из товара.",
-    box_count: "Количество коробов на паллете. В предпросмотре — образец.",
-    batch_number: "Номер партии. В предпросмотре используются образцовые данные.",
-    fnc1: "Разделитель FNC1 (только GS1). Для GS1 вставляется автоматически.",
-    gs: "Group Separator ASCII 29 (только GS1).",
-    ai: "Идентификатор применения GS1 (только GS1). Выберите AI из списка.",
-    extra_data: "Глобальный атрибут товара (доп. поле) по имени атрибута.",
-};
+const buildFieldHelp = (t: TFn): Record<string, string> => ({
+    constanta: t("barcodes.helpConstanta"),
+    weight_netto_pack: t("barcodes.helpWeightNettoPack"),
+    weight_brutto_pack: t("barcodes.helpWeightBruttoPack"),
+    weight_netto_box: t("barcodes.helpWeightNettoBox"),
+    weight_brutto_box: t("barcodes.helpWeightBruttoBox"),
+    weight_netto_pallet: t("barcodes.helpWeightNettoPallet"),
+    weight_brutto_pallet: t("barcodes.helpWeightBruttoPallet"),
+    weight_brutto_all: t("barcodes.helpWeightBruttoAll"),
+    production_date: t("barcodes.helpProductionDate"),
+    exp_date: t("barcodes.helpExpDate"),
+    pack_number: t("barcodes.helpPackNumber"),
+    box_number: t("barcodes.helpBoxNumber"),
+    pallet_number: t("barcodes.helpPalletNumber"),
+    article: t("barcodes.helpArticle"),
+    pack_count: t("barcodes.helpPackCount"),
+    box_count: t("barcodes.helpBoxCount"),
+    batch_number: t("barcodes.helpBatchNumber"),
+    fnc1: t("barcodes.helpFnc1"),
+    gs: t("barcodes.helpGs"),
+    ai: t("barcodes.helpAi"),
+    extra_data: t("barcodes.helpExtraData"),
+});
 
 const DATE_FORMATS = [
     { value: "ddMMyy", label: "ddMMyy" },
@@ -213,18 +216,18 @@ const DATE_FORMATS = [
     { value: "yyyyMMdd", label: "yyyyMMdd" },
 ];
 
-const AI_OPTIONS = [
-    { value: "00", label: "(00) SSCC - 18 симв." },
-    { value: "01", label: "(01) GTIN - 14 симв." },
-    { value: "02", label: "(02) GTIN Contained - 14 симв." },
-    { value: "10", label: "(10) Batch/Lot - до 20 симв." },
-    { value: "11", label: "(11) Prod Date - 6 симв." },
-    { value: "17", label: "(17) Expiry Date - 6 симв." },
-    { value: "21", label: "(21) Serial Number - до 20 симв." },
-    { value: "3103", label: "(3103) Net Weight (kg) - 6 симв." },
+const buildAiOptions = (t: TFn) => [
+    { value: "00", label: t("barcodes.ai00") },
+    { value: "01", label: t("barcodes.ai01") },
+    { value: "02", label: t("barcodes.ai02") },
+    { value: "10", label: t("barcodes.ai10") },
+    { value: "11", label: t("barcodes.ai11") },
+    { value: "17", label: t("barcodes.ai17") },
+    { value: "21", label: t("barcodes.ai21") },
+    { value: "3103", label: t("barcodes.ai3103") },
 ];
 
-const AI_SET = AI_OPTIONS.map((o) => o.value);
+const AI_SET = ["00", "01", "02", "10", "11", "17", "21", "3103"];
 
 const WEIGHT_FIELDS = [
     "weight_netto_pack", "weight_brutto_pack",
@@ -272,7 +275,8 @@ function validateStructure(
     fields: BarcodeField[],
     templateName: string,
     templates: BarcodeTemplate[],
-    editingId: string | null
+    editingId: string | null,
+    t: TFn
 ): ValidationResult {
     const errors: string[] = [];
     const fieldErrors: Record<number, string> = {};
@@ -280,71 +284,71 @@ function validateStructure(
 
     const trimmedName = templateName.trim();
     if (!trimmedName) {
-        nameError = "Введите название шаблона.";
+        nameError = t("barcodes.errNameRequired");
     } else {
         const dup = templates.find(
-            (t) => t.name.trim().toLowerCase() === trimmedName.toLowerCase() && t.id !== editingId
+            (tpl) => tpl.name.trim().toLowerCase() === trimmedName.toLowerCase() && tpl.id !== editingId
         );
         if (dup) {
-            nameError = "Шаблон с таким названием уже существует.";
+            nameError = t("barcodes.errNameDuplicate");
         }
     }
 
     if (!ALLOWED_BARCODE_TYPES.includes(barcodeType)) {
-        errors.push(`Недопустимый тип штрихкода: ${barcodeType}.`);
+        errors.push(t("barcodes.errInvalidBarcodeType", { type: barcodeType }));
     }
 
     const isGs1 = GS1_TYPES.includes(barcodeType);
 
     if (!fields || fields.length === 0) {
-        errors.push("Список полей не может быть пустым.");
+        errors.push(t("barcodes.errFieldsEmpty"));
     }
 
     fields.forEach((field, idx) => {
         const ft = field.field_type;
 
         if (!ALLOWED_FIELD_TYPES.includes(ft)) {
-            fieldErrors[idx] = `Недопустимый тип поля: ${ft}.`;
+            fieldErrors[idx] = t("barcodes.errInvalidFieldType", { type: ft });
             return;
         }
 
         // GS1-only fields
         if (GS1_ONLY_FIELDS.includes(ft) && !isGs1) {
-            fieldErrors[idx] = "Поле ai/fnc1/gs допустимо только для GS1-типов штрихкода.";
+            fieldErrors[idx] = t("barcodes.errGs1Only");
             return;
         }
 
         if (ft === "constanta") {
             if (!field.value || !field.value.trim()) {
-                fieldErrors[idx] = "Константа должна иметь непустое значение.";
+                fieldErrors[idx] = t("barcodes.errConstantaEmpty");
                 return;
             }
             if (barcodeType === "ean13" && !isAllDigits(field.value.trim())) {
-                fieldErrors[idx] = "Для EAN13 значение константы должно состоять только из цифр.";
+                fieldErrors[idx] = t("barcodes.errEan13ConstantaDigits");
                 return;
             }
         }
 
         if (ft === "ai") {
             if (!field.value || !AI_SET.includes(field.value)) {
-                fieldErrors[idx] = "Выберите корректный идентификатор AI.";
+                fieldErrors[idx] = t("barcodes.errAiInvalid");
                 return;
             }
         }
 
         // length / decimalPlaces must be all-digits when present
         if (field.length !== undefined && field.length !== "" && !isAllDigits(field.length)) {
-            fieldErrors[idx] = "Длина должна состоять только из цифр.";
+            fieldErrors[idx] = t("barcodes.errLengthDigits");
             return;
         }
         if (field.decimalPlaces !== undefined && field.decimalPlaces !== "" && !isAllDigits(field.decimalPlaces)) {
-            fieldErrors[idx] = "Количество знаков после запятой должно состоять только из цифр.";
+            fieldErrors[idx] = t("barcodes.errDecimalDigits");
             return;
         }
 
         // EAN13: only digit-producing fields (no ai/fnc1/gs already covered)
         if (barcodeType === "ean13" && GS1_ONLY_FIELDS.includes(ft)) {
-            fieldErrors[idx] = "Поля ai/fnc1/gs недопустимы для EAN13.";
+            fieldErrors[idx] = t("barcodes.errEan13NoGs1");
             return;
         }
     });
@@ -355,6 +359,11 @@ function validateStructure(
 // --- Main Component ---
 
 export default function BarcodeTemplatesManager() {
+    const { t } = useTranslation();
+    const FIELD_TYPES = buildFieldTypes(t);
+    const FIELD_HELP = buildFieldHelp(t);
+    const AI_OPTIONS = buildAiOptions(t);
+
     const [templates, setTemplates] = useState<BarcodeTemplate[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
@@ -480,11 +489,11 @@ export default function BarcodeTemplatesManager() {
         clearMessages();
     };
 
-    const handleEdit = (t: BarcodeTemplate) => {
-        setEditingId(t.id);
-        setTemplateName(t.name);
-        setBarcodeType(t.structure.barcode_type);
-        setFields(t.structure.fields || []);
+    const handleEdit = (tpl: BarcodeTemplate) => {
+        setEditingId(tpl.id);
+        setTemplateName(tpl.name);
+        setBarcodeType(tpl.structure.barcode_type);
+        setFields(tpl.structure.fields || []);
         setPreviewPng(null);
         setPreviewDataString(null);
         setPreviewWarnings([]);
@@ -493,7 +502,7 @@ export default function BarcodeTemplatesManager() {
 
     // Run validation, push results into state, return whether it's valid.
     const runValidation = (): boolean => {
-        const result = validateStructure(barcodeType, fields, templateName, templates, editingId);
+        const result = validateStructure(barcodeType, fields, templateName, templates, editingId, t);
         setBannerErrors(result.errors);
         setFieldErrors(result.fieldErrors);
         setNameError(result.nameError);
@@ -535,7 +544,7 @@ export default function BarcodeTemplatesManager() {
             setPreviewDataString(res.data_string ?? null);
             setPreviewWarnings(Array.isArray(res.warnings) ? res.warnings : []);
         } catch (e: any) {
-            setBannerErrors([`Ошибка предпросмотра: ${e.message}`]);
+            setBannerErrors([t("barcodes.errPreview", { msg: e.message })]);
             setPreviewPng(null);
             setPreviewDataString(null);
             setPreviewWarnings([]);
@@ -570,7 +579,7 @@ export default function BarcodeTemplatesManager() {
             resetForm();
         } catch (e: any) {
             console.error(e);
-            setBannerErrors([e?.message || "Ошибка сохранения"]);
+            setBannerErrors([e?.message || t("barcodes.errSave")]);
         }
     };
 
@@ -581,7 +590,7 @@ export default function BarcodeTemplatesManager() {
             await fetchTemplates();
         } catch (e: any) {
             console.error(e);
-            setBannerErrors([e?.message || "Ошибка удаления"]);
+            setBannerErrors([e?.message || t("barcodes.errDelete")]);
         }
     };
 
@@ -590,15 +599,15 @@ export default function BarcodeTemplatesManager() {
             {/* Left Column: Designer */}
             <div className="md:col-span-7">
                 <Card
-                    title={editingId ? "Редактировать шаблон" : "Новый шаблон штрихкода"}
-                    subtitle="Настройте структуру штрихкода, добавляя константы и динамические поля."
+                    title={editingId ? t("barcodes.editTemplate") : t("barcodes.newTemplate")}
+                    subtitle={t("barcodes.designerSubtitle")}
                     right={
                         <div className="flex gap-2">
                             {editingId && (
-                                <SmallButton onClick={resetForm}>Отмена</SmallButton>
+                                <SmallButton onClick={resetForm}>{t("barcodes.cancel")}</SmallButton>
                             )}
                             <SmallButton variant="primary" onClick={handleSave}>
-                                {editingId ? "Сохранить" : "Создать"}
+                                {editingId ? t("barcodes.save") : t("barcodes.create")}
                             </SmallButton>
                         </div>
                     }
@@ -618,7 +627,7 @@ export default function BarcodeTemplatesManager() {
                         <div className="grid gap-4 sm:grid-cols-2">
                             <div className="grid gap-1">
                                 <label className="text-[11px] font-medium uppercase tracking-wider text-white/55">
-                                    Название шаблона
+                                    {t("barcodes.templateNameLabel")}
                                 </label>
                                 <Input
                                     value={templateName}
@@ -626,7 +635,7 @@ export default function BarcodeTemplatesManager() {
                                         setTemplateName(v);
                                         if (nameError) setNameError(undefined);
                                     }}
-                                    placeholder="Напр. Этикетка короба EAN13"
+                                    placeholder={t("barcodes.templateNamePlaceholder")}
                                     invalid={!!nameError}
                                 />
                                 {nameError && (
@@ -635,7 +644,7 @@ export default function BarcodeTemplatesManager() {
                             </div>
                             <div className="grid gap-1">
                                 <label className="text-[11px] font-medium uppercase tracking-wider text-white/55">
-                                    Тип штрихкода
+                                    {t("barcodes.barcodeTypeLabel")}
                                 </label>
                                 <Select
                                     value={barcodeType}
@@ -653,9 +662,9 @@ export default function BarcodeTemplatesManager() {
 
                         <div className="space-y-3">
                             <div className="flex items-center justify-between">
-                                <h4 className="text-sm font-medium text-white">Поля структуры</h4>
+                                <h4 className="text-sm font-medium text-white">{t("barcodes.structureFields")}</h4>
                                 <SmallButton variant="secondary" onClick={addField}>
-                                    + Добавить поле
+                                    {t("barcodes.addField")}
                                 </SmallButton>
                             </div>
 
@@ -686,7 +695,7 @@ export default function BarcodeTemplatesManager() {
                                                         <Input
                                                             value={field.value || ""}
                                                             onChange={(v) => updateField(idx, { value: v })}
-                                                            placeholder="Значение..."
+                                                            placeholder={t("barcodes.valuePlaceholder")}
                                                             invalid={!!fErr}
                                                         />
                                                     )}
@@ -706,7 +715,7 @@ export default function BarcodeTemplatesManager() {
                                                                 value={field.value || ""}
                                                                 onChange={(v) => updateField(idx, { value: v })}
                                                                 options={[
-                                                                    { value: "", label: "— Выберите атрибут —" },
+                                                                    { value: "", label: t("barcodes.selectAttribute") },
                                                                     ...attributes.map((attr) => ({
                                                                         value: attr.name,
                                                                         label: attr.name,
@@ -714,7 +723,7 @@ export default function BarcodeTemplatesManager() {
                                                                 ]}
                                                             />
                                                             <Input
-                                                                placeholder="Длина (значение по умолч.)"
+                                                                placeholder={t("barcodes.lengthDefaultPlaceholder")}
                                                                 value={field.length || ""}
                                                                 onChange={(v) => updateField(idx, { length: v })}
                                                                 invalid={!!fErr}
@@ -726,13 +735,13 @@ export default function BarcodeTemplatesManager() {
                                                         <div className="flex gap-2">
                                                             <Input
                                                                 className="w-20"
-                                                                placeholder="Длина"
+                                                                placeholder={t("barcodes.lengthPlaceholder")}
                                                                 value={field.length || ""}
                                                                 onChange={(v) => updateField(idx, { length: v })}
                                                                 invalid={!!fErr}
                                                             />
                                                             <Input
-                                                                placeholder="Точек"
+                                                                placeholder={t("barcodes.decimalPlaceholder")}
                                                                 value={field.decimalPlaces || ""}
                                                                 onChange={(v) => updateField(idx, { decimalPlaces: v })}
                                                                 invalid={!!fErr}
@@ -744,7 +753,7 @@ export default function BarcodeTemplatesManager() {
                                                         <div className="flex gap-2">
                                                             <Input
                                                                 className="w-20"
-                                                                placeholder="Длина"
+                                                                placeholder={t("barcodes.lengthPlaceholder")}
                                                                 value={field.length || ""}
                                                                 onChange={(v) => updateField(idx, { length: v })}
                                                                 invalid={!!fErr}
@@ -760,7 +769,7 @@ export default function BarcodeTemplatesManager() {
 
                                                     {LENGTH_FIELDS.includes(field.field_type) && (
                                                         <Input
-                                                            placeholder="Длина поля..."
+                                                            placeholder={t("barcodes.fieldLengthPlaceholder")}
                                                             value={field.length || ""}
                                                             onChange={(v) => updateField(idx, { length: v })}
                                                             invalid={!!fErr}
@@ -785,7 +794,7 @@ export default function BarcodeTemplatesManager() {
                                                 type="button"
                                                 onClick={() => removeField(idx)}
                                                 className="mt-2 text-white/30 transition-colors hover:text-rose-400"
-                                                title="Удалить поле"
+                                                title={t("barcodes.removeFieldTitle")}
                                             >
                                                 <svg
                                                     xmlns="http://www.w3.org/2000/svg"
@@ -813,7 +822,7 @@ export default function BarcodeTemplatesManager() {
                                 disabled={isPreviewLoading}
                                 onClick={handlePreview}
                             >
-                                {isPreviewLoading ? "Генерация..." : "Проверить структуру"}
+                                {isPreviewLoading ? t("barcodes.generating") : t("barcodes.checkStructure")}
                             </SmallButton>
                         </div>
                     </div>
@@ -824,15 +833,15 @@ export default function BarcodeTemplatesManager() {
             <div className="md:col-span-5 space-y-6">
                 {/* Preview Card */}
                 <Card
-                    title="Предпросмотр"
-                    subtitle="Выберите товар для теста динамических полей"
+                    title={t("barcodes.previewTitle")}
+                    subtitle={t("barcodes.previewSubtitle")}
                 >
                     <div className="mb-4">
                         <Select
                             value={previewProductId}
                             onChange={(v) => setPreviewProductId(v)}
                             options={[
-                                { value: "", label: "— Без товара (фиктивные данные) —" },
+                                { value: "", label: t("barcodes.noProduct") },
                                 ...products.map((p) => ({
                                     value: p.id.toString(),
                                     label: `${p.article} — ${p.name}`,
@@ -850,8 +859,8 @@ export default function BarcodeTemplatesManager() {
                             />
                         ) : (
                             <div className="text-center text-sm text-black/40">
-                                Настройте поля и нажмите <br />
-                                <span className="text-black/60">"Проверить структуру"</span>
+                                {t("barcodes.previewHint")} <br />
+                                <span className="text-black/60">"{t("barcodes.checkStructure")}"</span>
                             </div>
                         )}
                     </div>
@@ -861,14 +870,14 @@ export default function BarcodeTemplatesManager() {
                         <div className="mt-4 space-y-1">
                             <div className="flex items-center justify-between">
                                 <span className="text-[11px] font-medium uppercase tracking-wider text-white/55">
-                                    Данные штрихкода
+                                    {t("barcodes.dataLabel")}
                                 </span>
                                 <span className="text-[11px] text-white/40">
-                                    длина: {previewDataString.length}
+                                    {t("barcodes.dataLength", { len: previewDataString.length })}
                                 </span>
                             </div>
                             <div className="break-all rounded-xl border border-white/10 bg-black/30 p-3 font-mono text-xs text-white/85">
-                                {previewDataString || <span className="text-white/40">(пусто)</span>}
+                                {previewDataString || <span className="text-white/40">{t("barcodes.empty")}</span>}
                             </div>
                         </div>
                     )}
@@ -887,49 +896,49 @@ export default function BarcodeTemplatesManager() {
 
                 {/* Templates List */}
                 <Card
-                    title="Шаблоны"
-                    subtitle={isLoading ? "Загрузка..." : `Всего: ${templates.length}`}
+                    title={t("barcodes.templatesTitle")}
+                    subtitle={isLoading ? t("barcodes.loading") : t("barcodes.total", { count: templates.length })}
                 >
                     <div className="space-y-2">
                         {templates.length === 0 && !isLoading && (
                             <p className="py-4 text-center text-sm text-white/40">
-                                Нет сохраненных шаблонов
+                                {t("barcodes.noTemplates")}
                             </p>
                         )}
-                        {templates.map((t) => (
+                        {templates.map((tpl) => (
                             <div
-                                key={t.id}
+                                key={tpl.id}
                                 className="rounded-xl border border-white/5 bg-white/5 p-3 hover:bg-white/10"
                             >
                                 <div className="flex items-center justify-between">
                                     <div className="min-w-0 flex-1">
-                                        <div className="truncate text-sm font-medium text-white">{t.name}</div>
-                                        <div className="text-[10px] uppercase text-white/40">{t.structure.barcode_type}</div>
+                                        <div className="truncate text-sm font-medium text-white">{tpl.name}</div>
+                                        <div className="text-[10px] uppercase text-white/40">{tpl.structure.barcode_type}</div>
                                     </div>
                                     <div className="flex gap-1 shrink-0 ml-4">
-                                        <SmallButton onClick={() => handleEdit(t)} title="Изм.">
-                                            Изм.
+                                        <SmallButton onClick={() => handleEdit(tpl)} title={t("barcodes.editShort")}>
+                                            {t("barcodes.editShort")}
                                         </SmallButton>
                                         <SmallButton
                                             variant="danger"
-                                            onClick={() => setConfirmDeleteId(t.id)}
-                                            title="Удал."
+                                            onClick={() => setConfirmDeleteId(tpl.id)}
+                                            title={t("barcodes.deleteShort")}
                                         >
-                                            Удал.
+                                            {t("barcodes.deleteShort")}
                                         </SmallButton>
                                     </div>
                                 </div>
 
                                 {/* Inline delete confirmation (replaces confirm()) */}
-                                {confirmDeleteId === t.id && (
+                                {confirmDeleteId === tpl.id && (
                                     <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-rose-500/25 bg-rose-500/10 p-2">
-                                        <span className="text-xs text-rose-100">Удалить этот шаблон?</span>
+                                        <span className="text-xs text-rose-100">{t("barcodes.deleteConfirm")}</span>
                                         <div className="flex gap-1 shrink-0">
                                             <SmallButton onClick={() => setConfirmDeleteId(null)}>
-                                                Отмена
+                                                {t("barcodes.cancel")}
                                             </SmallButton>
-                                            <SmallButton variant="danger" onClick={() => handleDelete(t.id)}>
-                                                Удалить
+                                            <SmallButton variant="danger" onClick={() => handleDelete(tpl.id)}>
+                                                {t("barcodes.delete")}
                                             </SmallButton>
                                         </div>
                                     </div>

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { licenseApi, type LicenseInfo } from "@/lib/api/license";
+import { useTranslation } from "@/lib/i18n";
 
 /**
  * App-wide, non-blocking banner shown only when the server reports mode === "demo"
@@ -11,6 +12,7 @@ import { licenseApi, type LicenseInfo } from "@/lib/api/license";
  * Settings → Лицензия surface. Dismissible for the current session only.
  */
 export default function DemoBanner({ onActivate }: { onActivate?: () => void }) {
+    const { t } = useTranslation();
     const [info, setInfo] = useState<LicenseInfo | null>(null);
     const [dismissed, setDismissed] = useState(false);
 
@@ -43,20 +45,20 @@ export default function DemoBanner({ onActivate }: { onActivate?: () => void }) 
                 <path d="M12 9v4M12 17h.01" className="stroke-current" strokeWidth="1.7" strokeLinecap="round" />
             </svg>
             <span className="min-w-0 flex-1">
-                <strong className="font-semibold">Демо-режим</strong> — нет лицензии. Активируйте лицензию для полного доступа.
+                <strong className="font-semibold">{t('demobanner.demoMode')}</strong> {t('demobanner.demoMessage')}
             </span>
             {onActivate && (
                 <button
                     onClick={onActivate}
                     className="shrink-0 rounded-lg border border-amber-400/30 bg-amber-400/[0.12] px-[10px] py-[4px] text-[11.5px] font-medium text-amber-100 transition hover:bg-amber-400/20"
                 >
-                    Активировать
+                    {t('demobanner.activate')}
                 </button>
             )}
             <button
                 onClick={() => setDismissed(true)}
-                aria-label="Скрыть уведомление"
-                title="Скрыть"
+                aria-label={t('demobanner.dismissAria')}
+                title={t('demobanner.dismissTitle')}
                 className="shrink-0 text-amber-300/70 transition hover:text-amber-100"
             >
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">

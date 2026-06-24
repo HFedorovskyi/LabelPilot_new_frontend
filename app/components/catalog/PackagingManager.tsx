@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import type { Packaging } from "./types";
 import { api } from "@/lib/api/client";
 import { cx } from "./utils";
+import { useTranslation } from "@/lib/i18n";
 
 function Card({
   title,
@@ -118,6 +119,7 @@ function toNum(s: string) {
 }
 
 export default function PackagingManager() {
+  const { t } = useTranslation();
   const [packaging, setPackaging] = useState<Packaging[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -185,18 +187,18 @@ export default function PackagingManager() {
       resetForm();
     } catch (e) {
       console.error(e);
-      alert("Ошибка сохранения упаковки");
+      alert(t("packaging.saveError"));
     }
   };
 
   const removePackaging = async (id: string) => {
-    if (!confirm("Вы уверены?")) return;
+    if (!confirm(t("packaging.confirmDelete"))) return;
     try {
       await api.packs.delete(id);
       setPackaging((prev) => prev.filter((p) => p.id !== id));
     } catch (e) {
       console.error(e);
-      alert("Ошибка при удалении");
+      alert(t("packaging.deleteError"));
     }
   };
 
@@ -204,17 +206,17 @@ export default function PackagingManager() {
     <div className="grid gap-4 md:grid-cols-12">
       <div className="md:col-span-5">
         <Card
-          title={editingId ? "Редактировать упаковку" : "Добавить упаковку"}
-          subtitle="Укажите название и вес упаковки."
+          title={editingId ? t("packaging.editTitle") : t("packaging.addTitle")}
+          subtitle={t("packaging.formSubtitle")}
           right={
             <div className="flex gap-2">
               {editingId && (
                 <SmallButton onClick={cancelEdit}>
-                  Отмена
+                  {t("packaging.cancel")}
                 </SmallButton>
               )}
               <SmallButton variant="primary" onClick={savePackaging}>
-                {editingId ? "Сохранить" : "Добавить"}
+                {editingId ? t("packaging.save") : t("packaging.add")}
               </SmallButton>
             </div>
           }
@@ -222,14 +224,14 @@ export default function PackagingManager() {
           <div className="grid gap-3">
             <div className="grid gap-1">
               <div className="text-[11px] font-medium uppercase tracking-wider text-white/55">
-                Название
+                {t("packaging.name")}
               </div>
-              <Input value={pName} onChange={setPName} placeholder="Напр. Подложка 150г" />
+              <Input value={pName} onChange={setPName} placeholder={t("packaging.namePlaceholder")} />
             </div>
 
             <div className="grid gap-1">
               <div className="text-[11px] font-medium uppercase tracking-wider text-white/55">
-                Вес (г)
+                {t("packaging.weight")}
               </div>
               <Input type="number" value={weightGrams} onChange={setWeightGrams} placeholder="0" />
             </div>
@@ -239,19 +241,19 @@ export default function PackagingManager() {
 
       <div className="md:col-span-7">
         <Card
-          title="Справочник упаковок"
-          subtitle={`Всего: ${packaging.length} ${isLoading ? '(Загрузка...)' : ''}`}
+          title={t("packaging.catalogTitle")}
+          subtitle={`${t("packaging.total", { count: packaging.length })} ${isLoading ? t("packaging.loading") : ''}`}
         >
           <div className="overflow-hidden rounded-2xl border border-white/10">
             <div className="grid grid-cols-12 gap-0 bg-white/5 px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-white/55">
-              <div className="col-span-6">Название</div>
-              <div className="col-span-3">Вес (г)</div>
-              <div className="col-span-3 text-right">Действия</div>
+              <div className="col-span-6">{t("packaging.name")}</div>
+              <div className="col-span-3">{t("packaging.weight")}</div>
+              <div className="col-span-3 text-right">{t("packaging.actions")}</div>
             </div>
 
             <div className="divide-y divide-white/10">
               {packaging.length === 0 ? (
-                <div className="p-4 text-sm text-white/60">Нет упаковок</div>
+                <div className="p-4 text-sm text-white/60">{t("packaging.empty")}</div>
               ) : (
                 packaging.map((p) => (
                   <div key={p.id} className="grid grid-cols-12 items-center px-3 py-3 hover:bg-white/5 transition-colors">
@@ -262,21 +264,21 @@ export default function PackagingManager() {
                       </div>
                     </div>
                     <div className="col-span-3 text-sm text-white/80 font-mono">
-                      {p.weightGrams} г
+                      {p.weightGrams} {t("packaging.gramsUnit")}
                     </div>
                     <div className="col-span-3 flex justify-end gap-1">
                       <SmallButton
                         onClick={() => handleEdit(p)}
-                        title="Редактировать"
+                        title={t("packaging.edit")}
                       >
-                        Изм.
+                        {t("packaging.editShort")}
                       </SmallButton>
                       <SmallButton
                         variant="danger"
                         onClick={() => removePackaging(p.id)}
-                        title="Удалить"
+                        title={t("packaging.delete")}
                       >
-                        Удал.
+                        {t("packaging.deleteShort")}
                       </SmallButton>
                     </div>
                   </div>

@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { api } from "@/lib/api/client";
+import { useTranslation } from "@/lib/i18n";
 import { SmallButton, Select, Card } from "./ProductCatalog";
 import type { GlobalAttribute, Packaging, LabelTemplate } from "./types";
 
@@ -12,6 +13,7 @@ interface ImportModalProps {
 }
 
 export default function ImportModal({ onClose, onSuccess, globalAttributes, packs, templates }: ImportModalProps) {
+    const { t } = useTranslation();
     const [step, setStep] = useState<1 | 2 | 3>(1);
     const [file, setFile] = useState<File | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -104,7 +106,7 @@ export default function ImportModal({ onClose, onSuccess, globalAttributes, pack
             setStep(2);
         } catch (e: any) {
             console.error(e);
-            setErrorInfo(e.message || "Ошибка загрузки файла для предпросмотра");
+            setErrorInfo(e.message || t('importmodal.errorPreview'));
         } finally {
             setIsLoading(false);
         }
@@ -130,7 +132,7 @@ export default function ImportModal({ onClose, onSuccess, globalAttributes, pack
             setStep(3);
         } catch (e: any) {
             console.error(e);
-            setErrorInfo(e.message || "Ошибка во время импорта");
+            setErrorInfo(e.message || t('importmodal.errorImport'));
         } finally {
             setIsLoading(false);
         }
@@ -147,7 +149,7 @@ export default function ImportModal({ onClose, onSuccess, globalAttributes, pack
             <div className="bg-neutral-900 border border-white/10 rounded-2xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh]">
 
                 <div className="p-4 border-b border-white/10 flex justify-between items-center shrink-0">
-                    <h3 className="text-xl font-semibold text-white">Импорт номенклатуры (Excel, CSV)</h3>
+                    <h3 className="text-xl font-semibold text-white">{t('importmodal.title')}</h3>
                     <button onClick={onClose} className="text-white/50 hover:text-white">&times;</button>
                 </div>
 
@@ -160,7 +162,7 @@ export default function ImportModal({ onClose, onSuccess, globalAttributes, pack
 
                     {step === 1 && (
                         <div className="flex flex-col items-center justify-center py-10">
-                            <div className="text-white mb-4">Выберите файл .xlsx, .xls или .csv</div>
+                            <div className="text-white mb-4">{t('importmodal.chooseFile')}</div>
                             <input
                                 type="file"
                                 accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
@@ -170,33 +172,33 @@ export default function ImportModal({ onClose, onSuccess, globalAttributes, pack
 
                             {file?.name.toLowerCase().endsWith(".csv") && (
                                 <div className="mb-6 w-full max-w-sm grid gap-1">
-                                    <label className="text-xs text-white/70 font-medium">Разделитель (для CSV)</label>
+                                    <label className="text-xs text-white/70 font-medium">{t('importmodal.separatorLabel')}</label>
                                     <Select
                                         options={[
-                                            { value: "auto", label: "Автоматически" },
-                                            { value: ";", label: "Точка с запятой (;)" },
-                                            { value: ",", label: "Запятая (,)" },
-                                            { value: "\\t", label: "Табуляция" },
+                                            { value: "auto", label: t('importmodal.separatorAuto') },
+                                            { value: ";", label: t('importmodal.separatorSemicolon') },
+                                            { value: ",", label: t('importmodal.separatorComma') },
+                                            { value: "\\t", label: t('importmodal.separatorTab') },
                                         ]}
                                         value={separator}
                                         onChange={setSeparator}
-                                        placeholder="Выберите разделитель..."
+                                        placeholder={t('importmodal.separatorPlaceholder')}
                                     />
                                 </div>
                             )}
 
                             <div className="text-sm text-white/50 bg-white/5 p-4 rounded-xl mb-6 max-w-lg">
-                                <p><strong>Важно:</strong></p>
+                                <p><strong>{t('importmodal.importantLabel')}</strong></p>
                                 <ul className="list-disc ml-5 mt-2 space-y-1">
-                                    <li>Первая строка файла должна содержать заголовки.</li>
-                                    <li>Если артикул уже существует в базе, его данные будут обновлены.</li>
-                                    <li>Если артикул новый, будет создан новый товар.</li>
+                                    <li>{t('importmodal.noteFirstRow')}</li>
+                                    <li>{t('importmodal.noteExisting')}</li>
+                                    <li>{t('importmodal.noteNew')}</li>
                                 </ul>
                             </div>
                             <div className="flex gap-3 mt-4">
-                                <SmallButton onClick={onClose}>Отмена</SmallButton>
+                                <SmallButton onClick={onClose}>{t('importmodal.cancel')}</SmallButton>
                                 <SmallButton variant="primary" onClick={handlePreview} disabled={!file || isLoading}>
-                                    {isLoading ? "Обработка..." : "Далее: Настройка колонок"}
+                                    {isLoading ? t('importmodal.processing') : t('importmodal.nextColumns')}
                                 </SmallButton>
                             </div>
                         </div>
@@ -205,81 +207,81 @@ export default function ImportModal({ onClose, onSuccess, globalAttributes, pack
                     {step === 2 && (
                         <div className="space-y-6">
                             <div className="text-sm text-white/70">
-                                Мы попытались автоматически сопоставить колонки. Проверьте и исправьте при необходимости.
+                                {t('importmodal.autoMapNotice')}
                             </div>
 
                             <div className="grid grid-cols-2 gap-x-8 gap-y-4">
                                 <div className="space-y-4 border-r border-white/10 pr-4">
-                                    <h4 className="text-white font-medium mb-2 border-b border-white/10 pb-2">Основные поля</h4>
+                                    <h4 className="text-white font-medium mb-2 border-b border-white/10 pb-2">{t('importmodal.mainFields')}</h4>
 
                                     <div className="grid gap-1">
-                                        <label className="text-xs text-rose-300 font-medium">Артикул / SKU (Обязательно)</label>
+                                        <label className="text-xs text-rose-300 font-medium">{t('importmodal.articleLabel')}</label>
                                         <Select
                                             options={colOptions}
                                             value={mapping.article}
                                             onChange={v => setMapping({ ...mapping, article: v })}
-                                            placeholder="Выберите колонку..."
+                                            placeholder={t('importmodal.chooseColumn')}
                                         />
                                     </div>
 
                                     <div className="grid gap-1">
-                                        <label className="text-xs text-rose-300 font-medium">Название товара (Обязательно)</label>
+                                        <label className="text-xs text-rose-300 font-medium">{t('importmodal.nameLabel')}</label>
                                         <Select
                                             options={colOptions}
                                             value={mapping.name}
                                             onChange={v => setMapping({ ...mapping, name: v })}
-                                            placeholder="Выберите колонку..."
+                                            placeholder={t('importmodal.chooseColumn')}
                                         />
                                     </div>
 
                                     <div className="grid gap-1 mt-4">
-                                        <label className="text-xs text-white/70 font-medium">Срок годности (сут)</label>
+                                        <label className="text-xs text-white/70 font-medium">{t('importmodal.expDateLabel')}</label>
                                         <Select
                                             options={colOptions}
                                             value={mapping.exp_date}
                                             onChange={v => setMapping({ ...mapping, exp_date: v })}
-                                            placeholder="Пропустить"
+                                            placeholder={t('importmodal.skip')}
                                         />
                                     </div>
 
                                     <div className="grid gap-1">
-                                        <label className="text-xs text-white/70 font-medium">Кол-во вложений в: короб</label>
+                                        <label className="text-xs text-white/70 font-medium">{t('importmodal.boxCounterLabel')}</label>
                                         <Select
                                             options={colOptions}
                                             value={mapping.close_box_counter}
                                             onChange={v => setMapping({ ...mapping, close_box_counter: v })}
-                                            placeholder="Пропустить"
+                                            placeholder={t('importmodal.skip')}
                                         />
                                     </div>
 
                                     <div className="pt-3 mt-2 border-t border-white/10">
-                                        <div className="text-[11px] text-white/40 mb-2">Фиксированный вес (если есть — товар станет «фикс. вес»)</div>
+                                        <div className="text-[11px] text-white/40 mb-2">{t('importmodal.fixedWeightHint')}</div>
                                         <div className="grid gap-1">
-                                            <label className="text-xs text-white/70 font-medium">Фикс. вес (г)</label>
+                                            <label className="text-xs text-white/70 font-medium">{t('importmodal.fixedWeightLabel')}</label>
                                             <Select options={colOptions} value={mapping.fixed_weight_grams}
-                                                onChange={v => setMapping({ ...mapping, fixed_weight_grams: v })} placeholder="Пропустить" />
+                                                onChange={v => setMapping({ ...mapping, fixed_weight_grams: v })} placeholder={t('importmodal.skip')} />
                                         </div>
                                         <div className="grid gap-1 mt-2">
-                                            <label className="text-xs text-white/70 font-medium">Мин. вес (г)</label>
+                                            <label className="text-xs text-white/70 font-medium">{t('importmodal.minWeightLabel')}</label>
                                             <Select options={colOptions} value={mapping.min_weight_grams}
-                                                onChange={v => setMapping({ ...mapping, min_weight_grams: v })} placeholder="Пропустить" />
+                                                onChange={v => setMapping({ ...mapping, min_weight_grams: v })} placeholder={t('importmodal.skip')} />
                                         </div>
                                         <div className="grid gap-1 mt-2">
-                                            <label className="text-xs text-white/70 font-medium">Макс. вес (г)</label>
+                                            <label className="text-xs text-white/70 font-medium">{t('importmodal.maxWeightLabel')}</label>
                                             <Select options={colOptions} value={mapping.max_weight_grams}
-                                                onChange={v => setMapping({ ...mapping, max_weight_grams: v })} placeholder="Пропустить" />
+                                                onChange={v => setMapping({ ...mapping, max_weight_grams: v })} placeholder={t('importmodal.skip')} />
                                         </div>
                                     </div>
                                 </div>
 
                                 <div className="space-y-4 pt-0 pl-2">
-                                    <h4 className="text-white font-medium mb-2 border-b border-white/10 pb-2">Дополнительные поля</h4>
+                                    <h4 className="text-white font-medium mb-2 border-b border-white/10 pb-2">{t('importmodal.extraFields')}</h4>
                                     <div className="text-xs text-white/40 mb-3">
-                                        Выберите колонки, которые нужно загрузить как дополнительные атрибуты.
+                                        {t('importmodal.extraFieldsHint')}
                                     </div>
                                     <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
                                         {globalAttributes.length === 0 ? (
-                                            <div className="text-xs text-white/30 italic">В системе пока нет дополнительных параметров товара (их можно добавить в Настройках таблицы).</div>
+                                            <div className="text-xs text-white/30 italic">{t('importmodal.noExtraParams')}</div>
                                         ) : (
                                             globalAttributes.map(attr => (
                                                 <div key={attr.id} className="grid gap-1">
@@ -291,7 +293,7 @@ export default function ImportModal({ onClose, onSuccess, globalAttributes, pack
                                                             ...mapping,
                                                             extra_data_map: { ...mapping.extra_data_map, [attr.name]: v }
                                                         })}
-                                                        placeholder="Пропустить"
+                                                        placeholder={t('importmodal.skip')}
                                                     />
                                                 </div>
                                             ))
@@ -300,45 +302,45 @@ export default function ImportModal({ onClose, onSuccess, globalAttributes, pack
                                 </div>
 
                                 <div className="space-y-4 pt-4 border-t border-white/10 md:col-span-2">
-                                    <h4 className="text-white font-medium mb-1">Общие настройки (применяются ко всем импортируемым товарам)</h4>
+                                    <h4 className="text-white font-medium mb-1">{t('importmodal.commonSettings')}</h4>
                                     <div className="text-xs text-white/40 mb-4">
-                                        Значения, выбранные ниже, будут установлены для всех товаров в этом файле. Вы можете изменить их позже.
+                                        {t('importmodal.commonSettingsHint')}
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="grid gap-1">
-                                            <label className="text-xs text-white/70 font-medium">Упаковка (порция)</label>
+                                            <label className="text-xs text-white/70 font-medium">{t('importmodal.packagingPortion')}</label>
                                             <Select
-                                                options={[{ value: "", label: "Пропустить" }, ...packs.map(p => ({ value: p.id, label: p.name }))]}
+                                                options={[{ value: "", label: t('importmodal.skip') }, ...packs.map(p => ({ value: p.id, label: p.name }))]}
                                                 value={staticMapping.portionContainerId}
                                                 onChange={v => setStaticMapping({ ...staticMapping, portionContainerId: v })}
-                                                placeholder="Пропустить"
+                                                placeholder={t('importmodal.skip')}
                                             />
                                         </div>
                                         <div className="grid gap-1">
-                                            <label className="text-xs text-white/70 font-medium">Этикетка (порция)</label>
+                                            <label className="text-xs text-white/70 font-medium">{t('importmodal.labelPortion')}</label>
                                             <Select
-                                                options={[{ value: "", label: "Пропустить" }, ...templates.map(t => ({ value: t.id, label: t.name }))]}
+                                                options={[{ value: "", label: t('importmodal.skip') }, ...templates.map(tpl => ({ value: tpl.id, label: tpl.name }))]}
                                                 value={staticMapping.packLabelId}
                                                 onChange={v => setStaticMapping({ ...staticMapping, packLabelId: v })}
-                                                placeholder="Пропустить"
+                                                placeholder={t('importmodal.skip')}
                                             />
                                         </div>
                                         <div className="grid gap-1">
-                                            <label className="text-xs text-white/70 font-medium">Упаковка (короб)</label>
+                                            <label className="text-xs text-white/70 font-medium">{t('importmodal.packagingBox')}</label>
                                             <Select
-                                                options={[{ value: "", label: "Пропустить" }, ...packs.map(p => ({ value: p.id, label: p.name }))]}
+                                                options={[{ value: "", label: t('importmodal.skip') }, ...packs.map(p => ({ value: p.id, label: p.name }))]}
                                                 value={staticMapping.boxContainerId}
                                                 onChange={v => setStaticMapping({ ...staticMapping, boxContainerId: v })}
-                                                placeholder="Пропустить"
+                                                placeholder={t('importmodal.skip')}
                                             />
                                         </div>
                                         <div className="grid gap-1">
-                                            <label className="text-xs text-white/70 font-medium">Этикетка (короб)</label>
+                                            <label className="text-xs text-white/70 font-medium">{t('importmodal.labelBox')}</label>
                                             <Select
-                                                options={[{ value: "", label: "Пропустить" }, ...templates.map(t => ({ value: t.id, label: t.name }))]}
+                                                options={[{ value: "", label: t('importmodal.skip') }, ...templates.map(tpl => ({ value: tpl.id, label: tpl.name }))]}
                                                 value={staticMapping.boxLabelId}
                                                 onChange={v => setStaticMapping({ ...staticMapping, boxLabelId: v })}
-                                                placeholder="Пропустить"
+                                                placeholder={t('importmodal.skip')}
                                             />
                                         </div>
                                     </div>
@@ -347,7 +349,7 @@ export default function ImportModal({ onClose, onSuccess, globalAttributes, pack
 
                             {previewRows.length > 0 && (
                                 <div className="mt-6 pt-6 border-t border-white/10">
-                                    <h4 className="text-white text-sm font-medium mb-2">Предпросмотр данных (первые 3 строки)</h4>
+                                    <h4 className="text-white text-sm font-medium mb-2">{t('importmodal.previewHeading')}</h4>
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-left text-xs text-white/60">
                                             <thead className="bg-white/5 text-white/80 uppercase">
@@ -374,13 +376,13 @@ export default function ImportModal({ onClose, onSuccess, globalAttributes, pack
                             )}
 
                             <div className="flex gap-3 justify-end mt-4 pt-4 border-t border-white/10">
-                                <SmallButton onClick={() => setStep(1)}>Назад</SmallButton>
+                                <SmallButton onClick={() => setStep(1)}>{t('importmodal.back')}</SmallButton>
                                 <SmallButton
                                     variant="primary"
                                     onClick={handleImport}
                                     disabled={!mapping.article || !mapping.name || isLoading}
                                 >
-                                    {isLoading ? "Импортируем..." : "Начать импорт"}
+                                    {isLoading ? t('importmodal.importing') : t('importmodal.startImport')}
                                 </SmallButton>
                             </div>
                         </div>
@@ -389,26 +391,26 @@ export default function ImportModal({ onClose, onSuccess, globalAttributes, pack
                     {step === 3 && importResult && (
                         <div className="flex flex-col items-center justify-center py-10 space-y-6">
                             <div className={importResult.error_count > 0 ? "text-amber-400 text-lg font-medium" : "text-emerald-400 text-lg font-medium"}>
-                                Импорт завершен
+                                {t('importmodal.importDone')}
                             </div>
 
                             <div className="grid grid-cols-2 gap-4 w-full max-w-sm text-center">
                                 <div className="bg-white/5 border border-white/10 rounded-xl p-4">
                                     <div className="text-3xl font-bold text-white mb-1">{importResult.imported}</div>
-                                    <div className="text-xs text-white/50 uppercase">Успешно</div>
+                                    <div className="text-xs text-white/50 uppercase">{t('importmodal.success')}</div>
                                     {importResult.created != null && (
-                                        <div className="text-[10px] text-white/40 mt-1">создано {importResult.created} · обновлено {importResult.updated}</div>
+                                        <div className="text-[10px] text-white/40 mt-1">{t('importmodal.createdUpdated', { created: importResult.created, updated: importResult.updated })}</div>
                                     )}
                                 </div>
                                 <div className="bg-white/5 border border-white/10 rounded-xl p-4">
                                     <div className="text-3xl font-bold text-rose-400 mb-1">{importResult.error_count}</div>
-                                    <div className="text-xs text-white/50 uppercase">Ошибок</div>
+                                    <div className="text-xs text-white/50 uppercase">{t('importmodal.errorsCount')}</div>
                                 </div>
                             </div>
 
                             {importResult.errors.length > 0 && (
                                 <div className="w-full max-w-lg bg-black/40 border border-white/5 rounded-xl p-4 max-h-[200px] overflow-y-auto">
-                                    <div className="text-xs text-white/50 mb-2 font-medium uppercase tracking-wider">Примеры ошибок:</div>
+                                    <div className="text-xs text-white/50 mb-2 font-medium uppercase tracking-wider">{t('importmodal.errorExamples')}</div>
                                     <ul className="text-xs text-rose-300 space-y-1 list-disc pl-4">
                                         {importResult.errors.map((err, i) => (
                                             <li key={i}>{err}</li>
@@ -419,7 +421,7 @@ export default function ImportModal({ onClose, onSuccess, globalAttributes, pack
 
                             <div className="flex gap-3 mt-4">
                                 <SmallButton variant="primary" onClick={onSuccess}>
-                                    Готово
+                                    {t('importmodal.done')}
                                 </SmallButton>
                             </div>
                         </div>

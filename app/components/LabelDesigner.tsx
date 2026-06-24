@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api as client } from "@/lib/api/client";
+import { useTranslation } from "@/lib/i18n";
 import TemplateHub from "./designer/TemplateHub";
 
 import {
@@ -62,19 +63,20 @@ const DEFAULT_PREVIEW_DATA: Record<string, any> = {
 };
 
 // Ключи для колонок таблицы — это поля ОДНОЙ позиции (строки), а не паллеты-скаляра
+// labelKey resolved via t() at the render site (designer.* namespace)
 const TABLE_COLUMN_KEYS = [
-  { key: "name", label: "Наименование" },
-  { key: "article", label: "Артикул" },
-  { key: "quantity", label: "Кол-во" },
-  { key: "batch_number", label: "Партия" },
-  { key: "production_date_batch", label: "Дата производства" },
-  { key: "exp_date_full", label: "Годен до" },
-  { key: "weight_netto_pack", label: "Вес нетто (ед.)" },
-  { key: "weight_brutto_pack", label: "Вес брутто (ед.)" },
-  { key: "weight_netto_batch", label: "Вес нетто партии" },
-  { key: "weight_brutto_batch", label: "Вес брутто партии" },
-  { key: "weight_netto_nomenclature", label: "Вес нетто номенкл." },
-  { key: "weight_brutto_nomenclature", label: "Вес брутто номенкл." },
+  { key: "name", labelKey: "designer.colName" },
+  { key: "article", labelKey: "designer.colArticle" },
+  { key: "quantity", labelKey: "designer.colQuantity" },
+  { key: "batch_number", labelKey: "designer.colBatch" },
+  { key: "production_date_batch", labelKey: "designer.colProductionDate" },
+  { key: "exp_date_full", labelKey: "designer.colExpDate" },
+  { key: "weight_netto_pack", labelKey: "designer.colWeightNettoUnit" },
+  { key: "weight_brutto_pack", labelKey: "designer.colWeightBruttoUnit" },
+  { key: "weight_netto_batch", labelKey: "designer.colWeightNettoBatch" },
+  { key: "weight_brutto_batch", labelKey: "designer.colWeightBruttoBatch" },
+  { key: "weight_netto_nomenclature", labelKey: "designer.colWeightNettoNomencl" },
+  { key: "weight_brutto_nomenclature", labelKey: "designer.colWeightBruttoNomencl" },
 ];
 
 // Фиксированные атрибуты модели Nomenclature
@@ -466,6 +468,7 @@ function VariableTextInput({
   multiline?: boolean;
   onAttributeSelect?: (key: string) => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -486,14 +489,14 @@ function VariableTextInput({
           <textarea
             value={value}
             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onChange(e.target.value)}
-            placeholder="Введите текст..."
+            placeholder={t('designer.enterText')}
             className="flex-1 min-h-[80px] rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder:text-white/35 outline-none focus:border-white/20 focus:bg-white/10 resize-none transition-all scrollbar-thin scrollbar-thumb-white/10"
           />
         ) : (
           <input
             value={value}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
-            placeholder="Значение..."
+            placeholder={t('designer.valuePlaceholder')}
             className="h-9 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white placeholder:text-white/35 outline-none focus:border-white/20 focus:bg-white/10 transition-all font-mono text-[11px]"
           />
         )}
@@ -506,7 +509,7 @@ function VariableTextInput({
               ? "bg-blue-500/20 text-blue-400 border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.2)]"
               : "bg-white/5 text-white/40 border-white/10 hover:bg-white/10 hover:text-white/60"
           )}
-          title="Вставить атрибут"
+          title={t('designer.insertAttribute')}
         >
           <Icon name="sparkles" className={cx("h-4 w-4", open && "animate-pulse")} />
         </button>
@@ -516,7 +519,7 @@ function VariableTextInput({
         <div className="absolute right-0 top-11 z-[100] w-64 rounded-2xl border border-white/10 bg-[#1A1F2B]/95 p-1.5 backdrop-blur-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-200">
           <div className="mb-1.5 px-3 py-2">
             <div className="text-[10px] font-bold uppercase tracking-widest text-white/30">
-              Вставить атрибут
+              {t('designer.insertAttribute')}
             </div>
           </div>
           <div className="max-h-[280px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
@@ -618,6 +621,7 @@ function CustomSelect<T extends string | number>({
   renderOption?: (opt: { value: T; label: string }) => React.ReactNode;
   className?: string;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -690,7 +694,7 @@ function CustomSelect<T extends string | number>({
                       onDelete(opt.value);
                     }}
                     className="flex h-7 w-7 items-center justify-center rounded-lg text-white/20 hover:bg-red-500/20 hover:text-red-400 transition-all opacity-0 group-hover:opacity-100 outline-none"
-                    title="Удалить"
+                    title={t('designer.delete')}
                   >
                     <Icon name="trash" className="h-3.5 w-3.5" />
                   </button>
@@ -954,6 +958,7 @@ function validateDoc(input: unknown): LabelDoc | null {
 
 
 export default function LabelDesigner() {
+  const { t } = useTranslation();
   const [hasMounted, setHasMounted] = useState(false);
   const [doc, setDoc] = useState<LabelDoc>(defaultDoc());
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -1237,54 +1242,54 @@ export default function LabelDesigner() {
     const type = doc.canvas.labelType || "pack";
 
     const common = [
-      { key: "name", label: "Наименование", icon: "📦" },
-      { key: "article", label: "Артикул", icon: "🏷️" },
-      { key: "exp_date", label: "Срок годности (сут)", icon: "⏳" },
-      { key: "production_date", label: "Дата производства", icon: "📅" },
-      { key: "exp_date_full", label: "Годен до (дата)", icon: "📅" },
-      { key: "batch_number", label: "Номер партии", icon: "🔢" },
-      { key: "operator", label: "Оператор (№)", icon: "👤" },
-      { key: "operator_name", label: "Оператор (ФИО)", icon: "👤" },
+      { key: "name", label: t('designer.attrName'), icon: "📦" },
+      { key: "article", label: t('designer.attrArticle'), icon: "🏷️" },
+      { key: "exp_date", label: t('designer.attrExpDateDays'), icon: "⏳" },
+      { key: "production_date", label: t('designer.attrProductionDate'), icon: "📅" },
+      { key: "exp_date_full", label: t('designer.attrExpDateFullDate'), icon: "📅" },
+      { key: "batch_number", label: t('designer.attrBatchNumber'), icon: "🔢" },
+      { key: "operator", label: t('designer.attrOperatorNum'), icon: "👤" },
+      { key: "operator_name", label: t('designer.attrOperatorName'), icon: "👤" },
     ];
 
     if (type === "pack") {
       return [
         ...common,
-        { key: "weight_netto_pack", label: "Вес нетто упаковки", icon: "⚖️" },
-        { key: "weight_brutto_pack", label: "Вес брутто упаковки", icon: "⚖️" },
-        { key: "pack_number", label: "Номер упаковки", icon: "#️⃣" },
+        { key: "weight_netto_pack", label: t('designer.attrWeightNettoPack'), icon: "⚖️" },
+        { key: "weight_brutto_pack", label: t('designer.attrWeightBruttoPack'), icon: "⚖️" },
+        { key: "pack_number", label: t('designer.attrPackNumber'), icon: "#️⃣" },
       ];
     } else if (type === "box") {
       return [
         ...common,
-        { key: "close_box_counter", label: "Количество вложений", icon: "🔢" },
-        { key: "weight_netto_box", label: "Вес нетто короба", icon: "📦" },
-        { key: "weight_brutto_box", label: "Вес брутто короба", icon: "📦" },
-        { key: "box_number", label: "Номер короба", icon: "#️⃣" },
+        { key: "close_box_counter", label: t('designer.attrCloseBoxCounter'), icon: "🔢" },
+        { key: "weight_netto_box", label: t('designer.attrWeightNettoBox'), icon: "📦" },
+        { key: "weight_brutto_box", label: t('designer.attrWeightBruttoBox'), icon: "📦" },
+        { key: "box_number", label: t('designer.attrBoxNumber'), icon: "#️⃣" },
       ];
     } else {
       // pallet
       return [
-        { key: "pallet_number", label: "Номер паллеты", icon: "#️⃣" },
-        { key: "shipping_date", label: "Дата отгрузки", icon: "🚚" },
-        { key: "production_date", label: "Дата производства", icon: "📅" },
-        { key: "operator", label: "Оператор (№)", icon: "👤" },
-        { key: "operator_name", label: "Оператор (ФИО)", icon: "👤" },
-        { key: "total_count", label: "Всего единиц", icon: "🔢" },
-        { key: "total_places", label: "Кол-во мест", icon: "📦" },
-        { key: "total_boxes", label: "Кол-во коробов", icon: "📦" },
-        { key: "weight_total", label: "Общий вес (брутто)", icon: "⚖️" },
-        { key: "weight_netto_pallet", label: "Вес нетто паллеты", icon: "🏗️" },
-        { key: "weight_brutto_pallet", label: "Вес брутто паллеты", icon: "🏗️" },
-        { key: "weight_netto_batch", label: "Вес нетто партии", icon: "⚖️" },
-        { key: "weight_brutto_batch", label: "Вес брутто партии", icon: "⚖️" },
-        { key: "production_date_batch", label: "Дата производства партии", icon: "📅" },
-        { key: "exp_date_full", label: "Годен до", icon: "📅" },
-        { key: "weight_netto_nomenclature", label: "Вес нетто номенклатуры", icon: "⚖️" },
-        { key: "weight_brutto_nomenclature", label: "Вес брутто номенклатуры", icon: "⚖️" },
+        { key: "pallet_number", label: t('designer.attrPalletNumber'), icon: "#️⃣" },
+        { key: "shipping_date", label: t('designer.attrShippingDate'), icon: "🚚" },
+        { key: "production_date", label: t('designer.attrProductionDate'), icon: "📅" },
+        { key: "operator", label: t('designer.attrOperatorNum'), icon: "👤" },
+        { key: "operator_name", label: t('designer.attrOperatorName'), icon: "👤" },
+        { key: "total_count", label: t('designer.attrTotalCount'), icon: "🔢" },
+        { key: "total_places", label: t('designer.attrTotalPlaces'), icon: "📦" },
+        { key: "total_boxes", label: t('designer.attrTotalBoxes'), icon: "📦" },
+        { key: "weight_total", label: t('designer.attrWeightTotal'), icon: "⚖️" },
+        { key: "weight_netto_pallet", label: t('designer.attrWeightNettoPallet'), icon: "🏗️" },
+        { key: "weight_brutto_pallet", label: t('designer.attrWeightBruttoPallet'), icon: "🏗️" },
+        { key: "weight_netto_batch", label: t('designer.attrWeightNettoBatch'), icon: "⚖️" },
+        { key: "weight_brutto_batch", label: t('designer.attrWeightBruttoBatch'), icon: "⚖️" },
+        { key: "production_date_batch", label: t('designer.attrProductionDateBatch'), icon: "📅" },
+        { key: "exp_date_full", label: t('designer.attrExpDateFull'), icon: "📅" },
+        { key: "weight_netto_nomenclature", label: t('designer.attrWeightNettoNomenclature'), icon: "⚖️" },
+        { key: "weight_brutto_nomenclature", label: t('designer.attrWeightBruttoNomenclature'), icon: "⚖️" },
       ];
     }
-  }, [doc.canvas.labelType]);
+  }, [doc.canvas.labelType, t]);
 
   const customAttributes = useMemo(() => {
     return globalAttributes.map((a: any) => ({
@@ -1455,7 +1460,7 @@ export default function LabelDesigner() {
   // New state for API integration
   const [labelId, setLabelId] = useState<number | null>(null);
   const [inspectorTab, setInspectorTab] = useState<"element" | "canvas" | "zones">("element");
-  const [labelName, setLabelName] = useState<string>("Новый макет");
+  const [labelName, setLabelName] = useState<string>(() => t('designer.newLayout'));
 
   // Restore state from localStorage on mount
   useEffect(() => {
@@ -1893,9 +1898,9 @@ export default function LabelDesigner() {
 
       if (labelId) {
         await client.labels.update(labelId, payload);
-        alert("Макет обновлен!");
+        alert(t('designer.layoutUpdated'));
       } else {
-        const name = window.prompt("Введите название макета:", labelName);
+        const name = window.prompt(t('designer.enterLayoutName'), labelName);
         if (!name) {
           setIsLoading(false);
           return;
@@ -1904,19 +1909,19 @@ export default function LabelDesigner() {
         payload.name = name;
         const created = await client.labels.create(payload);
         setLabelId(created.id);
-        alert("Макет сохранен!");
+        alert(t('designer.layoutSaved'));
       }
       loadLabelsList();
     } catch (e) {
       console.error(e);
-      alert("Ошибка при сохранении");
+      alert(t('designer.saveError'));
     } finally {
       setIsLoading(false);
     }
-  }, [doc, labelId, labelName]);
+  }, [doc, labelId, labelName, t]);
 
   const loadLabelEntry = useCallback((label: any) => {
-    if (!confirm("Загрузить макет? Несохраненные изменения текущего макета будут потеряны.")) return;
+    if (!confirm(t('designer.confirmLoadLayout'))) return;
     try {
       let scheme = label.scheme;
 
@@ -1939,38 +1944,38 @@ export default function LabelDesigner() {
         setLabelName(label.name);
         setSelectedId(null);
       } else {
-        alert("Ошибка: некорректный формат данных макета");
+        alert(t('designer.invalidLayoutFormat'));
       }
     } catch (e) {
       console.error(e);
-      alert("Ошибка при загрузке");
+      alert(t('designer.loadError'));
     }
-  }, []);
+  }, [t]);
 
   const deleteLabelEntry = useCallback(async (id: number) => {
-    if (!confirm("Вы действительно хотите удалить этот макет?")) return;
+    if (!confirm(t('designer.confirmDeleteLayout'))) return;
     try {
       await client.labels.delete(id);
       if (labelId === id) {
         setLabelId(null);
-        setLabelName("Новый макет");
+        setLabelName(t('designer.newLayout'));
         setDoc(defaultDoc());
       }
       loadLabelsList();
     } catch (e) {
       console.error(e);
-      alert("Ошибка при удалении");
+      alert(t('designer.deleteError'));
     }
-  }, [labelId]);
+  }, [labelId, t]);
 
   const resetDoc = useCallback(() => {
-    if (!confirm("Сбросить текущий макет?")) return;
+    if (!confirm(t('designer.confirmResetLayout'))) return;
     const d = defaultDoc();
     setDoc(d);
     setLabelId(null);
-    setLabelName("Новый макет");
+    setLabelName(t('designer.newLayout'));
     setSelectedId(d.elements[d.elements.length - 1]?.id ?? null);
-  }, []);
+  }, [t]);
 
   // ── Template-first: открыть существующий / создать новый, затем войти в редактор ──
   const openTemplate = useCallback((label: any) => {
@@ -1987,7 +1992,7 @@ export default function LabelDesigner() {
     }
     const v = validateDoc(scheme);
     if (!v) {
-      alert("Ошибка: некорректный формат данных шаблона");
+      alert(t('designer.invalidTemplateFormat'));
       return;
     }
     setDoc(v);
@@ -1998,7 +2003,7 @@ export default function LabelDesigner() {
     if (v.canvas.labelType === "pallet") {
       updatePreviewData({});
     }
-  }, [updatePreviewData]);
+  }, [updatePreviewData, t]);
 
   const createTemplate = useCallback(
     (opts: { name: string; labelType: "pack" | "box" | "pallet"; widthCm: number; heightCm: number }) => {
@@ -2019,14 +2024,14 @@ export default function LabelDesigner() {
       };
       setDoc(d);
       setLabelId(null);
-      setLabelName(opts.name || "Новый шаблон");
+      setLabelName(opts.name || t('designer.newTemplate'));
       setSelectedId(null);
       setView("editor");
       if (opts.labelType === "pallet") {
         updatePreviewData({});
       }
     },
-    [updatePreviewData]
+    [updatePreviewData, t]
   );
 
   // ... (copyJson, canvasStyle) ...
@@ -2036,21 +2041,21 @@ export default function LabelDesigner() {
     const text = JSON.stringify(doc, null, 2);
     try {
       await navigator.clipboard.writeText(text);
-      alert("JSON скопирован!");
+      alert(t('designer.jsonCopied'));
     } catch {
       // ignore
     }
-  }, [doc]);
+  }, [doc, t]);
 
   const copyZpl = useCallback(async () => {
     const zpl = labelToZpl(doc, previewData);
     try {
       await navigator.clipboard.writeText(zpl);
-      alert("ZPL скопирован!");
+      alert(t('designer.zplCopied'));
     } catch {
       // ignore
     }
-  }, [doc, previewData]);
+  }, [doc, previewData, t]);
 
   const printLabel = useCallback(() => {
     // High-resolution print implementation
@@ -2078,14 +2083,14 @@ export default function LabelDesigner() {
     // Open a new window and print
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
-      alert("Пожалуйста, разрешите всплывающие окна для печати");
+      alert(t('designer.allowPopupsForPrint'));
       return;
     }
 
     printWindow.document.write(`
       <html>
         <head>
-          <title>Печать этикетки - ${labelName}</title>
+          <title>${t('designer.printLabelTitle', { name: labelName })}</title>
           <style>
             body { margin: 0; display: flex; justify-content: center; align-items: flex-start; background: white; }
             img { width: 100%; max-width: ${doc.canvas.widthCm}cm; height: auto; display: block; }
@@ -2159,31 +2164,31 @@ export default function LabelDesigner() {
       <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
         <button
           onClick={() => setView("hub")}
-          title="К шаблонам"
+          title={t('designer.toTemplates')}
           className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white/70 transition hover:bg-white/10 hover:text-white"
         >
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" aria-hidden="true">
             <path d="m14 6-6 6 6 6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          Шаблоны
+          {t('designer.templates')}
         </button>
         <div className="leading-tight">
           <div className="text-sm font-semibold text-white">{labelName}</div>
           <div className="font-[family-name:var(--font-geist-mono)] text-[10px] text-white/45">
-            {doc.canvas.widthCm}×{doc.canvas.heightCm} см · {doc.canvas.labelType === "pack" ? "Пачка" : doc.canvas.labelType === "box" ? "Коробка" : "Паллета"}
+            {doc.canvas.widthCm}×{doc.canvas.heightCm} {t('designer.cmUnit')} · {doc.canvas.labelType === "pack" ? t('designer.typePack') : doc.canvas.labelType === "box" ? t('designer.typeBox') : t('designer.typePallet')}
           </div>
         </div>
 
         <div className="mx-1 h-6 w-px bg-white/10" />
 
-        <span className="font-[family-name:var(--font-geist-mono)] text-[9px] uppercase tracking-wider text-indigo-300/70">Добавить</span>
+        <span className="font-[family-name:var(--font-geist-mono)] text-[9px] uppercase tracking-wider text-indigo-300/70">{t('designer.add')}</span>
         <SmallButton variant="secondary" onClick={addText}>
           <Icon name="text" />
-          Текст
+          {t('designer.text')}
         </SmallButton>
         <SmallButton variant="secondary" onClick={addRect}>
           <Icon name="rect" />
-          Фигура
+          {t('designer.shape')}
         </SmallButton>
         {barcodeTemplates.length > 0 && (
           <div className="relative">
@@ -2197,7 +2202,7 @@ export default function LabelDesigner() {
                 }
               }}
             >
-              <option value="" disabled className="bg-[#1A1D24]">Штрихкод…</option>
+              <option value="" disabled className="bg-[#1A1D24]">{t('designer.barcodeDots')}</option>
               {barcodeTemplates.map((t: any) => (
                 <option key={t.id} value={t.name} className="bg-[#1A1D24]">{t.name}</option>
               ))}
@@ -2210,7 +2215,7 @@ export default function LabelDesigner() {
         {doc.canvas.labelType === "pallet" && (
           <SmallButton variant="secondary" onClick={addTable}>
             <Icon name="table" />
-            Таблица
+            {t('designer.table')}
           </SmallButton>
         )}
 
@@ -2222,7 +2227,7 @@ export default function LabelDesigner() {
             value={selectedNomenclatureId}
             onChange={(e) => handleNomenclatureSelect(e.target.value)}
           >
-            <option value="" className="bg-[#1A1D24]">Выберите товар…</option>
+            <option value="" className="bg-[#1A1D24]">{t('designer.selectProduct')}</option>
             {nomenclatures.map((n) => (
               <option key={n.id} value={n.id} className="bg-[#1A1D24]">
                 {n.article} - {n.name}
@@ -2239,16 +2244,16 @@ export default function LabelDesigner() {
 
         <span className="flex-1" />
 
-        <SmallButton variant={doc.canvas.showGrid ? "primary" : "ghost"} onClick={toggleGrid} title="Сетка">
+        <SmallButton variant={doc.canvas.showGrid ? "primary" : "ghost"} onClick={toggleGrid} title={t('designer.grid')}>
           <Icon name="grid" />
         </SmallButton>
-        <SmallButton variant="primary" onClick={saveToApi} disabled={isLoading} title="Сохранить">
+        <SmallButton variant="primary" onClick={saveToApi} disabled={isLoading} title={t('designer.save')}>
           <Icon name="save" />
-          Сохранить
+          {t('designer.save')}
         </SmallButton>
-        <SmallButton variant="secondary" onClick={copyZpl} title="Экспорт ZPL">ZPL</SmallButton>
-        <SmallButton variant="ghost" onClick={copyJson} title="Скопировать JSON">JSON</SmallButton>
-        <SmallButton variant="ghost" onClick={resetDoc} title="Сбросить макет">
+        <SmallButton variant="secondary" onClick={copyZpl} title={t('designer.exportZpl')}>ZPL</SmallButton>
+        <SmallButton variant="ghost" onClick={copyJson} title={t('designer.copyJson')}>JSON</SmallButton>
+        <SmallButton variant="ghost" onClick={resetDoc} title={t('designer.resetLayout')}>
           <Icon name="reset" />
         </SmallButton>
       </div>
@@ -2261,12 +2266,12 @@ export default function LabelDesigner() {
         <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
           <details className="group" open>
             <summary className="flex cursor-pointer items-center justify-between text-sm font-semibold text-white list-none">
-              <span>Атрибуты товара</span>
+              <span>{t('designer.productAttributes')}</span>
               <span className="text-white/50 transition-transform duration-200 group-open:rotate-90">▶</span>
             </summary>
             <div className="mt-3 max-h-64 overflow-y-auto custom-scrollbar flex flex-col gap-4">
               <div>
-                <div className="text-[10px] font-bold uppercase tracking-wider text-white/40 mb-2 px-1">Основные атрибуты</div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-white/40 mb-2 px-1">{t('designer.mainAttributes')}</div>
                 <div className="flex flex-col gap-1">
                   {mainAttributes.map((attr) => (
                     <button
@@ -2284,7 +2289,7 @@ export default function LabelDesigner() {
                       className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 border border-blue-500/20 transition-all font-semibold mt-1"
                     >
                       <Icon name="table" />
-                      <span>Добавить таблицу</span>
+                      <span>{t('designer.addTable')}</span>
                     </button>
                   )}
                 </div>
@@ -2292,7 +2297,7 @@ export default function LabelDesigner() {
 
               {customAttributes.length > 0 && (
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-white/40 mb-2 px-1">Пользовательские</div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-white/40 mb-2 px-1">{t('designer.customAttributes')}</div>
                   <div className="flex flex-col gap-1">
                     {customAttributes.map((attr: any) => (
                       <button
@@ -2313,13 +2318,13 @@ export default function LabelDesigner() {
 
         <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
           <div className="flex items-center justify-between">
-            <div className="text-sm font-semibold text-white">Слои</div>
+            <div className="text-sm font-semibold text-white">{t('designer.layers')}</div>
             <div className="flex items-center gap-1">
               <SmallButton
                 variant="ghost"
                 onClick={() => moveLayer("down")}
                 disabled={!selectedId}
-                title="Назад"
+                title={t('designer.moveBack')}
               >
                 <Icon name="down" />
               </SmallButton>
@@ -2327,7 +2332,7 @@ export default function LabelDesigner() {
                 variant="ghost"
                 onClick={() => moveLayer("up")}
                 disabled={!selectedId}
-                title="Вперёд"
+                title={t('designer.moveForward')}
               >
                 <Icon name="up" />
               </SmallButton>
@@ -2354,19 +2359,20 @@ export default function LabelDesigner() {
                 </div>
                 <Icon name={el.type as any} className="h-4 w-4 flex-none opacity-40" />
                 <span className="min-w-0 grow truncate text-xs font-medium">
-                  {el.type === "text"
-                    ? ((el as TextElement).text?.trim() || "Текст")
-                    : el.type === "barcode" ? "Штрихкод"
-                      : el.type === "rect" ? "Фигура"
-                        : el.type === "table" ? "Таблица"
-                          : el.type === "image" ? "Изображение"
-                            : el.type}
+                  {((elType: string) =>
+                    elType === "text"
+                      ? ((el as TextElement).text?.trim() || t('designer.text'))
+                      : elType === "barcode" ? t('designer.barcode')
+                        : elType === "rect" ? t('designer.shape')
+                          : elType === "table" ? t('designer.table')
+                            : elType === "image" ? t('designer.image')
+                              : elType)(el.type as string)}
                 </span>
               </button>
             ))}
             {doc.elements.length === 0 && (
               <div className="py-8 text-center text-xs text-white/30 italic">
-                Нет элементов
+                {t('designer.noElements')}
               </div>
             )}
           </div>
@@ -2388,29 +2394,29 @@ export default function LabelDesigner() {
         {/* Workspace Info */}
         <div className="absolute top-4 left-4 z-10 flex cursor-default items-center gap-3 rounded-xl border border-slate-200 bg-white/80 p-2 px-3 text-xs font-medium text-slate-600 backdrop-blur-md shadow-sm">
           <div className="flex items-center gap-2">
-            <span className="text-slate-400">Макет:</span>
+            <span className="text-slate-400">{t('designer.layoutLabel')}</span>
             <span className="text-slate-900 font-bold max-w-[200px] truncate" title={labelName}>
               {labelName}
             </span>
             <button
               onClick={() => {
-                const name = window.prompt("Введите новое название макета:", labelName);
+                const name = window.prompt(t('designer.enterNewLayoutName'), labelName);
                 if (name && name.trim()) setLabelName(name.trim());
               }}
               className="ml-1 text-slate-400 hover:text-indigo-600 transition-colors"
-              title="Переименовать"
+              title={t('designer.rename')}
             >
               <Icon name="edit" className="h-3.5 w-3.5" />
             </button>
           </div>
           <div className="flex items-center gap-2 border-l border-slate-200 pl-3">
-            <span className="text-slate-400">Масштаб:</span>
+            <span className="text-slate-400">{t('designer.scaleLabel')}</span>
             <span className="text-slate-900 font-bold">{Math.round(zoom * 100)}%</span>
           </div>
           <div className="flex items-center gap-2 border-l border-slate-200 pl-3">
-            <span className="text-slate-400">Размер:</span>
+            <span className="text-slate-400">{t('designer.sizeLabel')}</span>
             <span className="text-slate-900 font-bold">
-              {doc.canvas.widthCm}x{doc.canvas.heightCm} см
+              {doc.canvas.widthCm}x{doc.canvas.heightCm} {t('designer.cmUnit')}
             </span>
           </div>
         </div>
@@ -2522,7 +2528,7 @@ export default function LabelDesigner() {
           <SmallButton
             variant="ghost"
             onClick={() => setZoom((z: number) => Math.max(0.2, z - 0.1))}
-            title="Отдалить"
+            title={t('designer.zoomOut')}
           >
             <Icon name="minus" className="h-4 w-4" />
           </SmallButton>
@@ -2532,7 +2538,7 @@ export default function LabelDesigner() {
           <SmallButton
             variant="ghost"
             onClick={() => setZoom((z: number) => Math.min(5, z + 0.1))}
-            title="Приблизить"
+            title={t('designer.zoomIn')}
           >
             <Icon name="plus" className="h-4 w-4" />
           </SmallButton>
@@ -2543,7 +2549,7 @@ export default function LabelDesigner() {
               setZoom(1);
               setPan({ x: 0, y: 0 });
             }}
-            title="Сбросить"
+            title={t('designer.reset')}
           >
             Reset
           </SmallButton>
@@ -2554,21 +2560,21 @@ export default function LabelDesigner() {
         <aside style={{ width: 320, minWidth: 0, flexGrow: 0, flexShrink: 0 }} className="overflow-y-auto overflow-x-hidden pl-2 custom-scrollbar">
         <div className="mb-3 flex gap-1.5 rounded-xl border border-white/10 bg-white/5 p-1">
           {([
-            { k: "element", label: "Элемент" },
-            { k: "canvas", label: "Холст" },
-            { k: "zones", label: "Зоны" },
-          ] as const).map((t) => (
+            { k: "element", label: t('designer.tabElement') },
+            { k: "canvas", label: t('designer.tabCanvas') },
+            { k: "zones", label: t('designer.tabZones') },
+          ] as const).map((tab) => (
             <button
-              key={t.k}
-              onClick={() => setInspectorTab(t.k)}
+              key={tab.k}
+              onClick={() => setInspectorTab(tab.k)}
               className={cx(
                 "flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition border",
-                inspectorTab === t.k
+                inspectorTab === tab.k
                   ? "border-indigo-400/30 bg-indigo-400/15 text-indigo-200"
                   : "border-transparent text-white/55 hover:bg-white/5 hover:text-white"
               )}
             >
-              {t.label}
+              {tab.label}
             </button>
           ))}
         </div>
@@ -2577,16 +2583,16 @@ export default function LabelDesigner() {
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-semibold text-white">Свойства</div>
+              <div className="text-sm font-semibold text-white">{t('designer.properties')}</div>
               <div className="text-xs text-white/60">
-                {selected ? `Выбран: ${selected.type}` : "Выберите элемент"}
+                {selected ? t('designer.selectedType', { type: selected.type }) : t('designer.selectElement')}
               </div>
             </div>
             <SmallButton
               variant="danger"
               disabled={!selected}
               onClick={deleteSelected}
-              title="Удалить"
+              title={t('designer.delete')}
             >
               <Icon name="trash" />
             </SmallButton>
@@ -2621,7 +2627,7 @@ export default function LabelDesigner() {
                     />
                   </Field>
                 </div>
-                <Field label="Угол поворота (°)">
+                <Field label={t('designer.rotationAngle')}>
                   <NumberInput
                     value={Math.round(selected.rotation)}
                     onChange={(v) => updateSelected({ rotation: v })}
@@ -2634,20 +2640,20 @@ export default function LabelDesigner() {
 
                 {selected.type === "text" && (
                   <div className="flex flex-col gap-3">
-                    <Field label="Текст">
+                    <Field label={t('designer.text')}>
                       <VariableTextInput
                         value={(selected as TextElement).text}
                         onChange={(v) => updateSelected({ text: v })}
                         attributes={allAttributes}
                       />
                     </Field>
-                    <Field label="Размер шрифта">
+                    <Field label={t('designer.fontSize')}>
                       <NumberInput
                         value={(selected as TextElement).fontSize}
                         onChange={(v) => updateSelected({ fontSize: v })}
                       />
                     </Field>
-                    <Field label="Длина (0=нет)">
+                    <Field label={t('designer.lengthZeroNone')}>
                       <NumberInput
                         value={(selected as TextElement).minLength || 0}
                         onChange={(v) => updateSelected({ minLength: v > 0 ? v : undefined })}
@@ -2657,7 +2663,7 @@ export default function LabelDesigner() {
                     </Field>
 
                     <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
-                      <Field label="Шрифт">
+                      <Field label={t('designer.font')}>
                         <CustomSelect
                           value={(selected as TextElement).fontFamily || "Inter"}
                           onChange={(v) => updateSelected({ fontFamily: v })}
@@ -2667,7 +2673,7 @@ export default function LabelDesigner() {
                           )}
                         />
                       </Field>
-                      <Field label="Вес">
+                      <Field label={t('designer.weight')}>
                         <CustomSelect
                           value={(selected as TextElement).fontWeight}
                           onChange={(v) => updateSelected({ fontWeight: v })}
@@ -2680,7 +2686,7 @@ export default function LabelDesigner() {
                     </div>
 
                     <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
-                      <Field label="Выравнивание">
+                      <Field label={t('designer.alignment')}>
                         <div className="flex bg-white/5 rounded-xl border border-white/10 p-1">
                           {(['left', 'center', 'right'] as const).map((align) => (
                             <button
@@ -2698,7 +2704,7 @@ export default function LabelDesigner() {
                           ))}
                         </div>
                       </Field>
-                      <Field label="Стиль">
+                      <Field label={t('designer.style')}>
                         <div className="flex gap-1">
                           <button
                             onClick={() => updateSelected({ fontStyle: (selected as TextElement).fontStyle === 'italic' ? 'normal' : 'italic' })}
@@ -2725,7 +2731,7 @@ export default function LabelDesigner() {
                         </div>
                       </Field>
                     </div>
-                    <Field label="Цвет">
+                    <Field label={t('designer.color')}>
                       <ColorInput
                         value={(selected as TextElement).color}
                         onChange={(v) => updateSelected({ color: v })}
@@ -2736,26 +2742,26 @@ export default function LabelDesigner() {
 
                 {selected.type === "rect" && (
                   <div className="flex flex-col gap-3">
-                    <Field label="Фон">
+                    <Field label={t('designer.background')}>
                       <ColorInput
                         value={(selected as RectElement).fill}
                         onChange={(v) => updateSelected({ fill: v })}
                       />
                     </Field>
-                    <Field label="Цвет рамки">
+                    <Field label={t('designer.borderColor')}>
                       <ColorInput
                         value={(selected as RectElement).borderColor}
                         onChange={(v) => updateSelected({ borderColor: v })}
                       />
                     </Field>
                     <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
-                      <Field label="Толщина">
+                      <Field label={t('designer.borderWidth')}>
                         <NumberInput
                           value={(selected as RectElement).borderWidth}
                           onChange={(v) => updateSelected({ borderWidth: v })}
                         />
                       </Field>
-                      <Field label="Скругление">
+                      <Field label={t('designer.borderRadius')}>
                         <NumberInput
                           value={(selected as RectElement).borderRadius}
                           onChange={(v) => updateSelected({ borderRadius: v })}
@@ -2767,7 +2773,7 @@ export default function LabelDesigner() {
 
                 {selected.type === "barcode" && (
                   <div className="flex flex-col gap-3">
-                    <Field label="Тип штрихкода">
+                    <Field label={t('designer.barcodeType')}>
                       <select
                         className="h-9 w-full rounded-xl border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white outline-none hover:bg-white/15 transition-all"
                         value={(selected as BarcodeElement).barcodeType}
@@ -2786,7 +2792,7 @@ export default function LabelDesigner() {
                         ))}
                       </select>
                     </Field>
-                    <Field label="Значение (поддерживает {{ плейсхолдеры }})">
+                    <Field label={t('designer.barcodeValue')}>
                       <VariableTextInput
                         value={(selected as BarcodeElement).value}
                         onChange={(v) => updateSelected({ value: v })}
@@ -2795,7 +2801,7 @@ export default function LabelDesigner() {
                       />
                     </Field>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-white/60">Показывать текст</span>
+                      <span className="text-xs text-white/60">{t('designer.showText')}</span>
                       <input
                         type="checkbox"
                         checked={(selected as BarcodeElement).showText}
@@ -2810,12 +2816,12 @@ export default function LabelDesigner() {
                     {/* Колонки */}
                     <div>
                       <div className="mb-2 flex items-center justify-between">
-                        <span className="text-[11px] font-semibold uppercase tracking-wider text-white/55">Колонки</span>
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-white/55">{t('designer.columns')}</span>
                         <SmallButton variant="secondary" onClick={() => {
-                          const t = selected as TableElement;
-                          updateSelected({ columns: [...t.columns, { id: uid(), key: "name", title: "Новая", widthRatio: 15 }] });
+                          const tbl = selected as TableElement;
+                          updateSelected({ columns: [...tbl.columns, { id: uid(), key: "name", title: t('designer.newColumn'), widthRatio: 15 }] });
                         }}>
-                          <Icon name="plus" /> Добавить
+                          <Icon name="plus" /> {t('designer.add')}
                         </SmallButton>
                       </div>
                       <div className="flex max-h-60 flex-col gap-1.5 overflow-y-auto overflow-x-hidden pr-1 custom-scrollbar">
@@ -2823,41 +2829,41 @@ export default function LabelDesigner() {
                           <div key={col.id} className="flex items-center gap-1.5">
                             <input
                               value={col.title}
-                              placeholder="Заголовок"
+                              placeholder={t('designer.columnHeaderPlaceholder')}
                               onChange={(e) => {
-                                const t = selected as TableElement;
-                                updateSelected({ columns: t.columns.map(c => c.id === col.id ? { ...c, title: e.target.value } : c) });
+                                const tbl = selected as TableElement;
+                                updateSelected({ columns: tbl.columns.map(c => c.id === col.id ? { ...c, title: e.target.value } : c) });
                               }}
                               className="h-8 min-w-0 flex-1 rounded-lg border border-white/10 bg-white/5 px-2.5 text-xs text-white placeholder:text-white/35 outline-none focus:border-white/20"
                             />
                             <select
                               value={col.key}
                               onChange={(e) => {
-                                const t = selected as TableElement;
-                                updateSelected({ columns: t.columns.map(c => c.id === col.id ? { ...c, key: e.target.value } : c) });
+                                const tbl = selected as TableElement;
+                                updateSelected({ columns: tbl.columns.map(c => c.id === col.id ? { ...c, key: e.target.value } : c) });
                               }}
                               className="h-8 w-[116px] flex-none cursor-pointer rounded-lg border border-white/10 bg-white/10 px-1.5 text-xs text-white outline-none"
                             >
-                              {TABLE_COLUMN_KEYS.map(a => <option key={a.key} value={a.key} className="bg-[#1A1D24]">{a.label}</option>)}
+                              {TABLE_COLUMN_KEYS.map(a => <option key={a.key} value={a.key} className="bg-[#1A1D24]">{t(a.labelKey)}</option>)}
                             </select>
                             <input
                               type="number"
                               value={col.widthRatio}
                               min={1}
                               max={100}
-                              title="Ширина, %"
+                              title={t('designer.widthPercent')}
                               onChange={(e) => {
-                                const t = selected as TableElement;
-                                updateSelected({ columns: t.columns.map(c => c.id === col.id ? { ...c, widthRatio: clamp(Number(e.target.value), 1, 100) } : c) });
+                                const tbl = selected as TableElement;
+                                updateSelected({ columns: tbl.columns.map(c => c.id === col.id ? { ...c, widthRatio: clamp(Number(e.target.value), 1, 100) } : c) });
                               }}
                               className="h-8 w-[46px] flex-none rounded-lg border border-white/10 bg-white/5 px-1 text-center text-xs text-white outline-none focus:border-white/20"
                             />
                             <button
                               onClick={() => {
-                                const t = selected as TableElement;
-                                updateSelected({ columns: t.columns.filter(c => c.id !== col.id) });
+                                const tbl = selected as TableElement;
+                                updateSelected({ columns: tbl.columns.filter(c => c.id !== col.id) });
                               }}
-                              title="Удалить колонку"
+                              title={t('designer.deleteColumn')}
                               className="flex-none p-1 text-red-400/50 transition-colors hover:text-red-400"
                             >
                               <Icon name="trash" className="h-3.5 w-3.5" />
@@ -2869,32 +2875,32 @@ export default function LabelDesigner() {
 
                     {/* Данные */}
                     <div className="flex flex-col gap-2.5">
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-white/55">Данные</span>
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-white/55">{t('designer.data')}</span>
                       <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
-                        <Field label="Группировка">
+                        <Field label={t('designer.grouping')}>
                           <CustomSelect
                             value={(selected as TableElement).groupBy}
                             onChange={(v) => updateSelected({ groupBy: v as any })}
                             options={[
-                              { value: "none", label: "Нет" },
-                              { value: "nomenclature", label: "По товару" },
-                              { value: "batch", label: "По партии" },
+                              { value: "none", label: t('designer.none') },
+                              { value: "nomenclature", label: t('designer.byProduct') },
+                              { value: "batch", label: t('designer.byBatch') },
                             ]}
                           />
                         </Field>
-                        <Field label="Сортировка">
+                        <Field label={t('designer.sorting')}>
                           <CustomSelect
                             value={(selected as TableElement).sortBy}
                             onChange={(v) => updateSelected({ sortBy: v as any })}
                             options={[
-                              { value: "none", label: "Нет" },
-                              { value: "name", label: "По имени" },
-                              { value: "date", label: "По дате" },
+                              { value: "none", label: t('designer.none') },
+                              { value: "name", label: t('designer.byName') },
+                              { value: "date", label: t('designer.byDate') },
                             ]}
                           />
                         </Field>
                       </div>
-                      <Field label="Макс. строк (0 = авто)">
+                      <Field label={t('designer.maxRows')}>
                         <NumberInput
                           value={(selected as TableElement).maxRows || 0}
                           onChange={(v) => updateSelected({ maxRows: v > 0 ? v : undefined })}
@@ -2906,16 +2912,16 @@ export default function LabelDesigner() {
 
                     {/* Оформление */}
                     <div className="flex flex-col gap-2.5">
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-white/55">Оформление</span>
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-white/55">{t('designer.appearance')}</span>
                       <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
-                        <Field label="Шрифт">
+                        <Field label={t('designer.font')}>
                           <CustomSelect
                             value={(selected as TableElement).fontFamily || "Inter"}
                             onChange={(v) => updateSelected({ fontFamily: v })}
                             options={FONTS.map(f => ({ value: f, label: f }))}
                           />
                         </Field>
-                        <Field label="Размер">
+                        <Field label={t('designer.size')}>
                           <NumberInput
                             value={(selected as TableElement).fontSize}
                             onChange={(v) => updateSelected({ fontSize: v })}
@@ -2929,7 +2935,7 @@ export default function LabelDesigner() {
                             checked={(selected as TableElement).showHeaders}
                             onChange={(e) => updateSelected({ showHeaders: e.target.checked })}
                           />
-                          Заголовки
+                          {t('designer.headers')}
                         </label>
                         <label className="flex cursor-pointer items-center gap-2 text-xs text-white/70">
                           <input
@@ -2937,7 +2943,7 @@ export default function LabelDesigner() {
                             checked={(selected as TableElement).showBorders}
                             onChange={(e) => updateSelected({ showBorders: e.target.checked })}
                           />
-                          Границы
+                          {t('designer.borders')}
                         </label>
                       </div>
                     </div>
@@ -2946,7 +2952,7 @@ export default function LabelDesigner() {
               </>
             ) : (
               <div className="py-12 text-center text-xs text-white/30 italic">
-                Элемент не выбран
+                {t('designer.noElementSelected')}
               </div>
             )}
           </div>
@@ -2955,10 +2961,10 @@ export default function LabelDesigner() {
 
         {inspectorTab === "canvas" && (
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="text-sm font-semibold text-white">Настройки холста</div>
+          <div className="text-sm font-semibold text-white">{t('designer.canvasSettings')}</div>
           <div className="mt-4 flex flex-col gap-3">
             <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
-              <Field label="Ширина (см)">
+              <Field label={t('designer.widthCm')}>
                 <NumberInput
                   value={doc.canvas.widthCm ?? 10}
                   onChange={(v) => {
@@ -2971,7 +2977,7 @@ export default function LabelDesigner() {
                   step={0.1}
                 />
               </Field>
-              <Field label="Высота (см)">
+              <Field label={t('designer.heightCm')}>
                 <NumberInput
                   value={doc.canvas.heightCm ?? 6}
                   onChange={(v) => {
@@ -2986,7 +2992,7 @@ export default function LabelDesigner() {
               </Field>
             </div>
 
-            <Field label="Тип этикетки">
+            <Field label={t('designer.labelTypeField')}>
               <select
                 className="h-9 w-full rounded-xl border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-white outline-none hover:bg-white/15 transition-all"
                 value={doc.canvas.labelType || "pack"}
@@ -2995,13 +3001,13 @@ export default function LabelDesigner() {
                   setDoc(d => ({ ...d, canvas: { ...d.canvas, labelType: val } }));
                 }}
               >
-                <option value="pack" className="bg-[#1A1D24]">Этикетка на упаковку</option>
-                <option value="box" className="bg-[#1A1D24]">Этикетка на короб</option>
-                <option value="pallet" className="bg-[#1A1D24]">Паллетный лист</option>
+                <option value="pack" className="bg-[#1A1D24]">{t('designer.labelOnPackage')}</option>
+                <option value="box" className="bg-[#1A1D24]">{t('designer.labelOnBox')}</option>
+                <option value="pallet" className="bg-[#1A1D24]">{t('designer.palletSheet')}</option>
               </select>
             </Field>
 
-            <Field label="Разрешение (DPI)">
+            <Field label={t('designer.resolutionDpi')}>
               <NumberInput
                 value={doc.canvas.dpi ?? DPI_203}
                 onChange={(v) => {
@@ -3016,14 +3022,14 @@ export default function LabelDesigner() {
                 }}
               />
             </Field>
-            <Field label="Цвет фона">
+            <Field label={t('designer.backgroundColor')}>
               <ColorInput
                 value={doc.canvas.background}
                 onChange={(v) => setDoc(d => ({ ...d, canvas: { ...d.canvas, background: v } }))}
               />
             </Field>
             <div className="flex items-center justify-between">
-              <span className="text-xs text-white/60">Сетка</span>
+              <span className="text-xs text-white/60">{t('designer.grid')}</span>
               <input
                 type="checkbox"
                 checked={doc.canvas.showGrid}
@@ -3039,7 +3045,7 @@ export default function LabelDesigner() {
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
           <details className="group" open>
             <summary className="flex cursor-pointer items-center justify-between text-sm font-semibold text-white list-none">
-              <span>Преднапечатанные зоны</span>
+              <span>{t('designer.preprintedZones')}</span>
               <span className="text-white/50 transition-transform duration-200 group-open:rotate-90">▶</span>
             </summary>
             <div className="mt-3 flex flex-col gap-3">
@@ -3048,7 +3054,7 @@ export default function LabelDesigner() {
                 onClick={() => {
                   const newZone: PrintedZone = {
                     id: uid(),
-                    label: "Шапка",
+                    label: t('designer.zoneHeader'),
                     side: "top",
                     sizeMm: 10,
                     color: "#1e40af",
@@ -3064,7 +3070,7 @@ export default function LabelDesigner() {
                 className="w-full"
               >
                 <Icon name="plus" />
-                Добавить зону
+                {t('designer.addZone')}
               </SmallButton>
 
               {doc.canvas.printedZones.map((zone, idx) => (
@@ -3074,7 +3080,7 @@ export default function LabelDesigner() {
                 >
                   <div className="flex items-center justify-between">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-white/40">
-                      Зона {idx + 1}
+                      {t('designer.zoneN', { n: idx + 1 })}
                     </div>
                     <button
                       type="button"
@@ -3088,13 +3094,13 @@ export default function LabelDesigner() {
                         }));
                       }}
                       className="flex h-6 w-6 items-center justify-center rounded-lg text-white/30 hover:bg-red-500/20 hover:text-red-400 transition-all"
-                      title="Удалить"
+                      title={t('designer.delete')}
                     >
                       <Icon name="trash" className="h-3 w-3" />
                     </button>
                   </div>
 
-                  <Field label="Название">
+                  <Field label={t('designer.name')}>
                     <TextInput
                       value={zone.label}
                       onChange={(v) => {
@@ -3111,7 +3117,7 @@ export default function LabelDesigner() {
                     />
                   </Field>
 
-                  <Field label="Сторона">
+                  <Field label={t('designer.side')}>
                     <CustomSelect<string>
                       value={zone.side}
                       onChange={(v) => {
@@ -3126,15 +3132,15 @@ export default function LabelDesigner() {
                         }));
                       }}
                       options={[
-                        { value: "top", label: "Сверху" },
-                        { value: "bottom", label: "Снизу" },
-                        { value: "left", label: "Слева" },
-                        { value: "right", label: "Справа" },
+                        { value: "top", label: t('designer.sideTop') },
+                        { value: "bottom", label: t('designer.sideBottom') },
+                        { value: "left", label: t('designer.sideLeft') },
+                        { value: "right", label: t('designer.sideRight') },
                       ]}
                     />
                   </Field>
 
-                  <Field label="Толщина (мм)">
+                  <Field label={t('designer.thicknessMm')}>
                     <NumberInput
                       value={zone.sizeMm}
                       onChange={(v) => {
@@ -3154,7 +3160,7 @@ export default function LabelDesigner() {
                     />
                   </Field>
 
-                  <Field label="Цвет">
+                  <Field label={t('designer.color')}>
                     <ColorInput
                       value={zone.color}
                       onChange={(v) => {
@@ -3175,7 +3181,7 @@ export default function LabelDesigner() {
 
               {doc.canvas.printedZones.length === 0 && (
                 <div className="py-4 text-center text-xs text-white/30 italic">
-                  Нет заданных зон
+                  {t('designer.noZonesDefined')}
                 </div>
               )}
             </div>

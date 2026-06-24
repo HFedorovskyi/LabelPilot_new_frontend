@@ -14,12 +14,19 @@ import UsersManager from "./components/users/UsersManager";
 import OperatorsManager from "./components/operators/OperatorsManager";
 import { AuthProvider, useAuth } from "./components/auth/AuthProvider";
 import { LoginScreen, BootstrapScreen } from "./components/auth/AuthScreens";
+import { useTranslation } from "@/lib/i18n";
 
 const APP_VERSION = "1.0.3";
 
-const ROLE_LABEL: Record<string, string> = {
-  admin: "Администратор",
-  manager: "Менеджер",
+const roleLabel = (t: (key: string) => string, role: string | undefined): string => {
+  switch (role) {
+    case "admin":
+      return t("app.roleAdmin");
+    case "manager":
+      return t("app.roleManager");
+    default:
+      return role ?? "";
+  }
 };
 
 type TabKey = "home" | "labels" | "catalog" | "packaging" | "barcodes" | "print_tasks" | "operators" | "users" | "stations" | "settings";
@@ -163,27 +170,28 @@ function Icon({
 
 function AppShell() {
   const { user, logout } = useAuth();
+  const { t } = useTranslation();
   const isAdmin = user?.role === "admin";
 
   const tabs: Tab[] = useMemo(
     () => {
       const all: Tab[] = [
-        { key: "home", label: "Главная страница", description: "Обзор системы, аналитика и быстрые действия." },
-        { key: "labels", label: "Дизайнер этикеток", description: "Создание макетов, слои, печать и экспорт." },
-        { key: "catalog", label: "Номенклатурная база", description: "Справочник товаров, атрибуты и быстрый поиск." },
-        { key: "packaging", label: "Упаковки", description: "Типы упаковок, размеры, привязка к товарам." },
-        { key: "barcodes", label: "Штрихкоды", description: "Генерация, просмотр и печать штрихкодов." },
-        { key: "print_tasks", label: "Задание на печать", description: "Управление текущими очередями и заданиями на печать." },
-        { key: "stations", label: "Станции", description: "Управление станциями маркировки." },
-        { key: "operators", label: "Операторы", description: "Управление операторами и их синхронизация со станциями." },
-        { key: "users", label: "Пользователи", description: "Управление пользователями (только для админа)." },
-        { key: "settings", label: "Настройки", description: "Обновления системы, версии и конфигурация." },
+        { key: "home", label: t("app.tabHomeLabel"), description: t("app.tabHomeDesc") },
+        { key: "labels", label: t("app.tabLabelsLabel"), description: t("app.tabLabelsDesc") },
+        { key: "catalog", label: t("app.tabCatalogLabel"), description: t("app.tabCatalogDesc") },
+        { key: "packaging", label: t("app.tabPackagingLabel"), description: t("app.tabPackagingDesc") },
+        { key: "barcodes", label: t("app.tabBarcodesLabel"), description: t("app.tabBarcodesDesc") },
+        { key: "print_tasks", label: t("app.tabPrintTasksLabel"), description: t("app.tabPrintTasksDesc") },
+        { key: "stations", label: t("app.tabStationsLabel"), description: t("app.tabStationsDesc") },
+        { key: "operators", label: t("app.tabOperatorsLabel"), description: t("app.tabOperatorsDesc") },
+        { key: "users", label: t("app.tabUsersLabel"), description: t("app.tabUsersDesc") },
+        { key: "settings", label: t("app.tabSettingsLabel"), description: t("app.tabSettingsDesc") },
       ];
       // The "Пользователи" tab is admin-only (server enforces; this hides the UI).
       // The "Операторы" tab is visible to manager OR admin (broader than Users).
-      return all.filter((t) => t.key !== "users" || isAdmin);
+      return all.filter((t2) => t2.key !== "users" || isAdmin);
     },
-    [isAdmin]
+    [isAdmin, t]
   );
 
   const [active, setActive] = useState<TabKey>("home");
@@ -218,13 +226,13 @@ function AppShell() {
   const navLabel = (key: TabKey) => {
     switch (key) {
       case "home":
-        return "Главная";
+        return t("app.navHome");
       case "print_tasks":
-        return "Печать";
+        return t("app.navPrint");
       case "catalog":
-        return "Номенклатура";
+        return t("app.navCatalog");
       default:
-        return tabs.find((t) => t.key === key)?.label ?? "";
+        return tabs.find((tab) => tab.key === key)?.label ?? "";
     }
   };
 
@@ -279,8 +287,8 @@ function AppShell() {
       >
         <button
           onClick={toggleCollapsed}
-          aria-label={collapsed ? "Развернуть меню" : "Свернуть меню"}
-          title={collapsed ? "Развернуть меню" : "Свернуть меню"}
+          aria-label={collapsed ? t("app.expandMenu") : t("app.collapseMenu")}
+          title={collapsed ? t("app.expandMenu") : t("app.collapseMenu")}
           className="absolute -right-3 top-[26px] z-30 flex h-6 w-6 items-center justify-center rounded-full border border-white/15 bg-[#0d0e13] text-white/55 transition hover:border-white/30 hover:text-white"
         >
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" aria-hidden="true">
@@ -309,10 +317,10 @@ function AppShell() {
 
         {!collapsed && (
           <div className="px-2 pb-2 text-[9px] uppercase tracking-[0.14em] text-white/30 font-[family-name:var(--font-geist-mono)]">
-            Навигация
+            {t("app.navigation")}
           </div>
         )}
-        <nav role="tablist" aria-label="Разделы приложения" className="flex flex-col gap-[3px]">
+        <nav role="tablist" aria-label={t("app.appSections")} className="flex flex-col gap-[3px]">
           {tabs.map((t) => {
             const isActive = t.key === active;
             return (
@@ -349,19 +357,19 @@ function AppShell() {
             <div className="flex flex-col items-center gap-3">
               <span
                 className="h-[9px] w-[9px] rounded-full bg-emerald-400"
-                title={`Сервер онлайн · ${host}`}
+                title={`${t("app.serverOnline")} · ${host}`}
                 style={{ boxShadow: "none" }}
               />
               <div
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-400/20 text-[12px] uppercase text-indigo-200 ring-1 ring-indigo-400/30"
-                title={`${user?.username ?? ""} · ${ROLE_LABEL[user?.role ?? ""] ?? user?.role ?? ""}`}
+                title={`${user?.username ?? ""} · ${roleLabel(t, user?.role)}`}
               >
                 {(user?.username ?? "?").slice(0, 1)}
               </div>
               <button
                 onClick={() => void logout()}
-                aria-label="Выйти"
-                title="Выйти"
+                aria-label={t("app.logout")}
+                title={t("app.logout")}
                 className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/55 transition hover:border-red-400/30 hover:text-red-300"
               >
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
@@ -375,7 +383,7 @@ function AppShell() {
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-[7px] text-[12px] text-white/75">
                     <span className="h-[7px] w-[7px] rounded-full bg-emerald-400" style={{ boxShadow: "none" }} />
-                    Сервер онлайн
+                    {t("app.serverOnline")}
                   </span>
                   <span className="text-[10px] text-white/40 font-[family-name:var(--font-geist-mono)]">v{APP_VERSION}</span>
                 </div>
@@ -387,17 +395,17 @@ function AppShell() {
                 </div>
                 <div className="min-w-0 leading-tight">
                   <div className="truncate text-[12.5px] text-white">{user?.username ?? "—"}</div>
-                  <div className="text-[10.5px] text-white/40">{ROLE_LABEL[user?.role ?? ""] ?? user?.role ?? ""}</div>
+                  <div className="text-[10.5px] text-white/40">{roleLabel(t, user?.role)}</div>
                 </div>
                 <button
                   onClick={() => void logout()}
-                  title="Выйти"
+                  title={t("app.logout")}
                   className="ml-auto inline-flex items-center gap-[5px] rounded-lg border border-white/10 bg-white/[0.04] px-[8px] py-[5px] text-[11px] text-white/60 transition hover:border-red-400/30 hover:text-red-300"
                 >
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="none" aria-hidden="true">
                     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
-                  Выйти
+                  {t("app.logout")}
                 </button>
               </div>
             </>
@@ -420,7 +428,7 @@ function AppShell() {
                 <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.6" />
                 <path d="m20 20-3-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
               </svg>
-              <span className="text-[12px]">Поиск</span>
+              <span className="text-[12px]">{t("app.search")}</span>
               <span className="rounded border border-white/15 px-[5px] py-px text-[10px] font-[family-name:var(--font-geist-mono)]">⌘K</span>
             </div>
             <button
@@ -431,9 +439,9 @@ function AppShell() {
                 <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
                 <path d="M12 16V8m0 0-3 3m3-3 3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              Обновления
+              {t("app.updates")}
             </button>
-            <button aria-label="Уведомления" className="text-white/45 transition hover:text-white">
+            <button aria-label={t("app.notifications")} className="text-white/45 transition hover:text-white">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
                 <path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
                 <path d="M10 20a2 2 0 0 0 4 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
@@ -457,7 +465,7 @@ function AppShell() {
             {active === "users" && isAdmin ? <UsersManager /> : null}
 
             <footer className="border-t border-white/10 pt-6 text-xs text-white/40">
-              © {new Date().getFullYear()} — Локальная система этикеток (offline).
+              {t("app.footerCopyright", { year: new Date().getFullYear() })}
             </footer>
           </div>
         </main>

@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useAuth } from "./AuthProvider";
+import { useTranslation } from "@/lib/i18n";
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
@@ -95,6 +96,7 @@ function SubmitBtn({ busy, children }: { busy: boolean; children: React.ReactNod
 
 export function LoginScreen() {
     const { login } = useAuth();
+    const { t } = useTranslation();
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [busy, setBusy] = useState(false);
@@ -109,7 +111,7 @@ export function LoginScreen() {
             await login(username.trim(), password);
             // On success, refresh() inside login() flips the gate to the app.
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Неверный логин или пароль");
+            setError(err instanceof Error ? err.message : t('authui.invalidCredentials'));
             setBusy(false);
         }
     };
@@ -117,12 +119,12 @@ export function LoginScreen() {
     return (
         <AuthShell>
             <div className="mb-5">
-                <div className="text-lg font-semibold tracking-tight text-white">Вход</div>
-                <p className="mt-1 text-[13px] text-white/45">Войдите в систему для продолжения работы.</p>
+                <div className="text-lg font-semibold tracking-tight text-white">{t('authui.loginTitle')}</div>
+                <p className="mt-1 text-[13px] text-white/45">{t('authui.loginSubtitle')}</p>
             </div>
             <form onSubmit={onSubmit} className="space-y-4">
                 <div>
-                    <Label>Логин</Label>
+                    <Label>{t('authui.usernameLabel')}</Label>
                     <input
                         type="text"
                         autoFocus
@@ -134,7 +136,7 @@ export function LoginScreen() {
                     />
                 </div>
                 <div>
-                    <Label>Пароль</Label>
+                    <Label>{t('authui.passwordLabel')}</Label>
                     <input
                         type="password"
                         autoComplete="current-password"
@@ -145,7 +147,7 @@ export function LoginScreen() {
                     />
                 </div>
                 {error && <ErrorBox message={error} />}
-                <SubmitBtn busy={busy}>{busy ? "Вход…" : "Войти"}</SubmitBtn>
+                <SubmitBtn busy={busy}>{busy ? t('authui.loggingIn') : t('authui.loginBtn')}</SubmitBtn>
             </form>
         </AuthShell>
     );
@@ -155,6 +157,7 @@ export function LoginScreen() {
 
 export function BootstrapScreen() {
     const { bootstrap } = useAuth();
+    const { t } = useTranslation();
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [confirm, setConfirm] = useState("");
@@ -165,15 +168,15 @@ export function BootstrapScreen() {
         e.preventDefault();
         if (busy) return;
         if (!username.trim()) {
-            setError("Укажите логин администратора.");
+            setError(t('authui.bootstrapNeedUsername'));
             return;
         }
         if (password.length < 1) {
-            setError("Укажите пароль.");
+            setError(t('authui.bootstrapNeedPassword'));
             return;
         }
         if (password !== confirm) {
-            setError("Пароли не совпадают.");
+            setError(t('authui.passwordsMismatch'));
             return;
         }
         setBusy(true);
@@ -181,7 +184,7 @@ export function BootstrapScreen() {
         try {
             await bootstrap(username.trim(), password);
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Не удалось создать администратора");
+            setError(err instanceof Error ? err.message : t('authui.bootstrapFailed'));
             setBusy(false);
         }
     };
@@ -189,14 +192,14 @@ export function BootstrapScreen() {
     return (
         <AuthShell>
             <div className="mb-5">
-                <div className="text-lg font-semibold tracking-tight text-white">Создание администратора</div>
+                <div className="text-lg font-semibold tracking-tight text-white">{t('authui.bootstrapTitle')}</div>
                 <p className="mt-1 text-[13px] text-white/45">
-                    Это первый запуск. Создайте учётную запись администратора, чтобы начать работу.
+                    {t('authui.bootstrapSubtitle')}
                 </p>
             </div>
             <form onSubmit={onSubmit} className="space-y-4">
                 <div>
-                    <Label>Логин</Label>
+                    <Label>{t('authui.usernameLabel')}</Label>
                     <input
                         type="text"
                         autoFocus
@@ -208,7 +211,7 @@ export function BootstrapScreen() {
                     />
                 </div>
                 <div>
-                    <Label>Пароль</Label>
+                    <Label>{t('authui.passwordLabel')}</Label>
                     <input
                         type="password"
                         autoComplete="new-password"
@@ -219,7 +222,7 @@ export function BootstrapScreen() {
                     />
                 </div>
                 <div>
-                    <Label>Повторите пароль</Label>
+                    <Label>{t('authui.confirmPasswordLabel')}</Label>
                     <input
                         type="password"
                         autoComplete="new-password"
@@ -230,7 +233,7 @@ export function BootstrapScreen() {
                     />
                 </div>
                 {error && <ErrorBox message={error} />}
-                <SubmitBtn busy={busy}>{busy ? "Создание…" : "Создать администратора"}</SubmitBtn>
+                <SubmitBtn busy={busy}>{busy ? t('authui.creating') : t('authui.createAdminBtn')}</SubmitBtn>
             </form>
         </AuthShell>
     );

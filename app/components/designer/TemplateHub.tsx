@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "@/lib/i18n";
 
 type LType = "pack" | "box" | "pallet";
 
@@ -13,11 +14,14 @@ type Props = {
   onDelete: (id: number) => void;
 };
 
-const TYPE_META: Record<LType, { label: string; badge: string }> = {
-  pack: { label: "Пачка", badge: "bg-indigo-400/15 text-indigo-200 border-indigo-400/25" },
-  box: { label: "Коробка", badge: "bg-teal-400/15 text-teal-200 border-teal-400/25" },
-  pallet: { label: "Паллета", badge: "bg-pink-400/15 text-pink-200 border-pink-400/25" },
+const TYPE_BADGE: Record<LType, string> = {
+  pack: "bg-indigo-400/15 text-indigo-200 border-indigo-400/25",
+  box: "bg-teal-400/15 text-teal-200 border-teal-400/25",
+  pallet: "bg-pink-400/15 text-pink-200 border-pink-400/25",
 };
+
+const typeLabel = (t: (key: string) => string, type: LType): string =>
+  type === "box" ? t("templates.typeBox") : type === "pallet" ? t("templates.typePallet") : t("templates.typePack");
 
 const PRESETS: Array<{ label: string; w: number; h: number }> = [
   { label: "100 × 150", w: 100, h: 150 },
@@ -138,11 +142,12 @@ function TemplatePreview({ scheme }: { scheme: any }) {
 }
 
 export default function TemplateHub({ templates, onOpen, onCreate, onDelete }: Props) {
+  const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | LType>("all");
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [name, setName] = useState("Новый шаблон");
+  const [name, setName] = useState(t("templates.newTemplate"));
   const [labelType, setLabelType] = useState<LType>("pack");
   const [widthMm, setWidthMm] = useState(100);
   const [heightMm, setHeightMm] = useState(150);
@@ -164,15 +169,15 @@ export default function TemplateHub({ templates, onOpen, onCreate, onDelete }: P
   }, [templates]);
 
   const filters: Array<{ key: "all" | LType; label: string }> = [
-    { key: "all", label: "Все" },
-    { key: "pack", label: "Пачка" },
-    { key: "box", label: "Коробка" },
-    { key: "pallet", label: "Паллета" },
+    { key: "all", label: t("templates.filterAll") },
+    { key: "pack", label: t("templates.typePack") },
+    { key: "box", label: t("templates.typeBox") },
+    { key: "pallet", label: t("templates.typePallet") },
   ];
 
   const submitCreate = () => {
     onCreate({
-      name: name.trim() || "Новый шаблон",
+      name: name.trim() || t("templates.newTemplate"),
       labelType,
       widthCm: Math.max(1, widthMm) / 10,
       heightCm: Math.max(1, heightMm) / 10,
@@ -184,8 +189,8 @@ export default function TemplateHub({ templates, onOpen, onCreate, onDelete }: P
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight text-white">Шаблоны этикеток</h2>
-          <p className="text-sm text-white/45">Выберите шаблон для редактирования или создайте новый</p>
+          <h2 className="text-lg font-semibold tracking-tight text-white">{t("templates.heading")}</h2>
+          <p className="text-sm text-white/45">{t("templates.subtitle")}</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
@@ -196,7 +201,7 @@ export default function TemplateHub({ templates, onOpen, onCreate, onDelete }: P
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Поиск шаблона"
+              placeholder={t("templates.searchPlaceholder")}
               className="w-40 bg-transparent text-sm text-white placeholder:text-white/35 outline-none"
             />
           </div>
@@ -207,7 +212,7 @@ export default function TemplateHub({ templates, onOpen, onCreate, onDelete }: P
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
               <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
             </svg>
-            Создать новый
+            {t("templates.createNew")}
           </button>
         </div>
       </div>
@@ -238,14 +243,14 @@ export default function TemplateHub({ templates, onOpen, onCreate, onDelete }: P
           <svg viewBox="0 0 24 24" width="26" height="26" fill="none" aria-hidden="true">
             <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
           </svg>
-          <span className="text-[13px]">Создать новый шаблон</span>
+          <span className="text-[13px]">{t("templates.createNewTemplate")}</span>
         </button>
 
         {items.map(({ raw, scheme, type }) => {
           const cm = scheme?.canvas ?? {};
           const wMm = Math.round((Number(cm.widthCm) || 0) * 10);
           const hMm = Math.round((Number(cm.heightCm) || 0) * 10);
-          const meta = TYPE_META[type];
+          const badge = TYPE_BADGE[type];
           return (
             <div
               key={raw.id}
@@ -256,14 +261,14 @@ export default function TemplateHub({ templates, onOpen, onCreate, onDelete }: P
                   {scheme ? (
                     <TemplatePreview scheme={scheme} />
                   ) : (
-                    <div className="flex h-full items-center justify-center text-[11px] text-white/30">нет превью</div>
+                    <div className="flex h-full items-center justify-center text-[11px] text-white/30">{t("templates.noPreview")}</div>
                   )}
                 </div>
                 <div className="px-3 py-2.5">
-                  <div className="truncate text-[13px] text-white">{raw.name || "Без названия"}</div>
+                  <div className="truncate text-[13px] text-white">{raw.name || t("templates.untitled")}</div>
                   <div className="mt-1.5 flex items-center justify-between">
-                    <span className="font-mono text-[11px] text-white/40">{wMm > 0 ? `${wMm}×${hMm} мм` : "—"}</span>
-                    <span className={"rounded-md border px-2 py-0.5 text-[10px] " + meta.badge}>{meta.label}</span>
+                    <span className="font-mono text-[11px] text-white/40">{wMm > 0 ? t("templates.dimensions", { w: wMm, h: hMm }) : "—"}</span>
+                    <span className={"rounded-md border px-2 py-0.5 text-[10px] " + badge}>{typeLabel(t, type)}</span>
                   </div>
                 </div>
               </button>
@@ -272,7 +277,7 @@ export default function TemplateHub({ templates, onOpen, onCreate, onDelete }: P
                   e.stopPropagation();
                   onDelete(raw.id);
                 }}
-                title="Удалить шаблон"
+                title={t("templates.deleteTemplate")}
                 className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-lg bg-black/40 text-white/50 opacity-0 transition hover:bg-red-500/25 hover:text-red-300 group-hover:opacity-100"
               >
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
@@ -286,7 +291,7 @@ export default function TemplateHub({ templates, onOpen, onCreate, onDelete }: P
 
       {items.length === 0 && (
         <div className="rounded-xl border border-white/10 bg-white/[0.02] py-10 text-center text-sm text-white/40">
-          {templates.length === 0 ? "Пока нет шаблонов — создайте первый." : "Ничего не найдено по фильтру."}
+          {templates.length === 0 ? t("templates.emptyNoTemplates") : t("templates.emptyNoMatches")}
         </div>
       )}
 
@@ -296,30 +301,30 @@ export default function TemplateHub({ templates, onOpen, onCreate, onDelete }: P
             className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0d0e13] p-5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-4 text-base font-semibold text-white">Новый шаблон</div>
+            <div className="mb-4 text-base font-semibold text-white">{t("templates.newTemplate")}</div>
 
             <div className="mb-4">
-              <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-white/50">Тип этикетки</div>
+              <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-white/50">{t("templates.labelType")}</div>
               <div className="grid grid-cols-3 gap-2">
-                {(["pack", "box", "pallet"] as LType[]).map((t) => (
+                {(["pack", "box", "pallet"] as LType[]).map((lt) => (
                   <button
-                    key={t}
-                    onClick={() => setLabelType(t)}
+                    key={lt}
+                    onClick={() => setLabelType(lt)}
                     className={
                       "rounded-lg border px-2 py-2.5 text-[12px] transition " +
-                      (labelType === t
+                      (labelType === lt
                         ? "border-indigo-400/50 bg-indigo-400/15 text-indigo-200"
                         : "border-white/10 text-white/55 hover:bg-white/5")
                     }
                   >
-                    {TYPE_META[t].label}
+                    {typeLabel(t, lt)}
                   </button>
                 ))}
               </div>
             </div>
 
             <div className="mb-4">
-              <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-white/50">Размер</div>
+              <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-white/50">{t("templates.size")}</div>
               <div className="mb-2 flex flex-wrap gap-2">
                 {PRESETS.map((p) => {
                   const on = widthMm === p.w && heightMm === p.h;
@@ -342,7 +347,7 @@ export default function TemplateHub({ templates, onOpen, onCreate, onDelete }: P
               </div>
               <div className="flex items-center gap-2">
                 <label className="flex flex-1 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-                  <span className="text-[11px] text-white/40">Ш, мм</span>
+                  <span className="text-[11px] text-white/40">{t("templates.widthMm")}</span>
                   <input
                     type="number"
                     value={widthMm}
@@ -351,7 +356,7 @@ export default function TemplateHub({ templates, onOpen, onCreate, onDelete }: P
                   />
                 </label>
                 <label className="flex flex-1 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-                  <span className="text-[11px] text-white/40">В, мм</span>
+                  <span className="text-[11px] text-white/40">{t("templates.heightMm")}</span>
                   <input
                     type="number"
                     value={heightMm}
@@ -363,7 +368,7 @@ export default function TemplateHub({ templates, onOpen, onCreate, onDelete }: P
             </div>
 
             <div className="mb-5">
-              <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-white/50">Название</div>
+              <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-white/50">{t("templates.name")}</div>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -373,10 +378,10 @@ export default function TemplateHub({ templates, onOpen, onCreate, onDelete }: P
 
             <div className="flex justify-end gap-2">
               <button onClick={() => setModalOpen(false)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-white/60 transition hover:bg-white/5">
-                Отмена
+                {t("templates.cancel")}
               </button>
               <button onClick={submitCreate} className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-400">
-                Создать
+                {t("templates.create")}
               </button>
             </div>
           </div>

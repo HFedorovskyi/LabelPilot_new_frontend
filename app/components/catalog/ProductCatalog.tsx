@@ -5,6 +5,7 @@ import type { Product, Packaging, LabelTemplate, Station, GlobalAttribute } from
 import { api } from "@/lib/api/client";
 import { cx, makeEan13 } from "./utils";
 import ImportModal from "./ImportModal";
+import { useTranslation } from "@/lib/i18n";
 
 export function Card({
   title,
@@ -129,9 +130,10 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
 }
 
 function RequiredTag() {
+  const { t } = useTranslation();
   return (
     <span className="rounded-md bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-300">
-      обязательно
+      {t('catalog.required')}
     </span>
   );
 }
@@ -184,22 +186,24 @@ function Section({
 }
 
 function EmptyCatalog({ onImport }: { onImport: () => void }) {
+  const { t } = useTranslation();
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-14 text-center">
       <svg viewBox="0 0 24 24" width="40" height="40" fill="none" className="text-white/20" aria-hidden="true">
         <path d="M21 8.5 12 13 3 8.5M12 13v9" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
         <path d="M21 8.5V17a2 2 0 0 1-1.1 1.8l-7.8 3.9a2 2 0 0 1-1.8 0l-7.8-3.9A2 2 0 0 1 2 17V8.5a2 2 0 0 1 1.1-1.8l7.8-3.9a2 2 0 0 1 1.8 0l7.8 3.9A2 2 0 0 1 21 8.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
       </svg>
-      <div className="text-sm font-medium text-white/70">Пока нет товаров</div>
-      <div className="text-xs text-white/40">Добавьте первый товар слева или импортируйте из таблицы</div>
+      <div className="text-sm font-medium text-white/70">{t('catalog.noProductsYet')}</div>
+      <div className="text-xs text-white/40">{t('catalog.addFirstOrImport')}</div>
       <div className="mt-1">
-        <SmallButton onClick={onImport}>Импорт из таблицы</SmallButton>
+        <SmallButton onClick={onImport}>{t('catalog.importFromTable')}</SmallButton>
       </div>
     </div>
   );
 }
 
 export default function ProductCatalog() {
+  const { t } = useTranslation();
   const [products, setProducts] = useState<Product[]>([]);
   const [packs, setPacks] = useState<Packaging[]>([]);
   const [templates, setTemplates] = useState<LabelTemplate[]>([]);
@@ -350,13 +354,13 @@ export default function ProductCatalog() {
       setNewAttrName("");
     } catch (e) {
       console.error(e);
-      alert("Ошибка при создании атрибута (возможно, имя уже занято)");
+      alert(t('catalog.errorCreateAttribute'));
     }
   };
 
   const handleDeleteGlobalAttribute = async (id: number, name: string) => {
     const affected = products.filter((p) => p.extra_data && p.extra_data[name] != null).length;
-    if (!confirm(`Удалить поле "${name}"?\n\nВНИМАНИЕ: это поле и его значения будут удалены у ВСЕХ товаров (затронуто: ${affected}). Действие необратимо.`)) return;
+    if (!confirm(t('catalog.confirmDeleteAttribute', { name, affected }))) return;
     try {
       await api.attributes.delete(id);
       setGlobalAttributes(prev => prev.filter(attr => attr.id !== id));
@@ -366,7 +370,7 @@ export default function ProductCatalog() {
       setExtraDataState(next);
     } catch (e) {
       console.error(e);
-      alert("Ошибка при удалении");
+      alert(t('catalog.errorDelete'));
     }
   };
 
@@ -446,14 +450,14 @@ export default function ProductCatalog() {
     const n = name.trim();
     setFormError("");
     if (!s || !n) {
-      setFormError("Заполните артикул и название");
+      setFormError(t('catalog.fillSkuAndName'));
       return;
     }
 
     // Check for SKU uniqueness
     const isDuplicateSku = products.some(p => p.sku === s && p.id !== editingId);
     if (isDuplicateSku) {
-      setFormError("Этот артикул уже используется — укажите другой");
+      setFormError(t('catalog.skuAlreadyUsed'));
       return;
     }
 
@@ -495,18 +499,18 @@ export default function ProductCatalog() {
 
     } catch (e) {
       console.error("Failed to save product", e);
-      setFormError("Ошибка при сохранении. Проверьте данные и попробуйте ещё раз.");
+      setFormError(t('catalog.errorSave'));
     }
   };
 
   const removeProduct = async (id: string) => {
-    if (!confirm("Удалить этот товар? Действие необратимо.")) return;
+    if (!confirm(t('catalog.confirmDeleteProduct'))) return;
     try {
       await api.nomenclature.delete(id);
       setProducts((prev) => prev.filter((p) => p.id !== id));
     } catch (e) {
       console.error("Failed to delete", e);
-      alert("Ошибка при удалении");
+      alert(t('catalog.errorDelete'));
     }
   };
 
@@ -515,12 +519,12 @@ export default function ProductCatalog() {
     setIsSending(true);
     try {
       await api.nomenclature.sendToStations(Array.from(selectedStationIds));
-      alert("Номенклатура отправлена на выбранные станции!");
+      alert(t('catalog.sentToStations'));
       setIsSendModalOpen(false);
       setSelectedStationIds(new Set());
     } catch (e) {
       console.error(e);
-      alert("Ошибка при отправке");
+      alert(t('catalog.errorSend'));
     } finally {
       setIsSending(false);
     }
@@ -537,16 +541,20 @@ export default function ProductCatalog() {
   const templateOptions = useMemo(() => templates.map(t => ({ value: t.id.toString(), label: t.name })), [templates]);
 
   // ── derived summaries for the collapsible sections ──────────────────────────
-  const paramsSummary = `${expDate || "30"} дн · ${closeBoxCounter || "10"} в короб · ${isFixedWeight ? `фикс ${fixedWeightGrams || 0} г` : "вес по факту"}`;
+  const paramsSummary = t('catalog.paramsSummary', {
+    days: expDate || "30",
+    perBox: closeBoxCounter || "10",
+    weight: isFixedWeight ? t('catalog.fixedWeightShort', { grams: fixedWeightGrams || 0 }) : t('catalog.weightByFact'),
+  });
   const packagingCount = [portionContainerId, boxContainerId, packLabelId, boxLabelId].filter(Boolean).length;
-  const packagingSummary = packagingCount > 0 ? `выбрано: ${packagingCount}` : "необязательно";
+  const packagingSummary = packagingCount > 0 ? t('catalog.selectedCount', { count: packagingCount }) : t('catalog.optional');
   const extraFilled = globalAttributes.filter((a) => (extraDataState[a.name] || "").trim() !== "").length;
   const extraSummary =
     globalAttributes.length === 0
-      ? "нет полей"
+      ? t('catalog.noFields')
       : extraFilled > 0
-        ? `заполнено: ${extraFilled} из ${globalAttributes.length}`
-        : "необязательно";
+        ? t('catalog.filledOutOf', { filled: extraFilled, total: globalAttributes.length })
+        : t('catalog.optional');
 
   const canSave = sku.trim() !== "" && name.trim() !== "";
 
@@ -557,10 +565,10 @@ export default function ProductCatalog() {
       {isSendModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl">
-            <h3 className="text-xl font-semibold text-white mb-4">Отправить на станции</h3>
+            <h3 className="text-xl font-semibold text-white mb-4">{t('catalog.sendToStations')}</h3>
             <div className="mb-4 max-h-[300px] overflow-y-auto space-y-2">
               {stations.length === 0 ? (
-                <div className="text-white/50 text-sm">Нет доступных станций.</div>
+                <div className="text-white/50 text-sm">{t('catalog.noStationsAvailable')}</div>
               ) : (
                 stations.map(st => (
                   <label key={st.station_uuid} className="flex items-center gap-3 p-3 rounded-lg bg-white/5 border border-white/5 cursor-pointer hover:bg-white/10">
@@ -579,13 +587,13 @@ export default function ProductCatalog() {
               )}
             </div>
             <div className="flex justify-end gap-3 mt-6">
-              <SmallButton onClick={() => setIsSendModalOpen(false)}>Отмена</SmallButton>
+              <SmallButton onClick={() => setIsSendModalOpen(false)}>{t('catalog.cancel')}</SmallButton>
               <SmallButton
                 variant="primary"
                 disabled={selectedStationIds.size === 0 || isSending}
                 onClick={handleSendToStations}
               >
-                {isSending ? "Отправка..." : "Отправить"}
+                {isSending ? t('catalog.sending') : t('catalog.send')}
               </SmallButton>
             </div>
           </div>
@@ -596,21 +604,21 @@ export default function ProductCatalog() {
       {isAttrModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl">
-            <h3 className="text-xl font-semibold text-white mb-4">Управление полями</h3>
-            <p className="text-sm text-white/60 mb-4">Это поля, общие для всех товаров. Удаление поля убирает его значения у ВСЕХ номенклатур — будьте осторожны.</p>
+            <h3 className="text-xl font-semibold text-white mb-4">{t('catalog.manageFields')}</h3>
+            <p className="text-sm text-white/60 mb-4">{t('catalog.manageFieldsHint')}</p>
 
             <div className="flex gap-2 mb-4">
               <div className="flex-1">
-                <Input value={newAttrName} onChange={setNewAttrName} placeholder="Новое поле (напр. 'Состав')" />
+                <Input value={newAttrName} onChange={setNewAttrName} placeholder={t('catalog.newFieldPlaceholder')} />
               </div>
               <SmallButton onClick={handleAddGlobalAttribute} disabled={!newAttrName.trim()} variant="primary">
-                Создать
+                {t('catalog.create')}
               </SmallButton>
             </div>
 
             <div className="mb-4 max-h-[300px] overflow-y-auto space-y-2 border-t border-white/10 pt-4">
               {globalAttributes.length === 0 ? (
-                <div className="text-white/50 text-sm italic">Нет созданных полей.</div>
+                <div className="text-white/50 text-sm italic">{t('catalog.noCreatedFields')}</div>
               ) : (
                 globalAttributes.map(attr => (
                   <div key={attr.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5">
@@ -619,7 +627,7 @@ export default function ProductCatalog() {
                       onClick={() => handleDeleteGlobalAttribute(attr.id, attr.name)}
                       className="text-xs text-rose-500 hover:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 px-2 py-1 rounded transition"
                     >
-                      Удалить
+                      {t('catalog.delete')}
                     </button>
                   </div>
                 ))
@@ -627,7 +635,7 @@ export default function ProductCatalog() {
             </div>
 
             <div className="flex justify-end mt-6">
-              <SmallButton onClick={() => setIsAttrModalOpen(false)}>Закрыть</SmallButton>
+              <SmallButton onClick={() => setIsAttrModalOpen(false)}>{t('catalog.close')}</SmallButton>
             </div>
           </div>
         </div>
@@ -649,12 +657,12 @@ export default function ProductCatalog() {
 
       <div className="md:col-span-5">
         <Card
-          title={editingId ? "Редактирование товара" : "Добавить товар"}
-          subtitle={editingId ? "Изменение существующей номенклатуры" : "Введите артикул и название — остальное можно заполнить позже"}
+          title={editingId ? t('catalog.editProduct') : t('catalog.addProduct')}
+          subtitle={editingId ? t('catalog.editProductSubtitle') : t('catalog.addProductSubtitle')}
           right={
             !editingId ? (
               <SmallButton onClick={() => setIsImportModalOpen(true)}>
-                Импорт
+                {t('catalog.import')}
               </SmallButton>
             ) : null
           }
@@ -669,19 +677,19 @@ export default function ProductCatalog() {
 
               <div className="grid gap-1.5">
                 <div className="flex items-center gap-2">
-                  <Eyebrow>Артикул / SKU</Eyebrow>
+                  <Eyebrow>{t('catalog.skuLabel')}</Eyebrow>
                   <RequiredTag />
                 </div>
-                <Input value={sku} onChange={(v) => setSku(v.replace(/\D/g, ""))} placeholder="Напр. 22032" />
-                <div className="text-xs text-white/45">Уникальный код товара — только цифры</div>
+                <Input value={sku} onChange={(v) => setSku(v.replace(/\D/g, ""))} placeholder={t('catalog.skuPlaceholder')} />
+                <div className="text-xs text-white/45">{t('catalog.skuHint')}</div>
               </div>
 
               <div className="grid gap-1.5">
                 <div className="flex items-center gap-2">
-                  <Eyebrow>Название</Eyebrow>
+                  <Eyebrow>{t('catalog.nameLabel')}</Eyebrow>
                   <RequiredTag />
                 </div>
-                <Input value={name} onChange={setName} placeholder="Напр. Чай зелёный" />
+                <Input value={name} onChange={setName} placeholder={t('catalog.namePlaceholder')} />
               </div>
 
               {formError && (
@@ -693,16 +701,16 @@ export default function ProductCatalog() {
             <Section
               open={openSections.params}
               onToggle={() => toggleSection("params")}
-              label="Параметры"
+              label={t('catalog.params')}
               summary={paramsSummary}
             >
               <div className="grid grid-cols-2 gap-3">
                 <div className="grid gap-1">
-                  <Eyebrow>Срок годности (сут)</Eyebrow>
+                  <Eyebrow>{t('catalog.shelfLifeDays')}</Eyebrow>
                   <Input value={expDate} onChange={setExpDate} type="number" placeholder="30" />
                 </div>
                 <div className="grid gap-1">
-                  <Eyebrow>Вложений в короб</Eyebrow>
+                  <Eyebrow>{t('catalog.itemsPerBox')}</Eyebrow>
                   <Input value={closeBoxCounter} onChange={setCloseBoxCounter} type="number" placeholder="10" />
                 </div>
               </div>
@@ -715,21 +723,21 @@ export default function ProductCatalog() {
                     onChange={(e) => setIsFixedWeight(e.target.checked)}
                     className="w-4 h-4 rounded border-white/20 bg-transparent text-emerald-500 focus:ring-emerald-500/20"
                   />
-                  <span className="text-sm font-medium text-white">Фиксированный вес</span>
+                  <span className="text-sm font-medium text-white">{t('catalog.fixedWeight')}</span>
                 </label>
                 {isFixedWeight && (
                   <div className="grid gap-3">
                     <div className="grid gap-1">
-                      <Eyebrow>Значение фикс. веса (г)</Eyebrow>
+                      <Eyebrow>{t('catalog.fixedWeightValue')}</Eyebrow>
                       <Input value={fixedWeightGrams} onChange={setFixedWeightGrams} type="number" placeholder="0" />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="grid gap-1">
-                        <Eyebrow>Мин. вес (г)</Eyebrow>
+                        <Eyebrow>{t('catalog.minWeight')}</Eyebrow>
                         <Input value={minWeightGrams} onChange={setMinWeightGrams} type="number" placeholder="0" />
                       </div>
                       <div className="grid gap-1">
-                        <Eyebrow>Макс. вес (г)</Eyebrow>
+                        <Eyebrow>{t('catalog.maxWeight')}</Eyebrow>
                         <Input value={maxWeightGrams} onChange={setMaxWeightGrams} type="number" placeholder="0" />
                       </div>
                     </div>
@@ -741,35 +749,35 @@ export default function ProductCatalog() {
             <Section
               open={openSections.packaging}
               onToggle={() => toggleSection("packaging")}
-              label="Упаковка и этикетки"
+              label={t('catalog.packagingAndLabels')}
               summary={packagingSummary}
             >
               <div className="grid grid-cols-2 gap-3">
                 <div className="grid gap-1">
-                  <Eyebrow>Упаковка (порция)</Eyebrow>
-                  <Select value={portionContainerId} onChange={setPortionContainerId} options={packOptions} placeholder="Не выбрано" />
+                  <Eyebrow>{t('catalog.packagingPortion')}</Eyebrow>
+                  <Select value={portionContainerId} onChange={setPortionContainerId} options={packOptions} placeholder={t('catalog.notSelected')} />
                 </div>
                 <div className="grid gap-1">
-                  <Eyebrow>Упаковка (короб)</Eyebrow>
-                  <Select value={boxContainerId} onChange={setBoxContainerId} options={packOptions} placeholder="Не выбрано" />
+                  <Eyebrow>{t('catalog.packagingBox')}</Eyebrow>
+                  <Select value={boxContainerId} onChange={setBoxContainerId} options={packOptions} placeholder={t('catalog.notSelected')} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="grid gap-1">
-                  <Eyebrow>Этикетка (порция)</Eyebrow>
+                  <Eyebrow>{t('catalog.labelPortion')}</Eyebrow>
                   <Select value={packLabelId} onChange={setPackLabelId} options={
                     templates
-                      .filter(t => !t.scheme?.canvas?.labelType || t.scheme.canvas.labelType === "pack")
-                      .map((t) => ({ value: t.id.toString(), label: t.name }))
-                  } placeholder="Не выбрано" />
+                      .filter(tpl => !tpl.scheme?.canvas?.labelType || tpl.scheme.canvas.labelType === "pack")
+                      .map((tpl) => ({ value: tpl.id.toString(), label: tpl.name }))
+                  } placeholder={t('catalog.notSelected')} />
                 </div>
                 <div className="grid gap-1">
-                  <Eyebrow>Этикетка (короб)</Eyebrow>
+                  <Eyebrow>{t('catalog.labelBox')}</Eyebrow>
                   <Select value={boxLabelId} onChange={setBoxLabelId} options={
                     templates
-                      .filter(t => t.scheme?.canvas?.labelType === "box")
-                      .map((t) => ({ value: t.id.toString(), label: t.name }))
-                  } placeholder="Не выбрано" />
+                      .filter(tpl => tpl.scheme?.canvas?.labelType === "box")
+                      .map((tpl) => ({ value: tpl.id.toString(), label: tpl.name }))
+                  } placeholder={t('catalog.notSelected')} />
                 </div>
               </div>
             </Section>
@@ -777,21 +785,21 @@ export default function ProductCatalog() {
             <Section
               open={openSections.extra}
               onToggle={() => toggleSection("extra")}
-              label={`Доп. сведения · ${globalAttributes.length}`}
+              label={t('catalog.extraInfo', { count: globalAttributes.length })}
               summary={extraSummary}
             >
               <div className="flex items-center justify-end">
                 <SmallButton
                   variant="ghost"
                   onClick={() => setIsAttrModalOpen(true)}
-                  title="Управление общими полями (для всех товаров)"
+                  title={t('catalog.manageSharedFieldsTitle')}
                 >
-                  Настроить поля
+                  {t('catalog.configureFields')}
                 </SmallButton>
               </div>
 
               {globalAttributes.length === 0 && (
-                <div className="text-xs text-white/30 italic">Нет настроенных полей. Нажмите «Настроить поля», чтобы добавить.</div>
+                <div className="text-xs text-white/30 italic">{t('catalog.noConfiguredFields')}</div>
               )}
 
               {globalAttributes.map((attr) => (
@@ -800,7 +808,7 @@ export default function ProductCatalog() {
                   <Input
                     value={extraDataState[attr.name] || ""}
                     onChange={(v) => handleExtraDataChange(attr.name, v)}
-                    placeholder={`Значение...`}
+                    placeholder={t('catalog.valuePlaceholder')}
                   />
                 </div>
               ))}
@@ -811,23 +819,23 @@ export default function ProductCatalog() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <SmallButton variant="primary" disabled={!canSave} onClick={addProduct}>
-                    {editingId ? "Сохранить" : "Добавить товар"}
+                    {editingId ? t('catalog.save') : t('catalog.addProduct')}
                   </SmallButton>
-                  {editingId && <SmallButton onClick={cancelEdit}>Отмена</SmallButton>}
+                  {editingId && <SmallButton onClick={cancelEdit}>{t('catalog.cancel')}</SmallButton>}
                   {!canSave && (
-                    <span className="text-xs text-white/40">Заполните артикул и название</span>
+                    <span className="text-xs text-white/40">{t('catalog.fillSkuAndName')}</span>
                   )}
                   {formSuccess && (
                     <span className="inline-flex items-center gap-1.5 text-xs text-emerald-300">
                       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
                         <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
-                      Товар добавлен
+                      {t('catalog.productAdded')}
                     </span>
                   )}
                 </div>
                 {!editingId && (
-                  <span className="text-[11px] text-white/40">Срок {expDate || "30"} дн · {closeBoxCounter || "10"} в короб · по умолчанию</span>
+                  <span className="text-[11px] text-white/40">{t('catalog.defaultFooter', { days: expDate || "30", perBox: closeBoxCounter || "10" })}</span>
                 )}
               </div>
             </div>
@@ -837,18 +845,18 @@ export default function ProductCatalog() {
 
       <div className="md:col-span-7">
         <Card
-          title="Справочник товаров"
-          subtitle={`Всего: ${products.length} ${isLoading ? '(Загрузка...)' : ''}`}
+          title={t('catalog.productDirectory')}
+          subtitle={isLoading ? t('catalog.totalLoading', { count: products.length }) : t('catalog.total', { count: products.length })}
           right={
             <div className="w-48">
-              <Input value={query} onChange={setQuery} placeholder="Поиск..." />
+              <Input value={query} onChange={setQuery} placeholder={t('catalog.searchPlaceholder')} />
             </div>
           }
         >
           {products.length === 0 && !isLoading ? (
             <EmptyCatalog onImport={() => setIsImportModalOpen(true)} />
           ) : filtered.length === 0 ? (
-            <div className="py-10 text-center text-sm text-white/50">Ничего не найдено по запросу «{query}»</div>
+            <div className="py-10 text-center text-sm text-white/50">{t('catalog.nothingFound', { query })}</div>
           ) : (
             <div className="grid gap-2.5">
               {filtered.map((p) => {
@@ -867,9 +875,9 @@ export default function ProductCatalog() {
                         <div className="font-mono text-xs text-white/55">{p.sku}</div>
                         <div className="mt-0.5 text-sm font-medium leading-snug text-white">{p.name}</div>
                         <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-white/50">
-                          <span>Срок {p.expDate} дн</span>
+                          <span>{t('catalog.shelfLifeShort', { days: p.expDate })}</span>
                           <span className="text-white/20">·</span>
-                          <span>{p.closeBoxCounter} в короб</span>
+                          <span>{t('catalog.perBoxShort', { count: p.closeBoxCounter })}</span>
                           {pkg && (
                             <>
                               <span className="text-white/20">·</span>
@@ -878,14 +886,14 @@ export default function ProductCatalog() {
                           )}
                           {p.isFixedWeight && (
                             <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] text-emerald-300">
-                              фикс {p.fixedWeightGrams} г
+                              {t('catalog.fixedWeightShort', { grams: p.fixedWeightGrams })}
                             </span>
                           )}
                         </div>
                       </div>
                       <div className="flex shrink-0 gap-1">
-                        <SmallButton variant="ghost" onClick={() => handleEdit(p)} title="Редактировать">Изм.</SmallButton>
-                        <SmallButton variant="ghost" onClick={() => removeProduct(p.id)} title="Удалить">Удал.</SmallButton>
+                        <SmallButton variant="ghost" onClick={() => handleEdit(p)} title={t('catalog.edit')}>{t('catalog.editShort')}</SmallButton>
+                        <SmallButton variant="ghost" onClick={() => removeProduct(p.id)} title={t('catalog.delete')}>{t('catalog.deleteShort')}</SmallButton>
                       </div>
                     </div>
 
@@ -897,7 +905,7 @@ export default function ProductCatalog() {
                           className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-400/10 px-2.5 py-1 text-xs text-indigo-200 transition-colors hover:bg-indigo-400/15"
                         >
                           <Chevron open={expanded} />
-                          {attrEntries.length} доп. параметров
+                          {t('catalog.extraParamsCount', { count: attrEntries.length })}
                         </button>
                         {expanded && (
                           <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">

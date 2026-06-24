@@ -2,6 +2,9 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api/client";
+import { useTranslation } from "@/lib/i18n";
+
+type TFunc = (key: string, params?: Record<string, string | number>) => string;
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -13,17 +16,17 @@ function fmt(n: number) {
   return (n ?? 0).toLocaleString("ru-RU");
 }
 
-function relTime(iso: string | null): string {
-  if (!iso) return "никогда";
+function relTime(iso: string | null, t: TFunc): string {
+  if (!iso) return t("dashboard.relNever");
   const d = new Date(iso);
   const diff = Date.now() - d.getTime();
   const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return "только что";
-  if (mins < 60) return `${mins} мин назад`;
+  if (mins < 1) return t("dashboard.relJustNow");
+  if (mins < 60) return t("dashboard.relMinsAgo", { mins });
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs} ч назад`;
+  if (hrs < 24) return t("dashboard.relHrsAgo", { hrs });
   const days = Math.floor(hrs / 24);
-  return `${days} дн назад`;
+  return t("dashboard.relDaysAgo", { days });
 }
 
 function timeStr(iso: string): string {
@@ -199,11 +202,12 @@ function Eyebrow({ children, className }: { children: React.ReactNode; className
 
 /* Job status badge */
 function StatusBadge({ status }: { status: string }) {
+  const { t } = useTranslation();
   const cfg: Record<string, { text: string; cls: string }> = {
-    pending: { text: "Ожидает", cls: "text-amber-400 bg-amber-500/10" },
-    sent: { text: "Отправлено", cls: "text-sky-400 bg-sky-500/10" },
-    completed: { text: "Выполнено", cls: "text-emerald-400 bg-emerald-500/10" },
-    error: { text: "Ошибка", cls: "text-rose-400 bg-rose-500/10" },
+    pending: { text: t("dashboard.statusPending"), cls: "text-amber-400 bg-amber-500/10" },
+    sent: { text: t("dashboard.statusSent"), cls: "text-sky-400 bg-sky-500/10" },
+    completed: { text: t("dashboard.statusCompleted"), cls: "text-emerald-400 bg-emerald-500/10" },
+    error: { text: t("dashboard.statusError"), cls: "text-rose-400 bg-rose-500/10" },
   };
   const c = cfg[status] ?? cfg.pending;
   return (
@@ -214,15 +218,15 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 /* Station mode state logic */
-function getStationState(mode: string, isOnline: boolean) {
+function getStationState(mode: string, isOnline: boolean, t: TFunc) {
   if (mode === "online") {
     return isOnline
-      ? { label: "Онлайн", dot: "bg-emerald-500", ping: "bg-emerald-400", healthy: true }
-      : { label: "Недоступна", dot: "bg-rose-500", ping: false, healthy: false };
+      ? { label: t("dashboard.stationOnline"), dot: "bg-emerald-500", ping: "bg-emerald-400", healthy: true }
+      : { label: t("dashboard.stationUnavailable"), dot: "bg-rose-500", ping: false, healthy: false };
   }
-  if (mode === "hybrid") return { label: "Гибрид", dot: "bg-sky-400", ping: false, healthy: true };
-  if (mode === "offline") return { label: "Оффлайн (USB)", dot: "bg-white/25", ping: false, healthy: true };
-  return { label: mode || "Неизвестно", dot: "bg-white/25", ping: false, healthy: true };
+  if (mode === "hybrid") return { label: t("dashboard.stationHybrid"), dot: "bg-sky-400", ping: false, healthy: true };
+  if (mode === "offline") return { label: t("dashboard.stationOffline"), dot: "bg-white/25", ping: false, healthy: true };
+  return { label: mode || t("dashboard.stationUnknown"), dot: "bg-white/25", ping: false, healthy: true };
 }
 
 /* Station mode dot */
@@ -350,6 +354,7 @@ function HeroSparkline({ data }: { data: Pt[] }) {
 
 /** Wide area chart for the throughput panel. */
 function ThroughputChart({ data, mode }: { data: Pt[]; mode: "24h" | "7d" }) {
+  const { t } = useTranslation();
   const W = 760;
   const H = 200;
   const padX = 8;
@@ -427,7 +432,7 @@ function ThroughputChart({ data, mode }: { data: Pt[]; mode: "24h" | "7d" }) {
 
       {allZero && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <span className="text-sm text-white/30 italic">Сегодня печати ещё не было</span>
+          <span className="text-sm text-white/30 italic">{t("dashboard.noPrintsToday")}</span>
         </div>
       )}
     </div>
@@ -457,24 +462,31 @@ const LOG_DOT: Record<string, string> = {
 
 // ── delta computation ───────────────────────────────────────────────────────
 
-function computeDelta(today: number, yesterday: number) {
+function computeDelta(today: number, yesterday: number, t: TFunc) {
   const diff = today - yesterday;
   if (diff === 0) {
     return { dir: "equal" as const, label: "—", cls: "text-white/60 bg-white/5 border-white/10" };
   }
   if (diff > 0) {
     const pct = yesterday > 0 ? Math.round((diff / yesterday) * 100) : null;
-    const label = pct != null ? `+${pct}% к вчера` : `+${fmt(diff)} к вчера`;
+    const label =
+      pct != null
+        ? t("dashboard.deltaPctVsYesterday", { value: `+${pct}%` })
+        : t("dashboard.deltaCountVsYesterday", { value: `+${fmt(diff)}` });
     return { dir: "up" as const, label, cls: "text-emerald-300 bg-emerald-500/10 border-emerald-500/20" };
   }
   const pct = yesterday > 0 ? Math.round((diff / yesterday) * 100) : null;
-  const label = pct != null ? `${pct}% к вчера` : `${fmt(diff)} к вчера`;
+  const label =
+    pct != null
+      ? t("dashboard.deltaPctVsYesterday", { value: `${pct}%` })
+      : t("dashboard.deltaCountVsYesterday", { value: `${fmt(diff)}` });
   return { dir: "down" as const, label, cls: "text-rose-300 bg-rose-500/10 border-rose-500/20" };
 }
 
 // ── main component ──────────────────────────────────────────────────────────
 
 export default function Dashboard() {
+  const { t } = useTranslation();
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -492,7 +504,7 @@ export default function Dashboard() {
       setError("");
       setLastFetched(new Date().toISOString());
     } catch (e: any) {
-      setError(e.message || "Ошибка загрузки статистики");
+      setError(e.message || t("dashboard.statsLoadError"));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -509,14 +521,14 @@ export default function Dashboard() {
   const stationsSorted = useMemo(() => {
     const list = (stats?.stations_detail as any[]) ?? [];
     return [...list].sort((a, b) => {
-      const sa = getStationState(a.mode, a.is_online);
-      const sb = getStationState(b.mode, b.is_online);
+      const sa = getStationState(a.mode, a.is_online, t);
+      const sb = getStationState(b.mode, b.is_online, t);
       const aBad = !sa.healthy || isStaleSync(a.last_sync_at);
       const bBad = !sb.healthy || isStaleSync(b.last_sync_at);
       if (aBad !== bBad) return aBad ? -1 : 1;
       return (a.number ?? 9999) - (b.number ?? 9999);
     });
-  }, [stats]);
+  }, [stats, t]);
 
   const feed = useMemo<FeedItem[]>(() => {
     const events = (stats?.server_events as any[]) ?? [];
@@ -528,7 +540,7 @@ export default function Dashboard() {
         time: new Date(ev.created_at).getTime(),
         iso: ev.created_at,
         kind: "server",
-        title: ev.action_display || ev.description || "Событие",
+        title: ev.action_display || ev.description || t("dashboard.eventFallback"),
         sub: ev.action_display && ev.description ? ev.description : undefined,
         action: ev.action,
       });
@@ -545,7 +557,7 @@ export default function Dashboard() {
       });
     }
     return items.sort((a, b) => b.time - a.time);
-  }, [stats]);
+  }, [stats, t]);
 
   const feedFiltered = useMemo(() => {
     return feed.filter((it) => {
@@ -567,7 +579,7 @@ export default function Dashboard() {
   const r = stats.readiness ?? {};
   const labelsToday: number = stats.labels_today ?? 0;
   const labelsYesterday: number = stats.labels_yesterday ?? 0;
-  const delta = computeDelta(labelsToday, labelsYesterday);
+  const delta = computeDelta(labelsToday, labelsYesterday, t);
 
   const throughput24h: Pt[] = (stats.throughput_24h as Pt[]) ?? [];
   const throughput7d: Pt[] = (stats.throughput_7d as Pt[]) ?? [];
@@ -586,17 +598,17 @@ export default function Dashboard() {
 
   // readiness chip (3/3)
   const readyChecks = [
-    { ok: (r.products_count ?? 0) > 0, label: "Товары", value: r.products_count ?? 0, icon: "box" as IconName },
-    { ok: (r.templates_count ?? 0) > 0, label: "Шаблоны", value: r.templates_count ?? 0, icon: "tag" as IconName },
-    { ok: (r.barcode_templates_count ?? 0) > 0, label: "Штрихкоды", value: r.barcode_templates_count ?? 0, icon: "barcode" as IconName },
+    { ok: (r.products_count ?? 0) > 0, label: t("dashboard.readyProducts"), value: r.products_count ?? 0, icon: "box" as IconName },
+    { ok: (r.templates_count ?? 0) > 0, label: t("dashboard.readyTemplates"), value: r.templates_count ?? 0, icon: "tag" as IconName },
+    { ok: (r.barcode_templates_count ?? 0) > 0, label: t("dashboard.readyBarcodes"), value: r.barcode_templates_count ?? 0, icon: "barcode" as IconName },
   ];
   const readyCount = readyChecks.filter((c) => c.ok).length;
 
   const feedTabs: { key: typeof feedFilter; label: string }[] = [
-    { key: "all", label: "Все" },
-    { key: "server", label: "Сервер" },
-    { key: "station", label: "Станции" },
-    { key: "error", label: "Ошибки" },
+    { key: "all", label: t("dashboard.tabAll") },
+    { key: "server", label: t("dashboard.tabServer") },
+    { key: "station", label: t("dashboard.tabStations") },
+    { key: "error", label: t("dashboard.tabErrors") },
   ];
 
   return (
@@ -606,15 +618,15 @@ export default function Dashboard() {
         <div className="flex items-center gap-2">
           <Icon name="activity" className="h-4 w-4 text-indigo-300" />
           <h2 className="text-sm font-semibold tracking-tight text-white/85">Pulse</h2>
-          <Eyebrow className="hidden sm:inline">Аналитика сервера</Eyebrow>
+          <Eyebrow className="hidden sm:inline">{t("dashboard.serverAnalytics")}</Eyebrow>
         </div>
         <div className="flex items-center gap-2 text-[11px] text-white/35">
-          <span>обновлено {relTime(lastFetched)}</span>
+          <span>{t("dashboard.updatedAt", { time: relTime(lastFetched, t) })}</span>
           <button
             onClick={fetchStats}
             disabled={refreshing}
-            aria-label="Обновить"
-            title="Обновить"
+            aria-label={t("dashboard.refresh")}
+            title={t("dashboard.refresh")}
             className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-white/55 transition hover:border-white/25 hover:text-white disabled:opacity-50"
           >
             <Icon name="refresh" className={cx("h-3.5 w-3.5", refreshing && "animate-spin")} />
@@ -627,7 +639,7 @@ export default function Dashboard() {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch">
           {/* hero number + delta + sparkline */}
           <div className="flex min-w-0 flex-1 flex-col">
-            <Eyebrow>Этикеток сегодня</Eyebrow>
+            <Eyebrow>{t("dashboard.labelsToday")}</Eyebrow>
             <div className="mt-1 flex flex-wrap items-end gap-3">
               <span className="text-5xl font-black leading-none tabular-nums text-white sm:text-6xl">
                 {fmt(labelsToday)}
@@ -647,8 +659,8 @@ export default function Dashboard() {
             <div className="mt-4 max-w-md">
               <HeroSparkline data={throughput24h} />
               <div className="mt-1 flex items-center justify-between">
-                <span className="text-[10px] text-white/25">24 часа</span>
-                <span className="text-[10px] text-white/25">сейчас</span>
+                <span className="text-[10px] text-white/25">{t("dashboard.hours24")}</span>
+                <span className="text-[10px] text-white/25">{t("dashboard.now")}</span>
               </div>
             </div>
 
@@ -656,7 +668,7 @@ export default function Dashboard() {
               <div className="mt-4">
                 <span className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/25 bg-rose-500/10 px-2.5 py-1.5 text-[11px] font-medium text-rose-300">
                   <Icon name="alert-triangle" className="h-3.5 w-3.5" />
-                  {fmt(productsWithoutTemplate)} товаров без шаблона
+                  {t("dashboard.productsWithoutTemplate", { count: fmt(productsWithoutTemplate) })}
                 </span>
               </div>
             )}
@@ -665,19 +677,19 @@ export default function Dashboard() {
           {/* tributary stats */}
           <div className="flex flex-wrap gap-x-8 gap-y-4 lg:flex-nowrap lg:gap-x-0">
             <div className="flex min-w-[110px] flex-col justify-center lg:border-l lg:border-white/10 lg:px-6">
-              <Eyebrow>Всего</Eyebrow>
+              <Eyebrow>{t("dashboard.total")}</Eyebrow>
               <span className="mt-1 text-2xl font-bold tabular-nums text-white">{fmt(stats.total_labels)}</span>
             </div>
 
             <div className="flex min-w-[140px] flex-col justify-center lg:border-l lg:border-white/10 lg:px-6">
-              <Eyebrow>Вес сегодня (фикс.)</Eyebrow>
+              <Eyebrow>{t("dashboard.weightTodayFixed")}</Eyebrow>
               <span className="mt-1 text-2xl font-bold tabular-nums text-emerald-400">
-                {fmt(stats.weight_today_kg ?? 0)} <span className="text-base font-semibold text-emerald-400/70">кг</span>
+                {fmt(stats.weight_today_kg ?? 0)} <span className="text-base font-semibold text-emerald-400/70">{t("dashboard.unitKg")}</span>
               </span>
             </div>
 
             <div className="flex min-w-[130px] flex-col justify-center lg:border-l lg:border-white/10 lg:px-6">
-              <Eyebrow>Станции онлайн</Eyebrow>
+              <Eyebrow>{t("dashboard.stationsOnline")}</Eyebrow>
               <span className="mt-1 flex items-center gap-2">
                 {activeStations > 0 ? (
                   <span className="relative flex h-2.5 w-2.5">
@@ -697,7 +709,7 @@ export default function Dashboard() {
                   <span className="text-base font-semibold text-white/40"> / {totalStations}</span>
                 </span>
               </span>
-              {activeStations === 0 && <span className="mt-0.5 text-[11px] text-white/40">нет онлайн</span>}
+              {activeStations === 0 && <span className="mt-0.5 text-[11px] text-white/40">{t("dashboard.noneOnline")}</span>}
             </div>
           </div>
         </div>
@@ -707,9 +719,9 @@ export default function Dashboard() {
       <Panel rail="bg-violet-400/70" className="px-5 py-4">
         <div className="mb-2 flex items-center justify-between">
           <div className="flex flex-col">
-            <Eyebrow>Объём печати</Eyebrow>
+            <Eyebrow>{t("dashboard.printVolume")}</Eyebrow>
             <span className="text-sm font-semibold text-white/85">
-              {chartMode === "24h" ? "За последние 24 часа" : "За последние 7 дней"}
+              {chartMode === "24h" ? t("dashboard.last24Hours") : t("dashboard.last7Days")}
             </span>
           </div>
           <div className="flex rounded-lg border border-white/10 bg-white/[0.03] p-0.5 text-[11px]">
@@ -722,7 +734,7 @@ export default function Dashboard() {
                   chartMode === m ? "bg-indigo-400/20 text-indigo-200" : "text-white/45 hover:text-white"
                 )}
               >
-                {m === "24h" ? "24ч" : "7д"}
+                {m === "24h" ? t("dashboard.toggle24h") : t("dashboard.toggle7d")}
               </button>
             ))}
           </div>
@@ -735,10 +747,10 @@ export default function Dashboard() {
         <Panel rail="bg-fuchsia-400/70" className="col-span-12 p-5 lg:col-span-6">
           <div className="mb-3 flex items-center gap-2">
             <Icon name="server" className="h-4 w-4 text-white/40" />
-            <Eyebrow>Лидеры станций</Eyebrow>
+            <Eyebrow>{t("dashboard.stationLeaders")}</Eyebrow>
           </div>
           {!topStations || topStations.length === 0 ? (
-            <EmptyState text="Нет данных о печати" />
+            <EmptyState text={t("dashboard.noPrintData")} />
           ) : (
             <div className="flex flex-col">
               {topStations.map((s: any, i: number) => (
@@ -748,7 +760,7 @@ export default function Dashboard() {
                   label={`${s.number != null ? `#${padNum(s.number)} ` : ""}${s.name}`}
                   value={s.count}
                   max={maxStationCount}
-                  unit="шт"
+                  unit={t("dashboard.unitPcs")}
                 />
               ))}
             </div>
@@ -758,14 +770,14 @@ export default function Dashboard() {
         <Panel rail="bg-sky-400/70" className="col-span-12 p-5 lg:col-span-6">
           <div className="mb-3 flex items-center gap-2">
             <Icon name="tag" className="h-4 w-4 text-white/40" />
-            <Eyebrow>Топ товаров</Eyebrow>
+            <Eyebrow>{t("dashboard.topProducts")}</Eyebrow>
           </div>
           {!topProducts || topProducts.length === 0 ? (
-            <EmptyState text="Нет данных о печати" />
+            <EmptyState text={t("dashboard.noPrintData")} />
           ) : (
             <div className="flex flex-col">
               {topProducts.map((p: any, i: number) => (
-                <ProductBar key={i} rank={i} label={p.name} value={p.count} max={maxProductCount} unit="шт" />
+                <ProductBar key={i} rank={i} label={p.name} value={p.count} max={maxProductCount} unit={t("dashboard.unitPcs")} />
               ))}
             </div>
           )}
@@ -777,7 +789,7 @@ export default function Dashboard() {
         <div className="mb-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <Icon name="server" className="h-4 w-4 text-white/40" />
-            <Eyebrow>Здоровье станций</Eyebrow>
+            <Eyebrow>{t("dashboard.stationHealth")}</Eyebrow>
           </div>
           <div className="flex items-center gap-3">
             <div className="hidden h-1.5 w-28 overflow-hidden rounded-full bg-white/5 sm:block">
@@ -790,11 +802,11 @@ export default function Dashboard() {
         </div>
 
         {stationsSorted.length === 0 ? (
-          <EmptyState text="Нет станций" />
+          <EmptyState text={t("dashboard.noStations")} />
         ) : (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {stationsSorted.map((s: any) => {
-              const st = getStationState(s.mode, s.is_online);
+              const st = getStationState(s.mode, s.is_online, t);
               const stale = isStaleSync(s.last_sync_at);
               return (
                 <div
@@ -811,7 +823,7 @@ export default function Dashboard() {
                       {st.label}
                       {" · "}
                       <span className={cx(stale ? "text-amber-400" : "text-white/35")}>
-                        синхр. {relTime(s.last_sync_at)}
+                        {t("dashboard.syncedAgo", { time: relTime(s.last_sync_at, t) })}
                       </span>
                     </p>
                   </div>
@@ -832,7 +844,7 @@ export default function Dashboard() {
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Icon name="activity" className="h-4 w-4 text-white/40" />
-              <Eyebrow>Активность</Eyebrow>
+              <Eyebrow>{t("dashboard.activity")}</Eyebrow>
             </div>
             <div className="flex rounded-lg border border-white/10 bg-white/[0.03] p-0.5 text-[11px]">
               {feedTabs.map((t) => (
@@ -851,7 +863,7 @@ export default function Dashboard() {
           </div>
 
           {feedFiltered.length === 0 ? (
-            <EmptyState text="Нет активности" />
+            <EmptyState text={t("dashboard.noActivity")} />
           ) : (
             <div className="flex max-h-[360px] flex-col divide-y divide-white/5 overflow-y-auto">
               {feedFiltered.map((it) => (
@@ -887,10 +899,10 @@ export default function Dashboard() {
         <Panel rail="bg-amber-400/70" className="col-span-12 p-5 lg:col-span-5">
           <div className="mb-3 flex items-center gap-2">
             <Icon name="printer" className="h-4 w-4 text-white/40" />
-            <Eyebrow>Последние задания</Eyebrow>
+            <Eyebrow>{t("dashboard.recentJobs")}</Eyebrow>
           </div>
           {!stats.recent_jobs || stats.recent_jobs.length === 0 ? (
-            <EmptyState text="Нет заданий" />
+            <EmptyState text={t("dashboard.noJobs")} />
           ) : (
             <div className="flex flex-col divide-y divide-white/5">
               {stats.recent_jobs.map((j: any) => (
@@ -904,7 +916,7 @@ export default function Dashboard() {
                       {j.station_name}
                       {j.station_number != null ? ` (#${padNum(j.station_number)})` : ""}
                       {" · "}
-                      <span className="tabular-nums">{fmt(j.quantity)}</span> {j.quantity_unit === "kg" ? "кг" : "шт"}
+                      <span className="tabular-nums">{fmt(j.quantity)}</span> {j.quantity_unit === "kg" ? t("dashboard.unitKg") : t("dashboard.unitPcs")}
                     </p>
                   </div>
                   <StatusBadge status={j.status} />
@@ -924,7 +936,7 @@ export default function Dashboard() {
             <Icon name="alert-triangle" className="h-4 w-4 text-amber-400" />
           )}
           <span className="text-xs font-semibold text-white/80">
-            Готовность{" "}
+            {t("dashboard.readiness")}{" "}
             <span className={cx("tabular-nums", readyCount === readyChecks.length ? "text-emerald-400" : "text-amber-400")}>
               {readyCount}/{readyChecks.length}
             </span>
@@ -940,7 +952,7 @@ export default function Dashboard() {
                   ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-300"
                   : "border-rose-500/20 bg-rose-500/5 text-rose-300"
               )}
-              title={c.ok ? "Готово" : "Не настроено"}
+              title={c.ok ? t("dashboard.ready") : t("dashboard.notConfigured")}
             >
               <Icon name={c.icon} className="h-3.5 w-3.5" />
               {c.label}
