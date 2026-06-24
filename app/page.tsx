@@ -10,10 +10,19 @@ import SettingsPage from "./components/settings/SettingsPage";
 import PrintJobsManager from "./components/print_jobs/PrintJobsManager";
 import Dashboard from "./components/home/Dashboard";
 import DemoBanner from "./components/DemoBanner";
+import UsersManager from "./components/users/UsersManager";
+import OperatorsManager from "./components/operators/OperatorsManager";
+import { AuthProvider, useAuth } from "./components/auth/AuthProvider";
+import { LoginScreen, BootstrapScreen } from "./components/auth/AuthScreens";
 
 const APP_VERSION = "1.0.3";
 
-type TabKey = "home" | "labels" | "catalog" | "packaging" | "barcodes" | "print_tasks" | "users" | "stations" | "settings";
+const ROLE_LABEL: Record<string, string> = {
+  admin: "Администратор",
+  manager: "Менеджер",
+};
+
+type TabKey = "home" | "labels" | "catalog" | "packaging" | "barcodes" | "print_tasks" | "operators" | "users" | "stations" | "settings";
 
 type Tab = {
   key: TabKey;
@@ -29,7 +38,7 @@ function Icon({
   name,
   className,
 }: {
-  name: "home" | "sparkles" | "tag" | "box" | "barcode" | "printer" | "users" | "server" | "settings";
+  name: "home" | "sparkles" | "tag" | "box" | "barcode" | "printer" | "operators" | "users" | "server" | "settings";
   className?: string;
 }) {
   const common = "h-5 w-5";
@@ -99,6 +108,15 @@ function Icon({
           />
         </svg>
       );
+    case "operators":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={cx(common, className)} aria-hidden="true">
+          <rect x="3" y="5" width="18" height="14" rx="2" className="stroke-current" strokeWidth="1.6" />
+          <circle cx="8.5" cy="11" r="2" className="stroke-current" strokeWidth="1.6" />
+          <path d="M5.5 16c.4-1.4 1.6-2.2 3-2.2s2.6.8 3 2.2" className="stroke-current" strokeWidth="1.6" strokeLinecap="round" />
+          <path d="M14 10h4M14 13h4" className="stroke-current" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+      );
     case "users":
       return (
         <svg viewBox="0 0 24 24" fill="none" className={cx(common, className)} aria-hidden="true">
@@ -143,23 +161,36 @@ function Icon({
   }
 }
 
-export default function Home() {
+function AppShell() {
+  const { user, logout } = useAuth();
+  const isAdmin = user?.role === "admin";
+
   const tabs: Tab[] = useMemo(
-    () => [
-      { key: "home", label: "Главная страница", description: "Обзор системы, аналитика и быстрые действия." },
-      { key: "labels", label: "Дизайнер этикеток", description: "Создание макетов, слои, печать и экспорт." },
-      { key: "catalog", label: "Номенклатурная база", description: "Справочник товаров, атрибуты и быстрый поиск." },
-      { key: "packaging", label: "Упаковки", description: "Типы упаковок, размеры, привязка к товарам." },
-      { key: "barcodes", label: "Штрихкоды", description: "Генерация, просмотр и печать штрихкодов." },
-      { key: "print_tasks", label: "Задание на печать", description: "Управление текущими очередями и заданиями на печать." },
-      { key: "stations", label: "Станции", description: "Управление станциями маркировки." },
-      { key: "users", label: "Пользователи", description: "Управление пользователями (только для админа)." },
-      { key: "settings", label: "Настройки", description: "Обновления системы, версии и конфигурация." },
-    ],
-    []
+    () => {
+      const all: Tab[] = [
+        { key: "home", label: "Главная страница", description: "Обзор системы, аналитика и быстрые действия." },
+        { key: "labels", label: "Дизайнер этикеток", description: "Создание макетов, слои, печать и экспорт." },
+        { key: "catalog", label: "Номенклатурная база", description: "Справочник товаров, атрибуты и быстрый поиск." },
+        { key: "packaging", label: "Упаковки", description: "Типы упаковок, размеры, привязка к товарам." },
+        { key: "barcodes", label: "Штрихкоды", description: "Генерация, просмотр и печать штрихкодов." },
+        { key: "print_tasks", label: "Задание на печать", description: "Управление текущими очередями и заданиями на печать." },
+        { key: "stations", label: "Станции", description: "Управление станциями маркировки." },
+        { key: "operators", label: "Операторы", description: "Управление операторами и их синхронизация со станциями." },
+        { key: "users", label: "Пользователи", description: "Управление пользователями (только для админа)." },
+        { key: "settings", label: "Настройки", description: "Обновления системы, версии и конфигурация." },
+      ];
+      // The "Пользователи" tab is admin-only (server enforces; this hides the UI).
+      // The "Операторы" tab is visible to manager OR admin (broader than Users).
+      return all.filter((t) => t.key !== "users" || isAdmin);
+    },
+    [isAdmin]
   );
 
   const [active, setActive] = useState<TabKey>("home");
+  // If a non-admin somehow has "users" selected (e.g. role changed), fall back home.
+  useEffect(() => {
+    if (active === "users" && !isAdmin) setActive("home");
+  }, [active, isAdmin]);
   const activeTab = tabs.find((t) => t.key === active) ?? tabs[0];
 
   const [host, setHost] = useState("localhost:8000");
@@ -213,6 +244,8 @@ export default function Home() {
         return "printer";
       case "stations":
         return "server";
+      case "operators":
+        return "operators";
       case "users":
         return "users";
       case "settings":
@@ -319,9 +352,22 @@ export default function Home() {
                 title={`Сервер онлайн · ${host}`}
                 style={{ boxShadow: "none" }}
               />
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-400/20 text-[12px] text-indigo-200 ring-1 ring-indigo-400/30" title="Администратор">
-                Н
+              <div
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-400/20 text-[12px] uppercase text-indigo-200 ring-1 ring-indigo-400/30"
+                title={`${user?.username ?? ""} · ${ROLE_LABEL[user?.role ?? ""] ?? user?.role ?? ""}`}
+              >
+                {(user?.username ?? "?").slice(0, 1)}
               </div>
+              <button
+                onClick={() => void logout()}
+                aria-label="Выйти"
+                title="Выйти"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/55 transition hover:border-red-400/30 hover:text-red-300"
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
             </div>
           ) : (
             <>
@@ -336,16 +382,23 @@ export default function Home() {
                 <div className="mt-[5px] text-[10px] text-white/35 font-[family-name:var(--font-geist-mono)]">{host}</div>
               </div>
               <div className="flex items-center gap-[10px] px-1 pt-1">
-                <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-indigo-400/20 text-[12px] text-indigo-200 ring-1 ring-indigo-400/30">
-                  Н
+                <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-indigo-400/20 text-[12px] uppercase text-indigo-200 ring-1 ring-indigo-400/30">
+                  {(user?.username ?? "?").slice(0, 1)}
                 </div>
-                <div className="leading-tight">
-                  <div className="text-[12.5px] text-white">Администратор</div>
-                  <div className="text-[10.5px] text-white/40">Полный доступ</div>
+                <div className="min-w-0 leading-tight">
+                  <div className="truncate text-[12.5px] text-white">{user?.username ?? "—"}</div>
+                  <div className="text-[10.5px] text-white/40">{ROLE_LABEL[user?.role ?? ""] ?? user?.role ?? ""}</div>
                 </div>
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" className="ml-auto text-white/35" aria-hidden="true">
-                  <path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+                <button
+                  onClick={() => void logout()}
+                  title="Выйти"
+                  className="ml-auto inline-flex items-center gap-[5px] rounded-lg border border-white/10 bg-white/[0.04] px-[8px] py-[5px] text-[11px] text-white/60 transition hover:border-red-400/30 hover:text-red-300"
+                >
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" aria-hidden="true">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Выйти
+                </button>
               </div>
             </>
           )}
@@ -398,16 +451,10 @@ export default function Home() {
             {active === "barcodes" ? <BarcodeTemplatesManager /> : null}
             {active === "print_tasks" ? <PrintJobsManager /> : null}
             {active === "stations" ? <StationsPage /> : null}
+            {active === "operators" ? <OperatorsManager /> : null}
             {active === "settings" ? <SettingsPage /> : null}
 
-            {active === "users" ? (
-              <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                <div className="text-base font-semibold text-white">Пользователи</div>
-                <p className="mt-1 text-sm text-white/65">
-                  Раздел управления пользователями будет подключён к backend (роль admin) следующим этапом.
-                </p>
-              </section>
-            ) : null}
+            {active === "users" && isAdmin ? <UsersManager /> : null}
 
             <footer className="border-t border-white/10 pt-6 text-xs text-white/40">
               © {new Date().getFullYear()} — Локальная система этикеток (offline).
@@ -416,5 +463,36 @@ export default function Home() {
         </main>
       </div>
     </div>
+  );
+}
+
+// ─── Auth gate ────────────────────────────────────────────────────────────────
+// Decides which surface to render based on the AuthProvider state. Real access
+// control is server-side (IsAuthenticated); this only chooses the UI.
+
+function AuthGate() {
+  const { loading, user, needsBootstrap } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#06070b] text-white">
+        <svg className="h-7 w-7 animate-spin text-indigo-400" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+      </div>
+    );
+  }
+
+  if (needsBootstrap) return <BootstrapScreen />;
+  if (!user) return <LoginScreen />;
+  return <AppShell />;
+}
+
+export default function Home() {
+  return (
+    <AuthProvider>
+      <AuthGate />
+    </AuthProvider>
   );
 }
