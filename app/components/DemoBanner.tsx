@@ -31,9 +31,6 @@ export default function DemoBanner({ onActivate }: { onActivate?: () => void }) 
 
     if (!info || info.mode !== "demo" || dismissed) return null;
 
-    const n = info.demo_max_stations;
-    const stationWord = n === 1 ? "станция" : n >= 2 && n <= 4 ? "станции" : "станций";
-
     return (
         <div className="flex items-center gap-3 border-b border-amber-400/20 bg-amber-400/[0.08] px-[18px] py-2 text-[12.5px] text-amber-200 backdrop-blur-xl">
             <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 shrink-0 text-amber-300" aria-hidden="true">
@@ -46,8 +43,7 @@ export default function DemoBanner({ onActivate }: { onActivate?: () => void }) 
                 <path d="M12 9v4M12 17h.01" className="stroke-current" strokeWidth="1.7" strokeLinecap="round" />
             </svg>
             <span className="min-w-0 flex-1">
-                <strong className="font-semibold">Демо-режим</strong> — нет лицензии (макс. {n} {stationWord}).
-                Активируйте лицензию для снятия ограничений.
+                <strong className="font-semibold">Демо-режим</strong> — нет лицензии. Активируйте лицензию для полного доступа.
             </span>
             {onActivate && (
                 <button

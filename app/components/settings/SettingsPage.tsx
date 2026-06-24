@@ -572,7 +572,6 @@ function LicenseSection() {
     const rows: { label: string; value: string }[] = isDemo
         ? [
               { label: "Режим", value: "Демо-режим (без лицензии)" },
-              { label: "Макс. станций (демо)", value: String(info.demo_max_stations) },
           ]
         : [
               { label: "Издание", value: info.edition || "—" },
@@ -602,8 +601,7 @@ function LicenseSection() {
                         </div>
                         {isDemo && (
                             <div className="mt-1.5 text-xs text-white/50">
-                                Доступно до {info.demo_max_stations}{" "}
-                                {info.demo_max_stations === 1 ? "станции" : "станций"}. Активируйте лицензию для снятия ограничений.
+                                Станции не ограничены. Активируйте лицензию для полного доступа.
                             </div>
                         )}
                     </div>
@@ -613,7 +611,7 @@ function LicenseSection() {
                         <div className="text-xs text-white/50 mb-1">Станции</div>
                         <div className="text-xl font-semibold text-white">
                             {info.stations_used}
-                            <span className="text-white/40"> / {info.max_stations}</span>
+                            {info.max_stations != null && <span className="text-white/40"> / {info.max_stations}</span>}
                         </div>
                     </div>
                 </div>
