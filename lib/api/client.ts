@@ -17,9 +17,12 @@ const API_BASE = resolveApiBase();
 // session cookie (`credentials: 'include'`) and — on unsafe methods — the CSRF
 // token Django set in the `csrftoken` cookie, echoed back as `X-CSRFToken`.
 //
-// On a 401/403 we invoke a global handler (registered by the AuthProvider) so the
-// SPA can drop back to the login screen, then STILL throw so callers' own
-// error-handling keeps working unchanged.
+// On a 401 ONLY (genuine session expiry) we invoke a global handler (registered by the
+// AuthProvider) so the SPA can drop back to the login screen, then STILL return the
+// response so callers' own error-handling keeps working unchanged. A 403 is NOT a
+// logout: it means "logged in but forbidden" — a license/demo gate, a permission denial,
+// or a CSRF mismatch — and must surface as an in-app error, not bounce the user to login.
+// (The backend uses SessionAuthentication401 so a real "not authenticated" is a true 401.)
 
 /** Read a cookie value by name (browser only). */
 export function getCookie(name: string): string | null {
@@ -33,7 +36,7 @@ const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 type UnauthorizedHandler = () => void;
 let unauthorizedHandler: UnauthorizedHandler | null = null;
 
-/** Register a callback fired whenever the API responds 401/403 (e.g. drop to login). */
+/** Register a callback fired only when the API responds 401 (session expired → drop to login). */
 export function setUnauthorizedHandler(fn: UnauthorizedHandler | null): void {
     unauthorizedHandler = fn;
 }
@@ -41,8 +44,9 @@ export function setUnauthorizedHandler(fn: UnauthorizedHandler | null): void {
 /**
  * Single fetch wrapper used by every data call. Adds `credentials: 'include'`,
  * injects `X-CSRFToken` on unsafe methods, and triggers the global unauthorized
- * handler on 401/403 (after which the original Response is still returned so the
- * existing per-call `if (!res.ok)` logic continues to work).
+ * handler ONLY on 401 (after which the original Response is still returned so the
+ * existing per-call `if (!res.ok)` logic continues to work). A 403 (license/demo gate,
+ * permission, or CSRF) is deliberately NOT treated as a logout.
  */
 export async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
     const method = (init.method ?? "GET").toUpperCase();
@@ -52,7 +56,7 @@ export async function apiFetch(input: string, init: RequestInit = {}): Promise<R
         if (token && !headers.has("X-CSRFToken")) headers.set("X-CSRFToken", token);
     }
     const res = await fetch(input, { ...init, method: init.method, credentials: "include", headers });
-    if (res.status === 401 || res.status === 403) {
+    if (res.status === 401) {
         unauthorizedHandler?.();
     }
     return res;
@@ -94,7 +98,10 @@ export const api = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ stations: stationIds }),
             });
-            if (!res.ok) throw new Error('Failed to send to stations');
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.detail || errorData.error || 'Failed to send to stations');
+            }
             return res.json();
         },
         previewImport: async (file: File, separator: string) => {
@@ -249,7 +256,10 @@ export const api = {
         getFullDump: async (uuid?: string) => {
             const url = uuid ? `${API_BASE}/stations/full_dump/?station_uuid=${uuid}` : `${API_BASE}/stations/full_dump/`;
             const res = await apiFetch(url);
-            if (!res.ok) throw new Error('Failed to fetch full dump');
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.detail || errorData.error || 'Failed to fetch full dump');
+            }
             return res.json();
         },
         getServerIp: async () => {
@@ -259,14 +269,17 @@ export const api = {
         },
         downloadUpdate: async (uuid: string) => {
             const res = await apiFetch(`${API_BASE}/stations/${uuid}/download_update/`);
-            if (!res.ok) throw new Error('Failed to download update');
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.detail || errorData.error || 'Failed to download update');
+            }
             return res.blob();
         },
         downloadIdentity: async (uuid: string) => {
             const res = await apiFetch(`${API_BASE}/stations/${uuid}/download_identity/`);
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}));
-                throw new Error(errorData.error || 'Failed to download identity');
+                throw new Error(errorData.detail || errorData.error || 'Failed to download identity');
             }
             return res.blob();
         },
@@ -403,7 +416,7 @@ export const api = {
             });
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}));
-                throw new Error(errorData.error || 'Failed to send to station');
+                throw new Error(errorData.detail || errorData.error || 'Failed to send to station');
             }
             return res.json();
         },
@@ -411,7 +424,7 @@ export const api = {
             const res = await apiFetch(`${API_BASE}/print_jobs/${id}/download_for_usb/`);
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}));
-                throw new Error(errorData.error || 'Failed to download job');
+                throw new Error(errorData.detail || errorData.error || 'Failed to download job');
             }
             return res.blob();
         },
@@ -422,7 +435,7 @@ export const api = {
             const res = await apiFetch(url);
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}));
-                throw new Error(errorData.error || 'Failed to download bundle');
+                throw new Error(errorData.detail || errorData.error || 'Failed to download bundle');
             }
             return res.blob();
         },

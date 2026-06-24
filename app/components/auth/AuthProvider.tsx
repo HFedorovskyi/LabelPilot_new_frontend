@@ -8,8 +8,9 @@ import { setUnauthorizedHandler } from "@/lib/api/client";
 //
 // On mount: getCsrf() → bootstrapStatus(). If the system needs its first admin we
 // stop and surface needsBootstrap; otherwise we call me() to resolve the current
-// user. The global 401/403 handler (registered with the api client) resets the
-// user to null so a session that expires mid-use drops back to the login screen.
+// user. The global 401 handler (registered with the api client) resets the user to
+// null so a session that EXPIRES mid-use drops back to the login screen. A 403
+// (license/demo gate, permission, CSRF) does NOT log out — it surfaces as an error.
 //
 // NOTE: this is a client-side guard for a static export. Real enforcement is on
 // the server (IsAuthenticated) — this only decides what UI to render.
@@ -61,7 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     }, []);
 
-    // Drop to the login screen whenever any API call returns 401/403.
+    // Drop to the login screen only when an API call returns 401 (session expired).
     useEffect(() => {
         setUnauthorizedHandler(() => setUser(null));
         return () => setUnauthorizedHandler(null);
