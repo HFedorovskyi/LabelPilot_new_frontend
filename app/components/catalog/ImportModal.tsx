@@ -41,6 +41,8 @@ export default function ImportModal({ onClose, onSuccess, globalAttributes, pack
 
     const [importResult, setImportResult] = useState<{
         imported: number;
+        created?: number;
+        updated?: number;
         error_count: number;
         errors: string[];
     } | null>(null);
@@ -111,6 +113,8 @@ export default function ImportModal({ onClose, onSuccess, globalAttributes, pack
             const res = await api.nomenclature.executeImport(file, separator, payloadMapping);
             setImportResult({
                 imported: res.imported,
+                created: res.created,
+                updated: res.updated,
                 error_count: res.error_count,
                 errors: res.errors
             });
@@ -364,6 +368,9 @@ export default function ImportModal({ onClose, onSuccess, globalAttributes, pack
                                 <div className="bg-white/5 border border-white/10 rounded-xl p-4">
                                     <div className="text-3xl font-bold text-white mb-1">{importResult.imported}</div>
                                     <div className="text-xs text-white/50 uppercase">Успешно</div>
+                                    {importResult.created != null && (
+                                        <div className="text-[10px] text-white/40 mt-1">создано {importResult.created} · обновлено {importResult.updated}</div>
+                                    )}
                                 </div>
                                 <div className="bg-white/5 border border-white/10 rounded-xl p-4">
                                     <div className="text-3xl font-bold text-rose-400 mb-1">{importResult.error_count}</div>
