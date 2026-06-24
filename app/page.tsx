@@ -9,6 +9,7 @@ import StationsPage from "./stations/page";
 import SettingsPage from "./components/settings/SettingsPage";
 import PrintJobsManager from "./components/print_jobs/PrintJobsManager";
 import Dashboard from "./components/home/Dashboard";
+import DemoBanner from "./components/DemoBanner";
 
 const APP_VERSION = "1.0.3";
 
@@ -353,6 +354,8 @@ export default function Home() {
 
       {/* Основная колонка */}
       <div className="relative z-10 flex min-w-0 flex-1 flex-col">
+        {/* Демо-режим: ненавязчивый баннер о лицензии (показывается только когда mode === "demo") */}
+        <DemoBanner onActivate={() => setActive("settings")} />
         <header className="flex items-center justify-between gap-3 border-b border-white/[0.07] bg-white/[0.045] px-[18px] py-[13px] backdrop-blur-xl">
           <div>
             <div className="text-[15px] font-semibold tracking-tight">{activeTab.label}</div>

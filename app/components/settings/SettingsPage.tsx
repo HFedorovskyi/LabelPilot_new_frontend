@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { licenseApi, type LicenseInfo } from "@/lib/api/license";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -506,12 +507,168 @@ function UpdatesSection() {
     );
 }
 
+// ─── LicenseSection ───────────────────────────────────────────────────────────
+
+function formatLicenseDate(d: string) {
+    // expires comes as "YYYY-MM-DD"; render it RU-style without a time component.
+    try {
+        const dt = new Date(`${d}T00:00:00`);
+        if (Number.isNaN(dt.getTime())) return d;
+        return dt.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
+    } catch {
+        return d;
+    }
+}
+
+function LicenseSection() {
+    const [info, setInfo] = useState<LicenseInfo | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        let alive = true;
+        licenseApi
+            .get()
+            .then((data) => {
+                if (alive) setInfo(data);
+            })
+            .catch(() => {
+                if (alive) setError("Не удалось получить статус лицензии.");
+            })
+            .finally(() => {
+                if (alive) setLoading(false);
+            });
+        return () => {
+            alive = false;
+        };
+    }, []);
+
+    if (loading) {
+        return (
+            <Card>
+                <div className="flex items-center gap-2 text-sm text-white/60">
+                    <Spinner className="h-4 w-4" /> Загрузка статуса лицензии…
+                </div>
+            </Card>
+        );
+    }
+
+    if (error || !info) {
+        return (
+            <div className="flex items-start gap-3 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300">
+                <svg viewBox="0 0 24 24" fill="none" className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true">
+                    <path d="M18 6L6 18M6 6l12 12" className="stroke-current" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+                <div>
+                    <div className="font-medium">Ошибка</div>
+                    <div className="mt-0.5 text-red-300/80">{error ?? "Нет данных о лицензии."}</div>
+                </div>
+            </div>
+        );
+    }
+
+    const isDemo = info.mode === "demo";
+
+    const rows: { label: string; value: string }[] = isDemo
+        ? [
+              { label: "Режим", value: "Демо-режим (без лицензии)" },
+              { label: "Макс. станций (демо)", value: String(info.demo_max_stations) },
+          ]
+        : [
+              { label: "Издание", value: info.edition || "—" },
+              { label: "Заказчик", value: info.customer || "—" },
+              { label: "Действует до", value: info.expires ? formatLicenseDate(info.expires) : "Бессрочно" },
+              { label: "ID лицензии", value: info.license_id || "—" },
+          ];
+
+    return (
+        <div className="space-y-6">
+            {/* Status card */}
+            <Card className={isDemo ? "border-amber-400/30 bg-amber-400/[0.06]" : "border-emerald-400/30 bg-emerald-400/[0.06]"}>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <div className="text-sm font-medium text-white/60 mb-1">Статус лицензии</div>
+                        <div className="flex items-center gap-3">
+                            <span className="text-2xl font-bold tracking-tight text-white">
+                                {isDemo ? "Демо-режим" : "Лицензировано"}
+                            </span>
+                            {isDemo ? (
+                                <Badge color="yellow">Нет лицензии</Badge>
+                            ) : info.expired ? (
+                                <Badge color="red">Истекла</Badge>
+                            ) : (
+                                <Badge color="green">Активна</Badge>
+                            )}
+                        </div>
+                        {isDemo && (
+                            <div className="mt-1.5 text-xs text-white/50">
+                                Доступно до {info.demo_max_stations}{" "}
+                                {info.demo_max_stations === 1 ? "станции" : "станций"}. Активируйте лицензию для снятия ограничений.
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Stations usage */}
+                    <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-center">
+                        <div className="text-xs text-white/50 mb-1">Станции</div>
+                        <div className="text-xl font-semibold text-white">
+                            {info.stations_used}
+                            <span className="text-white/40"> / {info.max_stations}</span>
+                        </div>
+                    </div>
+                </div>
+            </Card>
+
+            {/* Details */}
+            <Card>
+                <div className="mb-4 text-sm font-semibold text-white">
+                    {isDemo ? "Информация о демо-режиме" : "Сведения о лицензии"}
+                </div>
+                <div className="grid gap-3 text-sm sm:grid-cols-2">
+                    {rows.map(({ label, value }) => (
+                        <div key={label} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+                            <div className="text-xs text-white/50 mb-1">{label}</div>
+                            <div className="font-medium text-white">{value}</div>
+                        </div>
+                    ))}
+                </div>
+
+                {!isDemo && info.features.length > 0 && (
+                    <div className="mt-4">
+                        <div className="text-xs text-white/50 mb-2">Функции</div>
+                        <div className="flex flex-wrap gap-2">
+                            {info.features.map((f) => (
+                                <Badge key={f} color="blue">
+                                    {f}
+                                </Badge>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </Card>
+
+            {isDemo && (
+                <div className="flex items-start gap-3 rounded-xl border border-indigo-400/20 bg-indigo-400/10 px-4 py-3 text-sm text-indigo-200">
+                    <svg viewBox="0 0 24 24" fill="none" className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true">
+                        <path d="M12 2l1.2 4.2L17.4 7.4 13.2 8.6 12 12.8 10.8 8.6 6.6 7.4l4.2-1.2L12 2Z" className="fill-current opacity-90" />
+                    </svg>
+                    <span>
+                        Чтобы активировать лицензию, обратитесь к поставщику с идентификатором машины{" "}
+                        <code className="rounded bg-white/10 px-1 font-[family-name:var(--font-geist-mono)] text-xs">{info.machine_id}</code>.
+                    </span>
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ─── Settings sub-tabs ────────────────────────────────────────────────────────
 
-type SettingsTab = "updates" | "about";
+type SettingsTab = "updates" | "license" | "about";
 
 const settingsTabs: { key: SettingsTab; label: string }[] = [
     { key: "updates", label: "Обновления" },
+    { key: "license", label: "Лицензия" },
     { key: "about", label: "О системе" },
 ];
 
@@ -549,6 +706,8 @@ export default function SettingsPage() {
             </div>
 
             {activeTab === "updates" && <UpdatesSection />}
+
+            {activeTab === "license" && <LicenseSection />}
 
             {activeTab === "about" && (
                 <Card>
