@@ -1,7 +1,9 @@
 // AUTO-ASSEMBLED server admin-UI translations (ru source; en/de/uk generated, consistent
 // with the desktop client terminology). Regenerate via .i18n_work/assemble.cjs.
 
-export type Lang = {
+export type Lang = "ru" | "en" | "de" | "uk";
+
+export const translations: Record<Lang, Record<string, string>> = {
     ru: {
         "app.appSections": "Разделы приложения",
         "app.collapseMenu": "Свернуть меню",
