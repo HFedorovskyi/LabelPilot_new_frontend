@@ -1,3 +1,5 @@
+import { apiFetch } from "./client";
+
 declare const process: any;
 
 // ─── License status types ───────────────────────────────────────────────────
@@ -12,8 +14,8 @@ export interface LicenseInfo {
     customer: string | null;
     expires: string | null; // "YYYY-MM-DD"
     expired: boolean;
-    max_stations: number;
-    demo_max_stations: number;
+    max_stations: number | null;       // null = unlimited
+    demo_max_stations: number | null;  // null (no demo cap)
     license_id: string | null;
     features: string[];
     machine_id: string;
@@ -38,6 +40,20 @@ export const licenseApi = {
     get: async (): Promise<LicenseInfo> => {
         const res = await fetch(`${API_BASE}/license/`);
         if (!res.ok) throw new Error("Failed to fetch license status");
+        return res.json();
+    },
+
+    // Admin-only: upload a license.lpl file to activate/replace the license. Uses apiFetch
+    // for the session cookie + CSRF; the server verifies the Ed25519 signature and returns
+    // the new status (no restart). Throws with the server's localized detail on failure.
+    importLicense: async (file: File): Promise<LicenseInfo> => {
+        const form = new FormData();
+        form.append("file", file);
+        const res = await apiFetch(`${API_BASE}/license/import/`, { method: "POST", body: form });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || err.error || "Failed to import license");
+        }
         return res.json();
     },
 };

@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { licenseApi, type LicenseInfo } from "@/lib/api/license";
 import { useTranslation, LANGS, LANG_LABELS } from "@/lib/i18n";
+import { useAuth } from "../auth/AuthProvider";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -524,9 +525,12 @@ function formatLicenseDate(d: string) {
 
 function LicenseSection() {
     const { t } = useTranslation();
+    const { user } = useAuth();
     const [info, setInfo] = useState<LicenseInfo | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [importing, setImporting] = useState(false);
+    const [importMsg, setImportMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
     useEffect(() => {
         let alive = true;
@@ -647,6 +651,53 @@ function LicenseSection() {
                     </div>
                 )}
             </Card>
+
+            {/* Admin-only: import / replace the license (.lpl) — verified + activated live, no restart. */}
+            {user?.role === "admin" && (
+                <Card>
+                    <div className="text-sm font-semibold text-white">{t('settings.licenseImportTitle')}</div>
+                    <div className="mt-1 text-xs text-white/50">{t('settings.licenseImportHint')}</div>
+                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                        <label
+                            className={cx(
+                                "cursor-pointer rounded-xl border px-4 py-2.5 text-sm font-medium transition",
+                                importing
+                                    ? "border-white/10 bg-white/5 text-white/40"
+                                    : "border-emerald-400/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20"
+                            )}
+                        >
+                            {importing ? t('settings.licenseImporting') : t('settings.licenseImportButton')}
+                            <input
+                                type="file"
+                                accept=".lpl"
+                                className="hidden"
+                                disabled={importing}
+                                onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    e.target.value = "";
+                                    if (!file) return;
+                                    setImporting(true);
+                                    setImportMsg(null);
+                                    try {
+                                        const updated = await licenseApi.importLicense(file);
+                                        setInfo(updated);
+                                        setImportMsg({ type: "ok", text: t('settings.licenseImportOk') });
+                                    } catch (err) {
+                                        setImportMsg({ type: "err", text: err instanceof Error ? err.message : t('settings.licenseImportFailed') });
+                                    } finally {
+                                        setImporting(false);
+                                    }
+                                }}
+                            />
+                        </label>
+                        {importMsg && (
+                            <span className={importMsg.type === "ok" ? "text-sm text-emerald-300" : "text-sm text-red-300"}>
+                                {importMsg.text}
+                            </span>
+                        )}
+                    </div>
+                </Card>
+            )}
 
             {isDemo && (
                 <div className="flex items-start gap-3 rounded-xl border border-indigo-400/20 bg-indigo-400/10 px-4 py-3 text-sm text-indigo-200">

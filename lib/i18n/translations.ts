@@ -1,9 +1,7 @@
 // AUTO-ASSEMBLED server admin-UI translations (ru source; en/de/uk generated, consistent
 // with the desktop client terminology). Regenerate via .i18n_work/assemble.cjs.
 
-export type Lang = "ru" | "en" | "de" | "uk";
-
-export const translations: Record<Lang, Record<string, string>> = {
+export type Lang = {
     ru: {
         "app.appSections": "Разделы приложения",
         "app.collapseMenu": "Свернуть меню",
@@ -618,6 +616,12 @@ export const translations: Record<Lang, Record<string, string>> = {
         "settings.latestClientVersion": "Последняя версия клиента",
         "settings.latestInstalled": "Установлена последняя версия. Обновлений нет.",
         "settings.licenseDetails": "Сведения о лицензии",
+        "settings.licenseImportButton": "Выбрать файл .lpl",
+        "settings.licenseImportFailed": "Не удалось импортировать лицензию",
+        "settings.licenseImportHint": "Загрузите файл license.lpl, выданный поставщиком — активация без перезапуска.",
+        "settings.licenseImportOk": "Лицензия активирована",
+        "settings.licenseImportTitle": "Импорт лицензии",
+        "settings.licenseImporting": "Импорт…",
         "settings.licenseStatus": "Статус лицензии",
         "settings.licenseStatusFailed": "Не удалось получить статус лицензии.",
         "settings.licensed": "Лицензировано",
@@ -1316,6 +1320,12 @@ export const translations: Record<Lang, Record<string, string>> = {
         "settings.latestClientVersion": "Latest client version",
         "settings.latestInstalled": "The latest version is installed. No updates available.",
         "settings.licenseDetails": "License details",
+        "settings.licenseImportButton": "Choose .lpl file",
+        "settings.licenseImportFailed": "Failed to import license",
+        "settings.licenseImportHint": "Upload the license.lpl file from your supplier — activates without a restart.",
+        "settings.licenseImportOk": "License activated",
+        "settings.licenseImportTitle": "Import license",
+        "settings.licenseImporting": "Importing…",
         "settings.licenseStatus": "License status",
         "settings.licenseStatusFailed": "Failed to get license status.",
         "settings.licensed": "Licensed",
@@ -2014,6 +2024,12 @@ export const translations: Record<Lang, Record<string, string>> = {
         "settings.latestClientVersion": "Neueste Client-Version",
         "settings.latestInstalled": "Die neueste Version ist installiert. Keine Updates verfügbar.",
         "settings.licenseDetails": "Lizenzdetails",
+        "settings.licenseImportButton": ".lpl-Datei wählen",
+        "settings.licenseImportFailed": "Lizenz konnte nicht importiert werden",
+        "settings.licenseImportHint": "Laden Sie die license.lpl-Datei Ihres Anbieters hoch — Aktivierung ohne Neustart.",
+        "settings.licenseImportOk": "Lizenz aktiviert",
+        "settings.licenseImportTitle": "Lizenz importieren",
+        "settings.licenseImporting": "Importieren…",
         "settings.licenseStatus": "Lizenzstatus",
         "settings.licenseStatusFailed": "Lizenzstatus konnte nicht abgerufen werden.",
         "settings.licensed": "Lizenziert",
@@ -2712,6 +2728,12 @@ export const translations: Record<Lang, Record<string, string>> = {
         "settings.latestClientVersion": "Остання версія клієнта",
         "settings.latestInstalled": "Встановлено останню версію. Оновлень немає.",
         "settings.licenseDetails": "Відомості про ліцензію",
+        "settings.licenseImportButton": "Вибрати файл .lpl",
+        "settings.licenseImportFailed": "Не вдалося імпортувати ліцензію",
+        "settings.licenseImportHint": "Завантажте файл license.lpl від постачальника — активація без перезапуску.",
+        "settings.licenseImportOk": "Ліцензію активовано",
+        "settings.licenseImportTitle": "Імпорт ліцензії",
+        "settings.licenseImporting": "Імпорт…",
         "settings.licenseStatus": "Статус ліцензії",
         "settings.licenseStatusFailed": "Не вдалося отримати статус ліцензії.",
         "settings.licensed": "Ліцензовано",
