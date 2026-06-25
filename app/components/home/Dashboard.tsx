@@ -688,6 +688,16 @@ export default function Dashboard() {
               </span>
             </div>
 
+            <div className="flex min-w-[140px] flex-col justify-center lg:border-l lg:border-white/10 lg:px-6">
+              <Eyebrow>{t("dashboard.deletedToday")}</Eyebrow>
+              <span className="mt-1 text-2xl font-bold tabular-nums text-rose-300">
+                {fmt(stats.deleted_today ?? 0)}
+                <span className="ml-2 text-base font-semibold text-rose-300/70">
+                  {fmt(stats.deleted_weight_today_kg ?? 0)} {t("dashboard.unitKg")}
+                </span>
+              </span>
+            </div>
+
             <div className="flex min-w-[130px] flex-col justify-center lg:border-l lg:border-white/10 lg:px-6">
               <Eyebrow>{t("dashboard.stationsOnline")}</Eyebrow>
               <span className="mt-1 flex items-center gap-2">
