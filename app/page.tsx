@@ -203,9 +203,16 @@ function AppShell() {
 
   const [host, setHost] = useState("localhost:8000");
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      setHost(`${window.location.hostname}:8000`);
-    }
+    if (typeof window === "undefined") return;
+    // Show the server's real LAN IP (the address stations connect to), not the browser
+    // host — which is "localhost" when the admin opens the UI on the server itself.
+    let alive = true;
+    setHost(`${window.location.hostname}:8000`); // fallback until the IP resolves
+    fetch(`${window.location.protocol}//${window.location.hostname}:8000/api/v1/stations/server_ip/`)
+      .then((r) => r.json())
+      .then((d) => { if (alive && d?.ip) setHost(`${d.ip}:8000`); })
+      .catch(() => { });
+    return () => { alive = false; };
   }, []);
 
   const [collapsed, setCollapsed] = useState(false);
