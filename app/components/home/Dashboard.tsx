@@ -305,7 +305,156 @@ function ModalCell({ label, value, tone }: { label: string; value: React.ReactNo
   );
 }
 
-/** Per-station activity modal: marked / deleted / weight / active time, sorted by marked desc. */
+/** Drill-down: every individual marking (pack) of one station — time, operator, product,
+ *  weight and status — with a today/all scope and load-more, for full traceability. */
+function StationDetailModal({ station, onClose, t }: { station: any; onClose: () => void; t: TFunc }) {
+  const [scope, setScope] = useState<"today" | "all">("today");
+  const [labels, setLabels] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    api.statistics
+      .stationLabels(station.id, { scope, limit: 300, offset: 0 })
+      .then((d: any) => {
+        if (!alive) return;
+        setLabels(d.labels ?? []);
+        setTotal(d.total ?? 0);
+      })
+      .catch(() => {
+        if (alive) {
+          setLabels([]);
+          setTotal(0);
+        }
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [station.id, scope]);
+
+  const loadMore = () => {
+    setLoading(true);
+    api.statistics
+      .stationLabels(station.id, { scope, limit: 300, offset: labels.length })
+      .then((d: any) => setLabels((prev) => [...prev, ...(d.labels ?? [])]))
+      .finally(() => setLoading(false));
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[110] flex items-start justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="my-6 w-full max-w-3xl overflow-hidden rounded-3xl border border-white/[0.12] bg-[#0A0A0B] shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-indigo-500/[0.06] px-5 py-4">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <button
+              onClick={onClose}
+              aria-label={t("dashboard.back")}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5 text-white/50 transition hover:bg-white/10 hover:text-white"
+            >
+              <Icon name="chevron-right" className="h-4 w-4 rotate-180" />
+            </button>
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/5 text-sm font-bold text-white/70">
+              {padNum(station.number) || "—"}
+            </span>
+            <div className="min-w-0">
+              <h3 className="truncate text-base font-bold text-white">{station.name || t("dashboard.stationUnknown")}</h3>
+              <p className="text-[11px] text-white/40">
+                {t("dashboard.markingDetail")} · {fmt(total)}
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 rounded-lg border border-white/10 bg-white/[0.03] p-0.5 text-[11px]">
+            {(["today", "all"] as const).map((sc) => (
+              <button
+                key={sc}
+                onClick={() => setScope(sc)}
+                className={cx(
+                  "rounded-md px-3 py-1 font-medium transition",
+                  scope === sc ? "bg-indigo-400/20 text-indigo-200" : "text-white/45 hover:text-white"
+                )}
+              >
+                {sc === "today" ? t("dashboard.scopeToday") : t("dashboard.scopeAll")}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="max-h-[70vh] overflow-y-auto">
+          {loading && labels.length === 0 ? (
+            <div className="px-4 py-12 text-center text-sm text-white/40">{t("dashboard.detailLoading")}</div>
+          ) : labels.length === 0 ? (
+            <div className="px-4 py-12 text-center text-sm text-white/40">{t("dashboard.noMarks")}</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 z-10 bg-[#0A0A0B] text-left text-[10px] uppercase tracking-[0.08em] text-white/35">
+                <tr className="border-b border-white/10">
+                  <th className="px-4 py-2 font-medium">{t("dashboard.colTime")}</th>
+                  <th className="px-2 py-2 font-medium">{t("dashboard.colOperator")}</th>
+                  <th className="px-2 py-2 font-medium">{t("dashboard.colProduct")}</th>
+                  <th className="px-2 py-2 text-right font-medium">{t("dashboard.colWeight")}</th>
+                  <th className="px-4 py-2 text-right font-medium">{t("dashboard.colStatus")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {labels.map((l) => (
+                  <tr key={l.id} className="border-b border-white/[0.05] hover:bg-white/[0.02]">
+                    <td className="whitespace-nowrap px-4 py-2 tabular-nums text-white/80">
+                      {l.printed_at ? timeStr(l.printed_at) : "—"}
+                    </td>
+                    <td className="px-2 py-2 text-white/70">{l.operator || "—"}</td>
+                    <td className="px-2 py-2">
+                      <span className="text-white/85">{l.product_name || "—"}</span>
+                      {l.pack_name ? <span className="text-white/35"> · {l.pack_name}</span> : null}
+                    </td>
+                    <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-emerald-300/90">
+                      {l.weight_kg ? `${fmt(l.weight_kg)} ${t("dashboard.unitKg")}` : "—"}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-2 text-right">
+                      {l.is_deleted ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2 py-0.5 text-[11px] text-rose-300">
+                          <Icon name="trash" className="h-3 w-3" />
+                          {t("dashboard.stDeleted")}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300">
+                          <Icon name="circle-check" className="h-3 w-3" />
+                          {t("dashboard.stMarked")}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {labels.length > 0 && labels.length < total && (
+            <div className="p-3 text-center">
+              <button
+                onClick={loadMore}
+                disabled={loading}
+                className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-white/70 transition hover:bg-white/10 disabled:opacity-50"
+              >
+                {loading ? t("dashboard.detailLoading") : t("dashboard.loadMore", { shown: labels.length, total })}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Per-station activity modal: marked / deleted / weight / active time, sorted by marked desc.
+ *  Each row drills into StationDetailModal for the full per-pack marking log. */
 function StationsModal({
   open,
   onClose,
@@ -317,88 +466,97 @@ function StationsModal({
   stations: any[];
   t: TFunc;
 }) {
+  const [detail, setDetail] = useState<any>(null);
+  useEffect(() => {
+    if (!open) setDetail(null);
+  }, [open]);
   if (!open) return null;
   const rows = [...(stations ?? [])].sort((a, b) => (b.marked ?? 0) - (a.marked ?? 0));
   const maxMarked = Math.max(1, ...rows.map((s) => s.marked ?? 0));
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm"
-      onClick={onClose}
-    >
+    <>
       <div
-        className="my-6 w-full max-w-2xl overflow-hidden rounded-3xl border border-white/[0.12] bg-[#0A0A0B] shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
+        className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm"
+        onClick={onClose}
       >
-        <div className="flex items-center justify-between border-b border-white/10 bg-indigo-500/[0.06] px-6 py-4">
-          <div className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-500/15 text-indigo-300">
-              <Icon name="server" className="h-5 w-5" />
-            </span>
-            <h3 className="text-lg font-bold text-white">{t("dashboard.stationsActivity")}</h3>
+        <div
+          className="my-6 w-full max-w-2xl overflow-hidden rounded-3xl border border-white/[0.12] bg-[#0A0A0B] shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between border-b border-white/10 bg-indigo-500/[0.06] px-6 py-4">
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-500/15 text-indigo-300">
+                <Icon name="server" className="h-5 w-5" />
+              </span>
+              <h3 className="text-lg font-bold text-white">{t("dashboard.stationsActivity")}</h3>
+            </div>
+            <button
+              onClick={onClose}
+              aria-label={t("dashboard.close")}
+              className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-white/40 transition hover:bg-white/10 hover:text-white"
+            >
+              <Icon name="x" className="h-4 w-4" />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            aria-label={t("dashboard.close")}
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-white/40 transition hover:bg-white/10 hover:text-white"
-          >
-            <Icon name="x" className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="max-h-[72vh] overflow-y-auto p-3">
-          {rows.length === 0 ? (
-            <div className="px-4 py-12 text-center text-sm text-white/40">{t("dashboard.noStations")}</div>
-          ) : (
-            rows.map((s) => (
-              <div
-                key={s.id}
-                className="mb-2 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-3.5 py-3 last:mb-0"
-              >
-                <div className="mb-2 flex items-center gap-2.5">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/5 text-xs font-bold text-white/70">
-                    {padNum(s.number) || "—"}
-                  </span>
-                  <span className="flex-1 truncate text-sm font-semibold text-white">
-                    {s.name || t("dashboard.stationUnknown")}
-                  </span>
-                  <span
-                    className={cx(
-                      "inline-flex items-center gap-1.5 text-[11px]",
-                      s.is_online ? "text-emerald-400" : "text-white/35"
-                    )}
-                  >
-                    <span className={cx("h-1.5 w-1.5 rounded-full", s.is_online ? "bg-emerald-400" : "bg-white/25")} />
-                    {s.is_online ? t("dashboard.stOnline") : t("dashboard.stOffline")}
-                  </span>
-                </div>
-                <div className="mb-2.5 h-1 overflow-hidden rounded-full bg-white/[0.06]">
-                  <span
-                    className="block h-full rounded-full bg-indigo-500"
-                    style={{ width: `${Math.round(((s.marked ?? 0) / maxMarked) * 100)}%` }}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  <ModalCell label={t("dashboard.colMarked")} value={fmt(s.marked ?? 0)} tone="text-white" />
-                  <ModalCell label={t("dashboard.colDeleted")} value={fmt(s.deleted ?? 0)} tone="text-rose-300" />
-                  <ModalCell
-                    label={t("dashboard.colWeight")}
-                    value={`${fmt(s.weight_kg ?? 0)} ${t("dashboard.unitKg")}`}
-                    tone="text-emerald-300"
-                  />
-                  <ModalCell
-                    label={t("dashboard.colDuration")}
-                    value={fmtDuration(s.first_at, s.last_at, t)}
-                    tone="text-white/80"
-                  />
-                </div>
-                <div className="mt-2 text-[11px] text-white/35">
-                  {t("dashboard.lastSync")}: {relTime(s.last_sync_at, t)}
-                </div>
-              </div>
-            ))
-          )}
+          <div className="max-h-[72vh] overflow-y-auto p-3">
+            {rows.length === 0 ? (
+              <div className="px-4 py-12 text-center text-sm text-white/40">{t("dashboard.noStations")}</div>
+            ) : (
+              rows.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => setDetail(s)}
+                  className="mb-2 block w-full rounded-2xl border border-white/[0.07] bg-white/[0.02] px-3.5 py-3 text-left transition last:mb-0 hover:border-white/15 hover:bg-white/[0.04]"
+                >
+                  <div className="mb-2 flex items-center gap-2.5">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/5 text-xs font-bold text-white/70">
+                      {padNum(s.number) || "—"}
+                    </span>
+                    <span className="flex-1 truncate text-sm font-semibold text-white">
+                      {s.name || t("dashboard.stationUnknown")}
+                    </span>
+                    <span
+                      className={cx(
+                        "inline-flex items-center gap-1.5 text-[11px]",
+                        s.is_online ? "text-emerald-400" : "text-white/35"
+                      )}
+                    >
+                      <span className={cx("h-1.5 w-1.5 rounded-full", s.is_online ? "bg-emerald-400" : "bg-white/25")} />
+                      {s.is_online ? t("dashboard.stOnline") : t("dashboard.stOffline")}
+                    </span>
+                    <Icon name="chevron-right" className="h-4 w-4 text-white/25" />
+                  </div>
+                  <div className="mb-2.5 h-1 overflow-hidden rounded-full bg-white/[0.06]">
+                    <span
+                      className="block h-full rounded-full bg-indigo-500"
+                      style={{ width: `${Math.round(((s.marked ?? 0) / maxMarked) * 100)}%` }}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <ModalCell label={t("dashboard.colMarked")} value={fmt(s.marked ?? 0)} tone="text-white" />
+                    <ModalCell label={t("dashboard.colDeleted")} value={fmt(s.deleted ?? 0)} tone="text-rose-300" />
+                    <ModalCell
+                      label={t("dashboard.colWeight")}
+                      value={`${fmt(s.weight_kg ?? 0)} ${t("dashboard.unitKg")}`}
+                      tone="text-emerald-300"
+                    />
+                    <ModalCell
+                      label={t("dashboard.colDuration")}
+                      value={fmtDuration(s.first_at, s.last_at, t)}
+                      tone="text-white/80"
+                    />
+                  </div>
+                  <div className="mt-2 text-[11px] text-white/35">
+                    {t("dashboard.lastSync")}: {relTime(s.last_sync_at, t)}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
         </div>
       </div>
-    </div>
+      {detail && <StationDetailModal station={detail} onClose={() => setDetail(null)} t={t} />}
+    </>
   );
 }
 
@@ -913,9 +1071,7 @@ export default function Dashboard() {
             </MetricTile>
             <MetricTile icon="trash" label={t("dashboard.deletedToday")} accent="rose">
               {fmt(stats.deleted_today ?? 0)}
-              <span className="text-base font-semibold text-rose-300/55">
-                {" "}· {fmt(stats.deleted_weight_today_kg ?? 0)} {t("dashboard.unitKg")}
-              </span>
+              <span className="text-base font-semibold text-rose-300/55"> {t("dashboard.unitWeighings")}</span>
             </MetricTile>
             <MetricTile
               icon="server"

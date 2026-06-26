@@ -380,7 +380,19 @@ export const api = {
             const res = await apiFetch(`${API_BASE}/statistics/`);
             if (!res.ok) throw new Error('Failed to fetch statistics');
             return res.json();
-        }
+        },
+        stationLabels: async (
+            stationId: number,
+            opts: { scope?: 'today' | 'all'; limit?: number; offset?: number } = {}
+        ) => {
+            const p = new URLSearchParams({ station_id: String(stationId) });
+            if (opts.scope) p.set('scope', opts.scope);
+            if (opts.limit != null) p.set('limit', String(opts.limit));
+            if (opts.offset != null) p.set('offset', String(opts.offset));
+            const res = await apiFetch(`${API_BASE}/statistics/station_labels/?${p.toString()}`);
+            if (!res.ok) throw new Error('Failed to fetch station labels');
+            return res.json();
+        },
     },
     printJobs: {
         list: async () => {
