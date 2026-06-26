@@ -36,6 +36,17 @@ function timeStr(iso: string): string {
   });
 }
 
+/** Active-time span between the first and last marking of a station. */
+function fmtDuration(firstIso: string | null, lastIso: string | null, t: TFunc): string {
+  if (!firstIso || !lastIso) return "—";
+  const ms = new Date(lastIso).getTime() - new Date(firstIso).getTime();
+  if (!(ms > 0)) return "—";
+  const mins = Math.round(ms / 60000);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h > 0 ? t("dashboard.durHM", { h, m }) : t("dashboard.durM", { m });
+}
+
 /** A sync is "stale" if older than 7 days or never. */
 function isStaleSync(iso: string | null): boolean {
   if (!iso) return true;
@@ -60,7 +71,13 @@ type IconName =
   | "refresh"
   | "arrow-up-right"
   | "arrow-down-right"
-  | "activity";
+  | "activity"
+  | "layers"
+  | "weight"
+  | "trash"
+  | "clock"
+  | "x"
+  | "chevron-right";
 
 function Icon({ name, className }: { name: IconName; className?: string }) {
   const common = "h-4 w-4";
@@ -140,6 +157,45 @@ function Icon({ name, className }: { name: IconName; className?: string }) {
           <path d="M3 12h4l2.5 7 5-14L17 12h4" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       );
+    case "layers":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={cl} aria-hidden="true">
+          <path d="m12 2 9 5-9 5-9-5 9-5Z" stroke="currentColor" strokeWidth={sw} strokeLinejoin="round" />
+          <path d="m3 12 9 5 9-5M3 17l9 5 9-5" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+    case "weight":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={cl} aria-hidden="true">
+          <circle cx="12" cy="5" r="2" stroke="currentColor" strokeWidth={sw} />
+          <path d="M6.8 7h10.4l2.6 11.6A1.2 1.2 0 0 1 18.6 20H5.4a1.2 1.2 0 0 1-1.2-1.4L6.8 7Z" stroke="currentColor" strokeWidth={sw} strokeLinejoin="round" />
+        </svg>
+      );
+    case "trash":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={cl} aria-hidden="true">
+          <path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m2 0v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+    case "clock":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={cl} aria-hidden="true">
+          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth={sw} />
+          <path d="M12 7v5l3.2 2" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+    case "x":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={cl} aria-hidden="true">
+          <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" />
+        </svg>
+      );
+    case "chevron-right":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={cl} aria-hidden="true">
+          <path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
   }
 }
 
@@ -197,6 +253,152 @@ function Eyebrow({ children, className }: { children: React.ReactNode; className
     <span className={cx("text-[10px] uppercase tracking-[0.14em] text-white/35", className)}>
       {children}
     </span>
+  );
+}
+
+/** Compact accent-tinted metric tile (icon + label + value); becomes a button when onClick is set. */
+function MetricTile({
+  icon,
+  label,
+  accent,
+  onClick,
+  children,
+}: {
+  icon: IconName;
+  label: string;
+  accent: "neutral" | "emerald" | "rose" | "indigo";
+  onClick?: () => void;
+  children: React.ReactNode;
+}) {
+  const tone = {
+    neutral: "border-white/[0.07] bg-white/[0.02] text-white/40",
+    emerald: "border-emerald-500/20 bg-emerald-500/[0.05] text-emerald-300",
+    rose: "border-rose-400/20 bg-rose-400/[0.05] text-rose-300",
+    indigo: "border-indigo-400/25 bg-indigo-400/[0.06] text-indigo-200",
+  }[accent];
+  const Comp: any = onClick ? "button" : "div";
+  return (
+    <Comp
+      onClick={onClick}
+      className={cx(
+        "flex flex-col rounded-xl border px-3.5 py-3 text-left transition",
+        tone,
+        onClick && "cursor-pointer hover:brightness-150"
+      )}
+    >
+      <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.1em]">
+        <Icon name={icon} className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate">{label}</span>
+        {onClick && <Icon name="chevron-right" className="ml-auto h-3.5 w-3.5 shrink-0 opacity-70" />}
+      </span>
+      <span className="mt-1.5 text-2xl font-bold tabular-nums text-white">{children}</span>
+    </Comp>
+  );
+}
+
+function ModalCell({ label, value, tone }: { label: string; value: React.ReactNode; tone: string }) {
+  return (
+    <div>
+      <div className="text-[9px] uppercase tracking-[0.08em] text-white/35">{label}</div>
+      <div className={cx("mt-0.5 text-[15px] font-bold tabular-nums", tone)}>{value}</div>
+    </div>
+  );
+}
+
+/** Per-station activity modal: marked / deleted / weight / active time, sorted by marked desc. */
+function StationsModal({
+  open,
+  onClose,
+  stations,
+  t,
+}: {
+  open: boolean;
+  onClose: () => void;
+  stations: any[];
+  t: TFunc;
+}) {
+  if (!open) return null;
+  const rows = [...(stations ?? [])].sort((a, b) => (b.marked ?? 0) - (a.marked ?? 0));
+  const maxMarked = Math.max(1, ...rows.map((s) => s.marked ?? 0));
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="my-6 w-full max-w-2xl overflow-hidden rounded-3xl border border-white/[0.12] bg-[#0A0A0B] shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-white/10 bg-indigo-500/[0.06] px-6 py-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-500/15 text-indigo-300">
+              <Icon name="server" className="h-5 w-5" />
+            </span>
+            <h3 className="text-lg font-bold text-white">{t("dashboard.stationsActivity")}</h3>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label={t("dashboard.close")}
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-white/40 transition hover:bg-white/10 hover:text-white"
+          >
+            <Icon name="x" className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="max-h-[72vh] overflow-y-auto p-3">
+          {rows.length === 0 ? (
+            <div className="px-4 py-12 text-center text-sm text-white/40">{t("dashboard.noStations")}</div>
+          ) : (
+            rows.map((s) => (
+              <div
+                key={s.id}
+                className="mb-2 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-3.5 py-3 last:mb-0"
+              >
+                <div className="mb-2 flex items-center gap-2.5">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/5 text-xs font-bold text-white/70">
+                    {padNum(s.number) || "—"}
+                  </span>
+                  <span className="flex-1 truncate text-sm font-semibold text-white">
+                    {s.name || t("dashboard.stationUnknown")}
+                  </span>
+                  <span
+                    className={cx(
+                      "inline-flex items-center gap-1.5 text-[11px]",
+                      s.is_online ? "text-emerald-400" : "text-white/35"
+                    )}
+                  >
+                    <span className={cx("h-1.5 w-1.5 rounded-full", s.is_online ? "bg-emerald-400" : "bg-white/25")} />
+                    {s.is_online ? t("dashboard.stOnline") : t("dashboard.stOffline")}
+                  </span>
+                </div>
+                <div className="mb-2.5 h-1 overflow-hidden rounded-full bg-white/[0.06]">
+                  <span
+                    className="block h-full rounded-full bg-indigo-500"
+                    style={{ width: `${Math.round(((s.marked ?? 0) / maxMarked) * 100)}%` }}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <ModalCell label={t("dashboard.colMarked")} value={fmt(s.marked ?? 0)} tone="text-white" />
+                  <ModalCell label={t("dashboard.colDeleted")} value={fmt(s.deleted ?? 0)} tone="text-rose-300" />
+                  <ModalCell
+                    label={t("dashboard.colWeight")}
+                    value={`${fmt(s.weight_kg ?? 0)} ${t("dashboard.unitKg")}`}
+                    tone="text-emerald-300"
+                  />
+                  <ModalCell
+                    label={t("dashboard.colDuration")}
+                    value={fmtDuration(s.first_at, s.last_at, t)}
+                    tone="text-white/80"
+                  />
+                </div>
+                <div className="mt-2 text-[11px] text-white/35">
+                  {t("dashboard.lastSync")}: {relTime(s.last_sync_at, t)}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -391,6 +593,9 @@ function ThroughputChart({ data, mode }: { data: Pt[]; mode: "24h" | "7d" }) {
   };
 
   const gid = "throughputArea";
+  const isBars = mode === "7d";
+  const slot = n > 0 ? innerW / n : innerW;
+  const barW = Math.min(38, slot * 0.55);
 
   return (
     <div className="relative w-full">
@@ -407,27 +612,49 @@ function ThroughputChart({ data, mode }: { data: Pt[]; mode: "24h" | "7d" }) {
         {/* faint mid gridline */}
         <line x1={padX} y1={padTop + innerH / 2} x2={W - padX} y2={padTop + innerH / 2} stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
 
-        {!allZero && area && <path d={area} fill={`url(#${gid})`} />}
-        {!allZero && line && (
-          <path d={line} fill="none" stroke="rgb(165,180,252)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        {isBars ? (
+          series.map((d, i) => {
+            const bh = (d.count / max) * innerH;
+            const cxp = padX + slot * (i + 0.5);
+            const x = cxp - barW / 2;
+            const y = baseY - bh;
+            return (
+              <g key={i}>
+                {d.count > 0 && <rect x={x} y={y} width={barW} height={Math.max(2, bh)} rx="4" fill="rgb(99,102,241)" />}
+                {d.count > 0 && (
+                  <text x={cxp} y={y - 6} textAnchor="middle" fontSize="11" fill="rgba(255,255,255,0.50)">
+                    {fmt(d.count)}
+                  </text>
+                )}
+                <text x={cxp} y={H - 8} textAnchor="middle" fontSize="11" fill="rgba(255,255,255,0.30)">
+                  {tickLabel(d.t)}
+                </text>
+              </g>
+            );
+          })
+        ) : (
+          <>
+            {!allZero && area && <path d={area} fill={`url(#${gid})`} />}
+            {!allZero && line && (
+              <path d={line} fill="none" stroke="rgb(165,180,252)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            )}
+            {tickIdx.map((idx) => {
+              const x = pts[idx]?.x ?? padX;
+              return (
+                <text
+                  key={idx}
+                  x={x}
+                  y={H - 8}
+                  textAnchor={idx === 0 ? "start" : idx === n - 1 ? "end" : "middle"}
+                  fontSize="11"
+                  fill="rgba(255,255,255,0.30)"
+                >
+                  {series[idx] ? tickLabel(series[idx].t) : ""}
+                </text>
+              );
+            })}
+          </>
         )}
-
-        {/* axis ticks */}
-        {tickIdx.map((idx) => {
-          const x = pts[idx]?.x ?? padX;
-          return (
-            <text
-              key={idx}
-              x={x}
-              y={H - 8}
-              textAnchor={idx === 0 ? "start" : idx === n - 1 ? "end" : "middle"}
-              fontSize="11"
-              fill="rgba(255,255,255,0.30)"
-            >
-              {series[idx] ? tickLabel(series[idx].t) : ""}
-            </text>
-          );
-        })}
       </svg>
 
       {allZero && (
@@ -488,6 +715,7 @@ function computeDelta(today: number, yesterday: number, t: TFunc) {
 export default function Dashboard() {
   const { t } = useTranslation();
   const [stats, setStats] = useState<any>(null);
+  const [stationsOpen, setStationsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [lastFetched, setLastFetched] = useState<string | null>(null);
@@ -674,56 +902,43 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* tributary stats */}
-          <div className="flex flex-wrap gap-x-8 gap-y-4 lg:flex-nowrap lg:gap-x-0">
-            <div className="flex min-w-[110px] flex-col justify-center lg:border-l lg:border-white/10 lg:px-6">
-              <Eyebrow>{t("dashboard.total")}</Eyebrow>
-              <span className="mt-1 text-2xl font-bold tabular-nums text-white">{fmt(stats.total_labels)}</span>
-            </div>
-
-            <div className="flex min-w-[140px] flex-col justify-center lg:border-l lg:border-white/10 lg:px-6">
-              <Eyebrow>{t("dashboard.weightTodayFixed")}</Eyebrow>
-              <span className="mt-1 text-2xl font-bold tabular-nums text-emerald-400">
-                {fmt(stats.weight_today_kg ?? 0)} <span className="text-base font-semibold text-emerald-400/70">{t("dashboard.unitKg")}</span>
+          {/* tributary metric tiles */}
+          <div className="grid grid-cols-2 gap-2.5 self-center lg:w-[420px] lg:shrink-0">
+            <MetricTile icon="layers" label={t("dashboard.total")} accent="neutral">
+              {fmt(stats.total_labels)}
+            </MetricTile>
+            <MetricTile icon="weight" label={t("dashboard.weightTodayFixed")} accent="emerald">
+              {fmt(stats.weight_today_kg ?? 0)}
+              <span className="text-base font-semibold text-emerald-400/60"> {t("dashboard.unitKg")}</span>
+            </MetricTile>
+            <MetricTile icon="trash" label={t("dashboard.deletedToday")} accent="rose">
+              {fmt(stats.deleted_today ?? 0)}
+              <span className="text-base font-semibold text-rose-300/55">
+                {" "}· {fmt(stats.deleted_weight_today_kg ?? 0)} {t("dashboard.unitKg")}
               </span>
-            </div>
-
-            <div className="flex min-w-[140px] flex-col justify-center lg:border-l lg:border-white/10 lg:px-6">
-              <Eyebrow>{t("dashboard.deletedToday")}</Eyebrow>
-              <span className="mt-1 text-2xl font-bold tabular-nums text-rose-300">
-                {fmt(stats.deleted_today ?? 0)}
-                <span className="ml-2 text-base font-semibold text-rose-300/70">
-                  {fmt(stats.deleted_weight_today_kg ?? 0)} {t("dashboard.unitKg")}
-                </span>
+            </MetricTile>
+            <MetricTile
+              icon="server"
+              label={t("dashboard.stationsOnline")}
+              accent="indigo"
+              onClick={() => setStationsOpen(true)}
+            >
+              <span className="flex items-center gap-2">
+                <span className={cx("h-2 w-2 rounded-full", activeStations > 0 ? "bg-emerald-400" : "bg-white/25")} />
+                {activeStations}
+                <span className="text-base font-semibold text-white/40"> / {totalStations}</span>
               </span>
-            </div>
-
-            <div className="flex min-w-[130px] flex-col justify-center lg:border-l lg:border-white/10 lg:px-6">
-              <Eyebrow>{t("dashboard.stationsOnline")}</Eyebrow>
-              <span className="mt-1 flex items-center gap-2">
-                {activeStations > 0 ? (
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                  </span>
-                ) : (
-                  <span className="inline-flex h-2.5 w-2.5 rounded-full bg-white/30" />
-                )}
-                <span
-                  className={cx(
-                    "text-2xl font-bold tabular-nums",
-                    activeStations > 0 ? "text-white" : "text-white/40"
-                  )}
-                >
-                  {activeStations}
-                  <span className="text-base font-semibold text-white/40"> / {totalStations}</span>
-                </span>
-              </span>
-              {activeStations === 0 && <span className="mt-0.5 text-[11px] text-white/40">{t("dashboard.noneOnline")}</span>}
-            </div>
+            </MetricTile>
           </div>
         </div>
       </Panel>
+
+      <StationsModal
+        open={stationsOpen}
+        onClose={() => setStationsOpen(false)}
+        stations={stationsSorted}
+        t={t}
+      />
 
       {/* ── 2) THROUGHPUT CHART ───────────────────────────────────────────── */}
       <Panel rail="bg-violet-400/70" className="px-5 py-4">
