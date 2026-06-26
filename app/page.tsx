@@ -15,6 +15,9 @@ import OperatorsManager from "./components/operators/OperatorsManager";
 import { AuthProvider, useAuth } from "./components/auth/AuthProvider";
 import { LoginScreen, BootstrapScreen } from "./components/auth/AuthScreens";
 import { useTranslation } from "@/lib/i18n";
+import { api } from "@/lib/api/client";
+import SearchModal from "./components/SearchModal";
+import NotificationsPanel from "./components/NotificationsPanel";
 
 const APP_VERSION = "1.0.3";
 
@@ -214,6 +217,42 @@ function AppShell() {
       .catch(() => { });
     return () => { alive = false; };
   }, []);
+
+  // ── header: global search (⌘K) + notifications bell ──
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifItems, setNotifItems] = useState<any[]>([]);
+  const [notifSeen, setNotifSeen] = useState<string>("");
+  useEffect(() => {
+    if (typeof window !== "undefined") setNotifSeen(window.localStorage.getItem("lp_notif_seen") || "");
+  }, []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      api.notifications().then((d: any) => { if (alive) setNotifItems(d.notifications ?? []); }).catch(() => {});
+    load();
+    const id = setInterval(load, 60_000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
+  const notifUnread = notifItems.filter((n) => n.created_at && (!notifSeen || n.created_at > notifSeen)).length;
+  const openNotif = () => {
+    if (!notifOpen) {
+      const now = new Date().toISOString();
+      setNotifSeen(now);
+      if (typeof window !== "undefined") window.localStorage.setItem("lp_notif_seen", now);
+    }
+    setNotifOpen((o) => !o);
+  };
 
   const [collapsed, setCollapsed] = useState(false);
   useEffect(() => {
@@ -430,14 +469,17 @@ function AppShell() {
             <div className="text-[11.5px] text-white/45">{activeTab.description}</div>
           </div>
           <div className="flex items-center gap-[9px]">
-            <div className="hidden items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.04] px-[9px] py-[6px] text-white/40 sm:flex">
+            <button
+              onClick={() => setSearchOpen(true)}
+              className="hidden items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.04] px-[9px] py-[6px] text-white/40 transition hover:border-white/20 hover:text-white/70 sm:flex"
+            >
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
                 <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.6" />
                 <path d="m20 20-3-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
               </svg>
               <span className="text-[12px]">{t("app.search")}</span>
               <span className="rounded border border-white/15 px-[5px] py-px text-[10px] font-[family-name:var(--font-geist-mono)]">⌘K</span>
-            </div>
+            </button>
             <button
               onClick={() => setActive("settings")}
               className="inline-flex items-center gap-[6px] rounded-lg border border-indigo-400/30 bg-indigo-400/[0.13] px-[10px] py-[6px] text-[11.5px] text-indigo-200 transition hover:bg-indigo-400/20"
@@ -448,14 +490,32 @@ function AppShell() {
               </svg>
               {t("app.updates")}
             </button>
-            <button aria-label={t("app.notifications")} className="text-white/45 transition hover:text-white">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
-                <path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-                <path d="M10 20a2 2 0 0 0 4 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-              </svg>
-            </button>
+            <div className="relative">
+              <button
+                onClick={openNotif}
+                aria-label={t("app.notifications")}
+                className="relative block text-white/45 transition hover:text-white"
+              >
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
+                  <path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+                  <path d="M10 20a2 2 0 0 0 4 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+                {notifUnread > 0 && (
+                  <span className="absolute -right-1.5 -top-1.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-none text-white">
+                    {notifUnread > 9 ? "9+" : notifUnread}
+                  </span>
+                )}
+              </button>
+              <NotificationsPanel open={notifOpen} onClose={() => setNotifOpen(false)} items={notifItems} />
+            </div>
           </div>
         </header>
+
+        <SearchModal
+          open={searchOpen}
+          onClose={() => setSearchOpen(false)}
+          onNavigate={(tab) => setActive(tab as TabKey)}
+        />
 
         <main className="relative flex-1 overflow-y-auto px-[18px] py-4">
           <div className="flex flex-col gap-6">

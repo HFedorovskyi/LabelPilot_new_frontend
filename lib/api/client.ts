@@ -395,6 +395,16 @@ export const api = {
             return res.json();
         },
     },
+    search: async (q: string) => {
+        const res = await apiFetch(`${API_BASE}/search/?q=${encodeURIComponent(q)}`);
+        if (!res.ok) throw new Error('Search failed');
+        return res.json();
+    },
+    notifications: async () => {
+        const res = await apiFetch(`${API_BASE}/notifications/`);
+        if (!res.ok) throw new Error('Failed to fetch notifications');
+        return res.json();
+    },
     printJobs: {
         list: async () => {
             const res = await apiFetch(`${API_BASE}/print_jobs/`);
