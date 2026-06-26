@@ -1049,6 +1049,8 @@ export default function LabelDesigner() {
     offsetY: number;
     startX: number;
     startY: number;
+    pointerStartX: number;
+    pointerStartY: number;
   } | null>(null);
 
   const panRef = useRef<{
@@ -1772,6 +1774,8 @@ export default function LabelDesigner() {
         offsetY: 0,
         startX: el.x,
         startY: el.y,
+        pointerStartX: e.clientX,
+        pointerStartY: e.clientY,
       };
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     },
@@ -1852,16 +1856,19 @@ export default function LabelDesigner() {
 
     if (!drag?.active) return;
 
-    // Use movementX/Y - the delta since last pointer event
-    // Divide by zoom to convert screen pixels to canvas pixels
-    const deltaX = e.movementX / zoom;
-    const deltaY = e.movementY / zoom;
+    // Absolute reference from the pointer-down origin (self-correcting). movementX/Y is an
+    // integer-rounded PER-EVENT delta that's lost on coalesced/dropped pointermove events; because
+    // it was accumulated into el.x the loss was permanent, so the element drifted behind the cursor
+    // — worse at low zoom (big labels need more cursor travel ⇒ more events ⇒ more loss). Mirrors
+    // the resize branch: place the element at start + (clientNow − clientStart)/zoom every event.
+    const deltaX = (e.clientX - drag.pointerStartX) / zoom;
+    const deltaY = (e.clientY - drag.pointerStartY) / zoom;
 
     setDoc((d) => ({
       ...d,
       elements: d.elements.map((el) =>
         el.id === drag.elementId
-          ? ({ ...el, x: el.x + deltaX, y: el.y + deltaY } as LabelElement)
+          ? ({ ...el, x: drag.startX + deltaX, y: drag.startY + deltaY } as LabelElement)
           : el
       ),
     }));
