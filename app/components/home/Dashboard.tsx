@@ -308,16 +308,19 @@ function ModalCell({ label, value, tone }: { label: string; value: React.ReactNo
 /** Drill-down: every individual marking (pack) of one station — time, operator, product,
  *  weight and status — with a today/all scope and load-more, for full traceability. */
 function StationDetailModal({ station, onClose, t }: { station: any; onClose: () => void; t: TFunc }) {
-  const [scope, setScope] = useState<"today" | "all">("today");
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [mode, setMode] = useState<"date" | "all">("date");
+  const [date, setDate] = useState(todayStr);
   const [labels, setLabels] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const fetchOpts = mode === "all" ? { scope: "all" as const } : { date };
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
     api.statistics
-      .stationLabels(station.id, { scope, limit: 300, offset: 0 })
+      .stationLabels(station.id, { ...fetchOpts, limit: 500, offset: 0 })
       .then((d: any) => {
         if (!alive) return;
         setLabels(d.labels ?? []);
@@ -335,14 +338,21 @@ function StationDetailModal({ station, onClose, t }: { station: any; onClose: ()
     return () => {
       alive = false;
     };
-  }, [station.id, scope]);
+  }, [station.id, mode, date]);
 
   const loadMore = () => {
     setLoading(true);
     api.statistics
-      .stationLabels(station.id, { scope, limit: 300, offset: labels.length })
+      .stationLabels(station.id, { ...fetchOpts, limit: 500, offset: labels.length })
       .then((d: any) => setLabels((prev) => [...prev, ...(d.labels ?? [])]))
       .finally(() => setLoading(false));
+  };
+
+  const shiftDay = (days: number) => {
+    const d = new Date(date + "T00:00:00Z");
+    d.setUTCDate(d.getUTCDate() + days);
+    setMode("date");
+    setDate(d.toISOString().slice(0, 10));
   };
 
   return (
@@ -373,19 +383,47 @@ function StationDetailModal({ station, onClose, t }: { station: any; onClose: ()
               </p>
             </div>
           </div>
-          <div className="flex shrink-0 rounded-lg border border-white/10 bg-white/[0.03] p-0.5 text-[11px]">
-            {(["today", "all"] as const).map((sc) => (
-              <button
-                key={sc}
-                onClick={() => setScope(sc)}
-                className={cx(
-                  "rounded-md px-3 py-1 font-medium transition",
-                  scope === sc ? "bg-indigo-400/20 text-indigo-200" : "text-white/45 hover:text-white"
-                )}
-              >
-                {sc === "today" ? t("dashboard.scopeToday") : t("dashboard.scopeAll")}
-              </button>
-            ))}
+          <div className="flex shrink-0 items-center gap-1.5 text-[11px]">
+            {mode === "date" && (
+              <div className="flex items-center gap-0.5 rounded-lg border border-white/10 bg-white/[0.03] p-0.5">
+                <button
+                  onClick={() => shiftDay(-1)}
+                  aria-label={t("dashboard.prevDay")}
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-white/45 transition hover:bg-white/5 hover:text-white"
+                >
+                  <Icon name="chevron-right" className="h-4 w-4 rotate-180" />
+                </button>
+                <input
+                  type="date"
+                  value={date}
+                  max={todayStr}
+                  onChange={(e) => {
+                    setMode("date");
+                    setDate(e.target.value || todayStr);
+                  }}
+                  className="bg-transparent px-1 text-[12px] text-white/80 outline-none [color-scheme:dark]"
+                />
+                <button
+                  onClick={() => shiftDay(1)}
+                  disabled={date >= todayStr}
+                  aria-label={t("dashboard.nextDay")}
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-white/45 transition hover:bg-white/5 hover:text-white disabled:opacity-30"
+                >
+                  <Icon name="chevron-right" className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+            <button
+              onClick={() => setMode(mode === "all" ? "date" : "all")}
+              className={cx(
+                "rounded-lg px-3 py-1.5 font-medium transition",
+                mode === "all"
+                  ? "bg-indigo-400/20 text-indigo-200"
+                  : "border border-white/10 bg-white/[0.03] text-white/45 hover:text-white"
+              )}
+            >
+              {t("dashboard.scopeAll")}
+            </button>
           </div>
         </div>
         <div className="max-h-[70vh] overflow-y-auto">

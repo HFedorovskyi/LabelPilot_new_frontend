@@ -383,10 +383,11 @@ export const api = {
         },
         stationLabels: async (
             stationId: number,
-            opts: { scope?: 'today' | 'all'; limit?: number; offset?: number } = {}
+            opts: { scope?: 'today' | 'all'; date?: string; limit?: number; offset?: number } = {}
         ) => {
             const p = new URLSearchParams({ station_id: String(stationId) });
             if (opts.scope) p.set('scope', opts.scope);
+            if (opts.date) p.set('date', opts.date);
             if (opts.limit != null) p.set('limit', String(opts.limit));
             if (opts.offset != null) p.set('offset', String(opts.offset));
             const res = await apiFetch(`${API_BASE}/statistics/station_labels/?${p.toString()}`);
