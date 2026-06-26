@@ -77,7 +77,8 @@ type IconName =
   | "trash"
   | "clock"
   | "x"
-  | "chevron-right";
+  | "chevron-right"
+  | "download";
 
 function Icon({ name, className }: { name: IconName; className?: string }) {
   const common = "h-4 w-4";
@@ -196,6 +197,12 @@ function Icon({ name, className }: { name: IconName; className?: string }) {
           <path d="m9 6 6 6-6 6" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       );
+    case "download":
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={cl} aria-hidden="true">
+          <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
   }
 }
 
@@ -305,6 +312,18 @@ function ModalCell({ label, value, tone }: { label: string; value: React.ReactNo
   );
 }
 
+/** One field of a pack's traceability passport (expanded row in the detail table). */
+function PassportField({ label, value, mono }: { label: string; value: any; mono?: boolean }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-[9px] uppercase tracking-[0.08em] text-white/30">{label}</div>
+      <div className={cx("text-white/80", mono ? "break-all font-mono text-[11px]" : "text-[12px]")}>
+        {value || "—"}
+      </div>
+    </div>
+  );
+}
+
 /** Drill-down: every individual marking (pack) of one station — time, operator, product,
  *  weight and status — with a today/all scope and load-more, for full traceability. */
 function StationDetailModal({ station, onClose, t }: { station: any; onClose: () => void; t: TFunc }) {
@@ -314,11 +333,14 @@ function StationDetailModal({ station, onClose, t }: { station: any; onClose: ()
   const [labels, setLabels] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [exporting, setExporting] = useState(false);
   const fetchOpts = mode === "all" ? { scope: "all" as const } : { date };
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
+    setExpanded(new Set());
     api.statistics
       .stationLabels(station.id, { ...fetchOpts, limit: 500, offset: 0 })
       .then((d: any) => {
@@ -353,6 +375,73 @@ function StationDetailModal({ station, onClose, t }: { station: any; onClose: ()
     d.setUTCDate(d.getUTCDate() + days);
     setMode("date");
     setDate(d.toISOString().slice(0, 10));
+  };
+
+  const toggleExpand = (id: number) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const exportCsv = async () => {
+    setExporting(true);
+    try {
+      const all: any[] = [];
+      let offset = 0;
+      for (let i = 0; i < 50; i++) {
+        const d: any = await api.statistics.stationLabels(station.id, { ...fetchOpts, limit: 1000, offset });
+        const batch = d.labels ?? [];
+        all.push(...batch);
+        offset += batch.length;
+        if (batch.length < 1000 || offset >= (d.total ?? 0)) break;
+      }
+      const headers = [
+        t("dashboard.colTime"),
+        t("dashboard.colOperator"),
+        t("dashboard.colProduct"),
+        t("dashboard.colPack"),
+        t("dashboard.colBatch"),
+        t("dashboard.colProdDate"),
+        t("dashboard.colExpDate"),
+        t("dashboard.colBarcode"),
+        `${t("dashboard.colWeight")} ${t("dashboard.unitKg")}`,
+        `${t("dashboard.colBrutto")} ${t("dashboard.unitKg")}`,
+        t("dashboard.colStatus"),
+      ];
+      const esc = (v: any) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+      const lines = [headers.map(esc).join(",")];
+      for (const l of all) {
+        lines.push(
+          [
+            l.printed_at ? new Date(l.printed_at).toLocaleString("ru-RU") : "",
+            l.operator,
+            l.product_name,
+            l.pack_name,
+            l.batch,
+            l.production_date,
+            l.expiration_date,
+            l.barcode,
+            l.weight_kg ?? "",
+            l.weight_brutto_kg ?? "",
+            l.is_deleted ? t("dashboard.stDeleted") : t("dashboard.stMarked"),
+          ]
+            .map(esc)
+            .join(",")
+        );
+      }
+      const csv = "﻿" + lines.join("\r\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `station_${padNum(station.number) || station.id}_${mode === "all" ? "all" : date}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -424,6 +513,14 @@ function StationDetailModal({ station, onClose, t }: { station: any; onClose: ()
             >
               {t("dashboard.scopeAll")}
             </button>
+            <button
+              onClick={exportCsv}
+              disabled={exporting || total === 0}
+              className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 font-medium text-white/55 transition hover:text-white disabled:opacity-40"
+            >
+              <Icon name="download" className="h-3.5 w-3.5" />
+              {exporting ? "…" : t("dashboard.exportCsv")}
+            </button>
           </div>
         </div>
         <div className="max-h-[70vh] overflow-y-auto">
@@ -444,32 +541,60 @@ function StationDetailModal({ station, onClose, t }: { station: any; onClose: ()
               </thead>
               <tbody>
                 {labels.map((l) => (
-                  <tr key={l.id} className="border-b border-white/[0.05] hover:bg-white/[0.02]">
-                    <td className="whitespace-nowrap px-4 py-2 tabular-nums text-white/80">
-                      {l.printed_at ? timeStr(l.printed_at) : "—"}
-                    </td>
-                    <td className="px-2 py-2 text-white/70">{l.operator || "—"}</td>
-                    <td className="px-2 py-2">
-                      <span className="text-white/85">{l.product_name || "—"}</span>
-                      {l.pack_name ? <span className="text-white/35"> · {l.pack_name}</span> : null}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-emerald-300/90">
-                      {l.weight_kg ? `${fmt(l.weight_kg)} ${t("dashboard.unitKg")}` : "—"}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-2 text-right">
-                      {l.is_deleted ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2 py-0.5 text-[11px] text-rose-300">
-                          <Icon name="trash" className="h-3 w-3" />
-                          {t("dashboard.stDeleted")}
+                  <React.Fragment key={l.id}>
+                    <tr
+                      onClick={() => toggleExpand(l.id)}
+                      className="cursor-pointer border-b border-white/[0.05] hover:bg-white/[0.025]"
+                    >
+                      <td className="whitespace-nowrap px-4 py-2 tabular-nums text-white/80">
+                        <span className="inline-flex items-center gap-1.5">
+                          <Icon
+                            name="chevron-right"
+                            className={cx("h-3 w-3 text-white/30 transition", expanded.has(l.id) && "rotate-90")}
+                          />
+                          {l.printed_at ? timeStr(l.printed_at) : "—"}
                         </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300">
-                          <Icon name="circle-check" className="h-3 w-3" />
-                          {t("dashboard.stMarked")}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
+                      </td>
+                      <td className="px-2 py-2 text-white/70">{l.operator || "—"}</td>
+                      <td className="px-2 py-2">
+                        <span className="text-white/85">{l.product_name || "—"}</span>
+                        {l.pack_name ? <span className="text-white/35"> · {l.pack_name}</span> : null}
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-emerald-300/90">
+                        {l.weight_kg ? `${fmt(l.weight_kg)} ${t("dashboard.unitKg")}` : "—"}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-2 text-right">
+                        {l.is_deleted ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2 py-0.5 text-[11px] text-rose-300">
+                            <Icon name="trash" className="h-3 w-3" />
+                            {t("dashboard.stDeleted")}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300">
+                            <Icon name="circle-check" className="h-3 w-3" />
+                            {t("dashboard.stMarked")}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                    {expanded.has(l.id) && (
+                      <tr className="border-b border-white/[0.05] bg-white/[0.015]">
+                        <td colSpan={5} className="px-4 py-3">
+                          <div className="grid grid-cols-2 gap-x-6 gap-y-2.5 sm:grid-cols-3">
+                            <PassportField label={t("dashboard.colBatch")} value={l.batch} />
+                            <PassportField label={t("dashboard.colProdDate")} value={l.production_date} />
+                            <PassportField label={t("dashboard.colExpDate")} value={l.expiration_date} />
+                            <PassportField label={t("dashboard.colBarcode")} value={l.barcode} mono />
+                            <PassportField
+                              label={t("dashboard.colBrutto")}
+                              value={l.weight_brutto_kg ? `${fmt(l.weight_brutto_kg)} ${t("dashboard.unitKg")}` : null}
+                            />
+                            <PassportField label={t("dashboard.colPack")} value={l.pack_name} />
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
