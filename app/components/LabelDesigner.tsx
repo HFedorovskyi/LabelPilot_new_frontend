@@ -964,6 +964,12 @@ export default function LabelDesigner() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const [zoom, setZoom] = useState(1);
+  // Latest-zoom ref. onPointerMoveViewport is memoized with EMPTY deps (to avoid a re-subscribe
+  // loop), so it forever calls the FIRST-render onPointerMove whose `zoom` closure is frozen at 1.
+  // Reading zoom through this live ref makes the drag/resize delta math use the CURRENT zoom — the
+  // real cause of the element lagging (zoom<1) or overshooting (zoom>1) the cursor.
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [isSpacePressed, setIsSpacePressed] = useState(false);
@@ -1788,9 +1794,9 @@ export default function LabelDesigner() {
       const resize = resizeRef.current;
       const el = resize.initialElement;
 
-      // Calculate delta in screen pixels, then convert to canvas scaling
-      const globalDx = (e.clientX - resize.startX) / zoom;
-      const globalDy = (e.clientY - resize.startY) / zoom;
+      // Calculate delta in screen pixels, then convert to canvas scaling (live zoom via ref).
+      const globalDx = (e.clientX - resize.startX) / zoomRef.current;
+      const globalDy = (e.clientY - resize.startY) / zoomRef.current;
 
       // Project delta into element's local coordinate system (unrotated)
       // We rotate the global delta by -rotation
@@ -1861,8 +1867,8 @@ export default function LabelDesigner() {
     // it was accumulated into el.x the loss was permanent, so the element drifted behind the cursor
     // — worse at low zoom (big labels need more cursor travel ⇒ more events ⇒ more loss). Mirrors
     // the resize branch: place the element at start + (clientNow − clientStart)/zoom every event.
-    const deltaX = (e.clientX - drag.pointerStartX) / zoom;
-    const deltaY = (e.clientY - drag.pointerStartY) / zoom;
+    const deltaX = (e.clientX - drag.pointerStartX) / zoomRef.current;
+    const deltaY = (e.clientY - drag.pointerStartY) / zoomRef.current;
 
     setDoc((d) => ({
       ...d,
