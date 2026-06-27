@@ -176,7 +176,7 @@ function UpdatesSection() {
     const [updaterOnline, setUpdaterOnline] = useState<boolean | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const logEndRef = useRef<HTMLDivElement>(null);
+    const logBoxRef = useRef<HTMLDivElement>(null);
 
     // ── Fetch version from Django API ──────────────────────────────────────────
     useEffect(() => {
@@ -209,7 +209,10 @@ function UpdatesSection() {
 
     // ── Auto-scroll log ────────────────────────────────────────────────────────
     useEffect(() => {
-        logEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        // Scroll ONLY the log box to its bottom. scrollIntoView() would bubble up and scroll
+        // the whole settings page, so the app jumped down on every polled log line during an update.
+        const box = logBoxRef.current;
+        if (box) box.scrollTop = box.scrollHeight;
     }, [logLines]);
 
     // ── Poll progress ──────────────────────────────────────────────────────────
@@ -451,11 +454,10 @@ function UpdatesSection() {
                     </div>
                     <ProgressBar value={progress} label={progressLabel || t('settings.preparing')} />
                     {logLines.length > 0 && (
-                        <div className="mt-3 max-h-40 overflow-y-auto rounded-xl bg-black/30 p-3 font-mono text-xs text-white/60 space-y-0.5">
+                        <div ref={logBoxRef} className="mt-3 max-h-40 overflow-y-auto rounded-xl bg-black/30 p-3 font-mono text-xs text-white/60 space-y-0.5">
                             {logLines.map((line, i) => (
                                 <div key={i}>{line}</div>
                             ))}
-                            <div ref={logEndRef} />
                         </div>
                     )}
                 </Card>
