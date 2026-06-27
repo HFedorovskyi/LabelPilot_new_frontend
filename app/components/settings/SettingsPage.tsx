@@ -531,6 +531,7 @@ function LicenseSection() {
     const [error, setError] = useState<string | null>(null);
     const [importing, setImporting] = useState(false);
     const [importMsg, setImportMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+    const [copied, setCopied] = useState(false);
 
     useEffect(() => {
         let alive = true;
@@ -650,6 +651,31 @@ function LicenseSection() {
                         </div>
                     </div>
                 )}
+            </Card>
+
+            {/* Machine ID — ALWAYS visible + copyable. The buyer sends this to the supplier so the
+                license can be bound to this exact server (it's needed regardless of demo/active state). */}
+            <Card>
+                <div className="text-sm font-semibold text-white">{t('settings.machineIdTitle')}</div>
+                <div className="mt-1 text-xs text-white/50">{t('settings.machineIdHint')}</div>
+                <div className="mt-3 flex items-center gap-2">
+                    <code className="min-w-0 flex-1 truncate rounded-lg border border-white/10 bg-black/30 px-3 py-2 font-[family-name:var(--font-geist-mono)] text-sm text-white">
+                        {info.machine_id || "—"}
+                    </code>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            if (info.machine_id) {
+                                navigator.clipboard?.writeText(info.machine_id);
+                                setCopied(true);
+                                setTimeout(() => setCopied(false), 1500);
+                            }
+                        }}
+                        className="shrink-0 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/70 transition hover:bg-white/10"
+                    >
+                        {copied ? t('settings.copied') : t('settings.copy')}
+                    </button>
+                </div>
             </Card>
 
             {/* Admin-only: import / replace the license (.lpl) — verified + activated live, no restart. */}
