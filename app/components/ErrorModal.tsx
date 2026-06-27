@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import Portal from "./Portal";
 
 interface ErrorModalProps {
     isOpen: boolean;
@@ -20,6 +21,7 @@ export default function ErrorModal({ isOpen, onClose, title = "Error", message, 
     };
 
     return (
+        <Portal>
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
             <div className="w-full max-w-2xl overflow-hidden rounded-3xl border border-red-500/30 bg-[#0A0A0B] shadow-2xl">
                 {/* Header */}
@@ -86,5 +88,6 @@ export default function ErrorModal({ isOpen, onClose, title = "Error", message, 
                 </div>
             </div>
         </div>
+        </Portal>
     );
 }

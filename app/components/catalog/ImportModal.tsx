@@ -3,6 +3,7 @@ import { api } from "@/lib/api/client";
 import { useTranslation } from "@/lib/i18n";
 import { SmallButton, Select, Card } from "./ProductCatalog";
 import type { GlobalAttribute, Packaging, LabelTemplate } from "./types";
+import Portal from "../Portal";
 
 interface ImportModalProps {
     onClose: () => void;
@@ -145,6 +146,7 @@ export default function ImportModal({ onClose, onSuccess, globalAttributes, pack
     }, [columns]);
 
     return (
+        <Portal>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
             <div className="bg-neutral-900 border border-white/10 rounded-2xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh]">
 
@@ -430,5 +432,6 @@ export default function ImportModal({ onClose, onSuccess, globalAttributes, pack
                 </div>
             </div>
         </div>
+        </Portal>
     );
 }

@@ -5,6 +5,7 @@ import type { Product, Packaging, LabelTemplate, Station, GlobalAttribute } from
 import { api } from "@/lib/api/client";
 import { cx, makeEan13 } from "./utils";
 import ImportModal from "./ImportModal";
+import Portal from "../Portal";
 import { useTranslation } from "@/lib/i18n";
 
 export function Card({
@@ -563,6 +564,7 @@ export default function ProductCatalog() {
 
       {/* Send to Stations Modal */}
       {isSendModalOpen && (
+        <Portal>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl">
             <h3 className="text-xl font-semibold text-white mb-4">{t('catalog.sendToStations')}</h3>
@@ -598,10 +600,12 @@ export default function ProductCatalog() {
             </div>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* Manage Attributes Modal */}
       {isAttrModalOpen && (
+        <Portal>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl">
             <h3 className="text-xl font-semibold text-white mb-4">{t('catalog.manageFields')}</h3>
@@ -639,6 +643,7 @@ export default function ProductCatalog() {
             </div>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* Import Modal */}

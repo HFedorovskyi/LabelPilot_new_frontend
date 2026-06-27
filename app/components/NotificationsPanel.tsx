@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "@/lib/i18n";
 
 function cx(...p: Array<string | false | null | undefined>) {
@@ -27,17 +28,50 @@ export default function NotificationsPanel({
   open,
   onClose,
   items,
+  anchorRef,
 }: {
   open: boolean;
   onClose: () => void;
   items: any[];
+  anchorRef: React.RefObject<HTMLElement | null>;
 }) {
   const { t } = useTranslation();
-  if (!open) return null;
-  return (
+  // Render into <body> via a portal so the dropdown escapes the header's
+  // backdrop-blur stacking context (which otherwise traps it BELOW <main>,
+  // hiding it behind the dashboard cards regardless of its z-index).
+  const [mounted, setMounted] = React.useState(false);
+  const [pos, setPos] = React.useState<{ top: number; right: number } | null>(null);
+  React.useEffect(() => setMounted(true), []);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const compute = () => {
+      const el = anchorRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      // Anchor the panel's top below the bell and align its right edge to the
+      // bell's right edge (clamped so it never spills off-screen on the left).
+      const right = Math.min(Math.max(8, window.innerWidth - r.right), window.innerWidth - 348);
+      setPos({ top: Math.round(r.bottom + 8), right: Math.round(Math.max(8, right)) });
+    };
+    compute();
+    window.addEventListener("resize", compute);
+    window.addEventListener("scroll", compute, true);
+    return () => {
+      window.removeEventListener("resize", compute);
+      window.removeEventListener("scroll", compute, true);
+    };
+  }, [open, anchorRef]);
+
+  if (!open || !mounted || !pos) return null;
+
+  return createPortal(
     <>
-      <div className="fixed inset-0 z-[114]" onClick={onClose} />
-      <div className="absolute right-0 top-[calc(100%+8px)] z-[115] w-[340px] overflow-hidden rounded-2xl border border-white/[0.12] bg-[#0c0c0e] shadow-2xl">
+      <div className="fixed inset-0 z-[199]" onClick={onClose} />
+      <div
+        className="fixed z-[200] w-[340px] overflow-hidden rounded-2xl border border-white/[0.12] bg-[#0c0c0e] shadow-2xl"
+        style={{ top: pos.top, right: pos.right }}
+      >
         <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
           <span className="text-[13px] font-semibold text-white">{t("notif.title")}</span>
           <span className="text-[11px] text-white/35">{items.length}</span>
@@ -62,6 +96,7 @@ export default function NotificationsPanel({
           )}
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 }

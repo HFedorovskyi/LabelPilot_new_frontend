@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api/client";
 import { useTranslation } from "@/lib/i18n";
+import Portal from "../Portal";
 
 type TFunc = (key: string, params?: Record<string, string | number>) => string;
 
@@ -445,6 +446,7 @@ function StationDetailModal({ station, onClose, t }: { station: any; onClose: ()
   };
 
   return (
+    <Portal>
     <div
       className="fixed inset-0 z-[110] flex items-start justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm"
       onClick={onClose}
@@ -613,6 +615,7 @@ function StationDetailModal({ station, onClose, t }: { station: any; onClose: ()
         </div>
       </div>
     </div>
+    </Portal>
   );
 }
 
@@ -637,6 +640,7 @@ function StationsModal({
   const rows = [...(stations ?? [])].sort((a, b) => (b.marked ?? 0) - (a.marked ?? 0));
   const maxMarked = Math.max(1, ...rows.map((s) => s.marked ?? 0));
   return (
+    <Portal>
     <>
       <div
         className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm"
@@ -720,6 +724,7 @@ function StationsModal({
       </div>
       {detail && <StationDetailModal station={detail} onClose={() => setDetail(null)} t={t} />}
     </>
+    </Portal>
   );
 }
 

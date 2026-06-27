@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { api } from "@/lib/api/client";
 import { useTranslation } from "@/lib/i18n";
 
@@ -30,7 +31,11 @@ export default function SearchModal({
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [sel, setSel] = useState(0);
+  const [mounted, setMounted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Portal target only exists on the client (static export prerenders on the server).
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!open) return;
@@ -96,11 +101,13 @@ export default function SearchModal({
     }
   };
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
   const query = q.trim();
-  return (
+  // Portal to <body> so the overlay escapes the main column's stacking context
+  // (z-10, below the sidebar's z-20) and reliably covers the whole viewport.
+  return createPortal(
     <div
-      className="fixed inset-0 z-[120] flex items-start justify-center bg-black/70 p-4 pt-[12vh] backdrop-blur-sm"
+      className="fixed inset-0 z-[300] flex items-start justify-center bg-black/70 p-4 pt-[12vh] backdrop-blur-sm"
       onClick={onClose}
     >
       <div
@@ -157,6 +164,7 @@ export default function SearchModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

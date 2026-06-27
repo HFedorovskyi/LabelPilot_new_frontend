@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import LabelDesigner from "./components/LabelDesigner";
 import ProductCatalog from "./components/catalog/ProductCatalog";
 import PackagingManager from "./components/catalog/PackagingManager";
@@ -221,6 +221,7 @@ function AppShell() {
   // ── header: global search (⌘K) + notifications bell ──
   const [searchOpen, setSearchOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const bellRef = useRef<HTMLButtonElement>(null);
   const [notifItems, setNotifItems] = useState<any[]>([]);
   const [notifSeen, setNotifSeen] = useState<string>("");
   useEffect(() => {
@@ -492,6 +493,7 @@ function AppShell() {
             </button>
             <div className="relative">
               <button
+                ref={bellRef}
                 onClick={openNotif}
                 aria-label={t("app.notifications")}
                 className="relative block text-white/45 transition hover:text-white"
@@ -506,7 +508,7 @@ function AppShell() {
                   </span>
                 )}
               </button>
-              <NotificationsPanel open={notifOpen} onClose={() => setNotifOpen(false)} items={notifItems} />
+              <NotificationsPanel open={notifOpen} onClose={() => setNotifOpen(false)} items={notifItems} anchorRef={bellRef} />
             </div>
           </div>
         </header>
