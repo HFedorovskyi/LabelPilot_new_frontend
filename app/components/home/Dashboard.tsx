@@ -31,7 +31,11 @@ function relTime(iso: string | null, t: TFunc): string {
 }
 
 function timeStr(iso: string): string {
-  return new Date(iso).toLocaleTimeString("ru-RU", {
+  // toLocaleTimeString with options throws RangeError on an Invalid Date — guard null/malformed.
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleTimeString("ru-RU", {
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -912,6 +916,7 @@ function ThroughputChart({ data, mode }: { data: Pt[]; mode: "24h" | "7d" }) {
   }
   const tickLabel = (iso: string) => {
     const d = new Date(iso);
+    if (isNaN(d.getTime())) return ""; // toLocale*String with options throws on Invalid Date
     if (mode === "24h") {
       return d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
     }
@@ -1073,7 +1078,7 @@ export default function Dashboard() {
 
   // ── derived values (hooks must run before any early return) ──
   const stationsSorted = useMemo(() => {
-    const list = (stats?.stations_detail as any[]) ?? [];
+    const list = ((stats?.stations_detail as any[]) ?? []).filter(Boolean);
     return [...list].sort((a, b) => {
       const sa = getStationState(a.mode, a.is_online, t);
       const sb = getStationState(b.mode, b.is_online, t);
@@ -1085,8 +1090,8 @@ export default function Dashboard() {
   }, [stats, t]);
 
   const feed = useMemo<FeedItem[]>(() => {
-    const events = (stats?.server_events as any[]) ?? [];
-    const logs = (stats?.recent_logs as any[]) ?? [];
+    const events = ((stats?.server_events as any[]) ?? []).filter(Boolean);
+    const logs = ((stats?.recent_logs as any[]) ?? []).filter(Boolean);
     const items: FeedItem[] = [];
     for (const ev of events) {
       items.push({
@@ -1135,18 +1140,19 @@ export default function Dashboard() {
   const labelsYesterday: number = stats.labels_yesterday ?? 0;
   const delta = computeDelta(labelsToday, labelsYesterday, t);
 
-  const throughput24h: Pt[] = (stats.throughput_24h as Pt[]) ?? [];
-  const throughput7d: Pt[] = (stats.throughput_7d as Pt[]) ?? [];
+  const throughput24h: Pt[] = ((stats.throughput_24h as Pt[]) ?? []).filter(Boolean);
+  const throughput7d: Pt[] = ((stats.throughput_7d as Pt[]) ?? []).filter(Boolean);
   const chartData = chartMode === "24h" ? throughput24h : throughput7d;
 
   const activeStations: number = stats.active_stations ?? 0;
   const totalStations: number = stats.total_stations ?? 0;
   const stationRatioPct = totalStations > 0 ? Math.round((activeStations / totalStations) * 100) : 0;
 
-  const topStations: any[] = stats.top_stations ?? [];
-  const topProducts: any[] = stats.top_products ?? [];
-  const maxStationCount: number = topStations.length > 0 ? topStations[0].count : 1;
-  const maxProductCount: number = topProducts.length > 0 ? topProducts[0].count : 1;
+  // filter(Boolean) so a stray null element from a partial API payload can't throw at render.
+  const topStations: any[] = (stats.top_stations ?? []).filter(Boolean);
+  const topProducts: any[] = (stats.top_products ?? []).filter(Boolean);
+  const maxStationCount: number = topStations.length > 0 ? (topStations[0].count ?? 1) : 1;
+  const maxProductCount: number = topProducts.length > 0 ? (topProducts[0].count ?? 1) : 1;
 
   const productsWithoutTemplate: number = r.products_without_template ?? 0;
 
@@ -1454,7 +1460,7 @@ export default function Dashboard() {
             <EmptyState text={t("dashboard.noJobs")} />
           ) : (
             <div className="flex flex-col divide-y divide-white/5">
-              {stats.recent_jobs.map((j: any) => (
+              {stats.recent_jobs.filter(Boolean).map((j: any) => (
                 <div key={j.id} className="flex items-center gap-3 py-2.5">
                   <span className="w-8 shrink-0 text-[10px] font-bold text-white/25 font-[family-name:var(--font-geist-mono)]">
                     #{j.id}

@@ -18,6 +18,7 @@ import { useTranslation } from "@/lib/i18n";
 import { api } from "@/lib/api/client";
 import SearchModal from "./components/SearchModal";
 import NotificationsPanel from "./components/NotificationsPanel";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 const APP_VERSION = "1.0.3";
 
@@ -250,11 +251,15 @@ function AppShell() {
   const [updateAvail, setUpdateAvail] = useState<{ version: string; publishedAt: string | null } | null>(null);
   useEffect(() => {
     let alive = true;
-    const check = () =>
-      fetch("http://localhost:9000/check", { signal: AbortSignal.timeout(4000) })
-        .then((r) => r.json())
-        .then((d: any) => { if (alive) setUpdateAvail(d?.available ? { version: d.version, publishedAt: d.published_at || null } : null); })
-        .catch(() => { if (alive) setUpdateAvail(null); });
+    const check = () => {
+      try {
+        const signal = (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal) ? AbortSignal.timeout(4000) : undefined;
+        fetch("http://localhost:9000/check", signal ? { signal } : undefined)
+          .then((r) => r.json())
+          .then((d: any) => { if (alive) setUpdateAvail(d?.available ? { version: d.version, publishedAt: d.published_at || null } : null); })
+          .catch(() => { if (alive) setUpdateAvail(null); });
+      } catch { if (alive) setUpdateAvail(null); }
+    };
     check();
     const id = setInterval(check, 5 * 60_000);
     return () => { alive = false; clearInterval(id); };
@@ -548,6 +553,7 @@ function AppShell() {
         />
 
         <main className="relative flex-1 overflow-y-auto px-[18px] py-4">
+          <ErrorBoundary resetKey={active}>
           <div className="flex flex-col gap-6">
             {active === "home" ? <Dashboard /> : null}
             {active === "labels" ? <LabelDesigner /> : null}
@@ -565,6 +571,7 @@ function AppShell() {
               {t("app.footerCopyright", { year: new Date().getFullYear() })}
             </footer>
           </div>
+          </ErrorBoundary>
         </main>
       </div>
     </div>
