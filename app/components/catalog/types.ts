@@ -12,6 +12,7 @@ export type Product = {
   minWeightGrams?: number;
   maxWeightGrams?: number;
   extra_data?: any;
+  folder?: number | null;
 
   // Relations
   portionContainerId?: string | null;

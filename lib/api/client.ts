@@ -321,6 +321,35 @@ export const api = {
             if (!res.ok) throw new Error('Failed to delete attribute');
         },
     },
+    folders: {
+        list: async () => {
+            const res = await apiFetch(`${API_BASE}/nomenclature_folders/`);
+            if (!res.ok) throw new Error('Failed to fetch folders');
+            return res.json();
+        },
+        create: async (data: any) => {
+            const res = await apiFetch(`${API_BASE}/nomenclature_folders/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+            });
+            if (!res.ok) throw new Error('Failed to create folder');
+            return res.json();
+        },
+        update: async (id: number | string, data: any) => {
+            const res = await apiFetch(`${API_BASE}/nomenclature_folders/${id}/`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+            });
+            if (!res.ok) throw new Error('Failed to update folder');
+            return res.json();
+        },
+        delete: async (id: number | string) => {
+            const res = await apiFetch(`${API_BASE}/nomenclature_folders/${id}/`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Failed to delete folder');
+        },
+    },
     barcodes: {
         list: async () => {
             const res = await apiFetch(`${API_BASE}/barcodes/`);

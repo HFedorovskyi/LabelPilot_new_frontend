@@ -262,15 +262,23 @@ export default function ProductCatalog() {
   const [isAttrModalOpen, setIsAttrModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
+  // Folders state
+  const [folders, setFolders] = useState<any[]>([]);
+  const [folderFilter, setFolderFilter] = useState<'all' | 'none' | number>('all');
+  const [folderId, setFolderId] = useState<string>(''); // folder of the product currently in the form ('' = none)
+  const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [productsData, packsData, templatesData, stationsData, attributesData] = await Promise.all([
+      const [productsData, packsData, templatesData, stationsData, attributesData, foldersData] = await Promise.all([
         api.nomenclature.list(),
         api.packs.list(),
         api.labels.list(),
         api.stations.list(),
-        api.attributes.list()
+        api.attributes.list(),
+        api.folders.list()
       ]);
 
       // Adjust backend data to frontend model
@@ -293,6 +301,7 @@ export default function ProductCatalog() {
         boxContainerName: item.box_container_name,
         packLabelName: item.templates_pack_label_name,
         boxLabelName: item.templates_box_label_name,
+        folder: item.folder ?? null,
         extra_data: item.extra_data // Store extra_data to display if needed later
       }));
       setProducts(mapped);
@@ -310,6 +319,9 @@ export default function ProductCatalog() {
       if (Array.isArray(attributesData)) setGlobalAttributes(attributesData);
       else if (attributesData.results) setGlobalAttributes(attributesData.results);
 
+      if (Array.isArray(foldersData)) setFolders(foldersData);
+      else if (foldersData.results) setFolders(foldersData.results);
+
     } catch (e) {
       console.error(e);
     } finally {
@@ -323,14 +335,23 @@ export default function ProductCatalog() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return products;
     return products.filter((p: Product) => {
-      return (
-        p.sku.toLowerCase().includes(q) ||
-        p.name.toLowerCase().includes(q)
-      );
+      // Folder filter
+      if (folderFilter === 'none') {
+        if (p.folder != null) return false;
+      } else if (typeof folderFilter === 'number') {
+        if (p.folder !== folderFilter) return false;
+      }
+      // Text search filter
+      if (q) {
+        return (
+          p.sku.toLowerCase().includes(q) ||
+          p.name.toLowerCase().includes(q)
+        );
+      }
+      return true;
     });
-  }, [products, query]);
+  }, [products, query, folderFilter]);
 
   const toggleSection = (key: "params" | "packaging" | "extra") =>
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -379,6 +400,41 @@ export default function ProductCatalog() {
     setExtraDataState(prev => ({ ...prev, [key]: value }));
   };
 
+  const refreshFolders = async () => {
+    const res = await api.folders.list();
+    if (Array.isArray(res)) setFolders(res);
+    else if (res.results) setFolders(res.results);
+  };
+
+  const handleAddFolder = async () => {
+    const n = newFolderName.trim();
+    if (!n) return;
+    try {
+      await api.folders.create({ name: n });
+      setNewFolderName("");
+      await refreshFolders();
+      // Refetch products so item_counts / unfiled products stay accurate
+      fetchData();
+    } catch (e) {
+      console.error(e);
+      alert(t('catalog.errorSave'));
+    }
+  };
+
+  const handleDeleteFolder = async (id: number, name: string) => {
+    if (!confirm(t('catalog.confirmDeleteFolder', { name }))) return;
+    try {
+      await api.folders.delete(id);
+      // If the deleted folder was the active filter, fall back to "all"
+      if (folderFilter === id) setFolderFilter('all');
+      await refreshFolders();
+      fetchData();
+    } catch (e) {
+      console.error(e);
+      alert(t('catalog.errorDelete'));
+    }
+  };
+
   const handleEdit = (p: Product) => {
     setEditingId(p.id);
     setFormError("");
@@ -397,6 +453,7 @@ export default function ProductCatalog() {
     setBoxContainerId(p.boxContainerId ? String(p.boxContainerId) : "");
     setPackLabelId(p.packLabelId ? String(p.packLabelId) : "");
     setBoxLabelId(p.boxLabelId ? String(p.boxLabelId) : "");
+    setFolderId(p.folder != null ? String(p.folder) : "");
 
     // Set extra data
     let extraKeys = 0;
@@ -440,6 +497,7 @@ export default function ProductCatalog() {
     setBoxContainerId("");
     setPackLabelId("");
     setBoxLabelId("");
+    setFolderId("");
     setExtraDataState({});
     setFormError("");
     // NB: deliberately do NOT collapse the sections here. For bulk entry, once the
@@ -482,6 +540,7 @@ export default function ProductCatalog() {
       box_container: boxContainerId || null,
       templates_pack_label: packLabelId || null,
       templates_box_label: boxLabelId || null,
+      folder: folderId ? Number(folderId) : null,
       extra_data: extra_data
     };
 
@@ -540,6 +599,12 @@ export default function ProductCatalog() {
 
   const packOptions = useMemo(() => packs.map(p => ({ value: p.id.toString(), label: p.name })), [packs]);
   const templateOptions = useMemo(() => templates.map(t => ({ value: t.id.toString(), label: t.name })), [templates]);
+  // The Select component renders its own "" placeholder option, so we expose
+  // t('catalog.noFolder') via the placeholder prop and only list real folders here.
+  const folderOptions = useMemo(
+    () => folders.map((f) => ({ value: String(f.id), label: f.name })),
+    [folders]
+  );
 
   // ── derived summaries for the collapsible sections ──────────────────────────
   const paramsSummary = t('catalog.paramsSummary', {
@@ -646,6 +711,48 @@ export default function ProductCatalog() {
         </Portal>
       )}
 
+      {/* Manage Folders Modal */}
+      {isFolderModalOpen && (
+        <Portal>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <h3 className="text-xl font-semibold text-white mb-4">{t('catalog.manageFolders')}</h3>
+
+            <div className="flex gap-2 mb-4">
+              <div className="flex-1">
+                <Input value={newFolderName} onChange={setNewFolderName} placeholder={t('catalog.newFolderPlaceholder')} />
+              </div>
+              <SmallButton onClick={handleAddFolder} disabled={!newFolderName.trim()} variant="primary">
+                {t('catalog.createFolder')}
+              </SmallButton>
+            </div>
+
+            <div className="mb-4 max-h-[300px] overflow-y-auto space-y-2 border-t border-white/10 pt-4">
+              {folders.length === 0 ? (
+                <div className="text-white/50 text-sm italic">{t('catalog.noFolders')}</div>
+              ) : (
+                folders.map(f => (
+                  <div key={f.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5">
+                    <span className="text-sm font-medium text-white">{f.name}</span>
+                    <button
+                      onClick={() => handleDeleteFolder(f.id, f.name)}
+                      className="text-xs text-rose-500 hover:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 px-2 py-1 rounded transition"
+                    >
+                      {t('catalog.delete')}
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="flex justify-end mt-6">
+              <SmallButton onClick={() => setIsFolderModalOpen(false)}>{t('catalog.close')}</SmallButton>
+            </div>
+          </div>
+        </div>
+        </Portal>
+      )}
+
       {/* Import Modal */}
       {isImportModalOpen && (
         <ImportModal
@@ -695,6 +802,16 @@ export default function ProductCatalog() {
                   <RequiredTag />
                 </div>
                 <Input value={name} onChange={setName} placeholder={t('catalog.namePlaceholder')} />
+              </div>
+
+              <div className="grid gap-1.5">
+                <Eyebrow>{t('catalog.folderLabel')}</Eyebrow>
+                <Select
+                  value={folderId}
+                  onChange={setFolderId}
+                  options={folderOptions}
+                  placeholder={t('catalog.noFolder')}
+                />
               </div>
 
               {formError && (
@@ -858,6 +975,68 @@ export default function ProductCatalog() {
             </div>
           }
         >
+          {/* Folder filter chips */}
+          <div className="mb-4 flex flex-wrap items-center gap-2 overflow-x-auto pb-1">
+            <button
+              type="button"
+              onClick={() => setFolderFilter('all')}
+              className={cx(
+                "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition",
+                folderFilter === 'all'
+                  ? "border-emerald-400/40 bg-emerald-600 text-white"
+                  : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+              )}
+            >
+              {t('catalog.folderAll')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setFolderFilter('none')}
+              className={cx(
+                "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition",
+                folderFilter === 'none'
+                  ? "border-emerald-400/40 bg-emerald-600 text-white"
+                  : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+              )}
+            >
+              {t('catalog.folderNone')}
+            </button>
+            {folders.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setFolderFilter(f.id)}
+                className={cx(
+                  "shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition",
+                  folderFilter === f.id
+                    ? "border-emerald-400/40 bg-emerald-600 text-white"
+                    : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+                )}
+              >
+                <span>{f.name}</span>
+                <span
+                  className={cx(
+                    "rounded-full px-1.5 py-0.5 text-[10px] leading-none",
+                    folderFilter === f.id ? "bg-white/20 text-white" : "bg-white/10 text-white/55"
+                  )}
+                >
+                  {f.item_count ?? 0}
+                </span>
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setIsFolderModalOpen(true)}
+              title={t('catalog.manageFolders')}
+              className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/65 transition hover:bg-white/10 hover:text-white"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" aria-hidden="true">
+                <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+              {t('catalog.folders')}
+            </button>
+          </div>
+
           {products.length === 0 && !isLoading ? (
             <EmptyCatalog onImport={() => setIsImportModalOpen(true)} />
           ) : filtered.length === 0 ? (

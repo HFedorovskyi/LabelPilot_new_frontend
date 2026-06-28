@@ -245,7 +245,27 @@ function AppShell() {
     const id = setInterval(load, 60_000);
     return () => { alive = false; clearInterval(id); };
   }, []);
-  const notifUnread = notifItems.filter((n) => n.created_at && (!notifSeen || n.created_at > notifSeen)).length;
+
+  // ── available-update check (updater service on :9000; reachable from the server's own browser) ──
+  const [updateAvail, setUpdateAvail] = useState<{ version: string; publishedAt: string | null } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const check = () =>
+      fetch("http://localhost:9000/check", { signal: AbortSignal.timeout(4000) })
+        .then((r) => r.json())
+        .then((d: any) => { if (alive) setUpdateAvail(d?.available ? { version: d.version, publishedAt: d.published_at || null } : null); })
+        .catch(() => { if (alive) setUpdateAvail(null); });
+    check();
+    const id = setInterval(check, 5 * 60_000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
+
+  // Surface an available update both as a header badge and as a notifications-panel item.
+  const updateNotif = updateAvail
+    ? { id: `update-${updateAvail.version}`, level: "INFO", title: t("app.updateAvailable", { version: updateAvail.version }), subtitle: t("app.updateAvailableHint"), created_at: updateAvail.publishedAt }
+    : null;
+  const allNotifItems = updateNotif ? [updateNotif, ...notifItems] : notifItems;
+  const notifUnread = allNotifItems.filter((n) => n.created_at && (!notifSeen || n.created_at > notifSeen)).length;
   const openNotif = () => {
     if (!notifOpen) {
       const now = new Date().toISOString();
@@ -483,13 +503,21 @@ function AppShell() {
             </button>
             <button
               onClick={() => setActive("settings")}
-              className="inline-flex items-center gap-[6px] rounded-lg border border-indigo-400/30 bg-indigo-400/[0.13] px-[10px] py-[6px] text-[11.5px] text-indigo-200 transition hover:bg-indigo-400/20"
+              className={cx(
+                "relative inline-flex items-center gap-[6px] rounded-lg border px-[10px] py-[6px] text-[11.5px] transition",
+                updateAvail
+                  ? "border-amber-400/40 bg-amber-400/[0.15] text-amber-200 hover:bg-amber-400/25"
+                  : "border-indigo-400/30 bg-indigo-400/[0.13] text-indigo-200 hover:bg-indigo-400/20"
+              )}
             >
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
                 <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
                 <path d="M12 16V8m0 0-3 3m3-3 3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              {t("app.updates")}
+              {updateAvail ? t("app.updateTo", { version: updateAvail.version }) : t("app.updates")}
+              {updateAvail && (
+                <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-[#06070b] animate-pulse" />
+              )}
             </button>
             <div className="relative">
               <button
@@ -508,7 +536,7 @@ function AppShell() {
                   </span>
                 )}
               </button>
-              <NotificationsPanel open={notifOpen} onClose={() => setNotifOpen(false)} items={notifItems} anchorRef={bellRef} />
+              <NotificationsPanel open={notifOpen} onClose={() => setNotifOpen(false)} items={allNotifItems} anchorRef={bellRef} />
             </div>
           </div>
         </header>
