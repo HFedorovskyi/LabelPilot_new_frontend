@@ -434,6 +434,12 @@ export const api = {
         if (!res.ok) throw new Error('Failed to fetch notifications');
         return res.json();
     },
+    /** Live server version from GET /version/ (reads VERSION file — not a frontend constant). */
+    version: async (): Promise<{ server_version: string; min_client_version?: string; latest_client_version?: string }> => {
+        const res = await apiFetch(`${API_BASE}/version/`);
+        if (!res.ok) throw new Error('Failed to fetch version');
+        return res.json();
+    },
     printJobs: {
         list: async () => {
             const res = await apiFetch(`${API_BASE}/print_jobs/`);

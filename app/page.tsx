@@ -20,8 +20,6 @@ import SearchModal from "./components/SearchModal";
 import NotificationsPanel from "./components/NotificationsPanel";
 import ErrorBoundary from "./components/ErrorBoundary";
 
-const APP_VERSION = "1.0.3";
-
 const roleLabel = (t: (key: string) => string, role: string | undefined): string => {
   switch (role) {
     case "admin":
@@ -247,6 +245,16 @@ function AppShell() {
     return () => { alive = false; clearInterval(id); };
   }, []);
 
+  // Live server version for the nav (must match backend VERSION, not a frontend constant).
+  const [serverVersion, setServerVersion] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api.version()
+      .then((d) => { if (alive && d?.server_version) setServerVersion(String(d.server_version).trim()); })
+      .catch(() => { if (alive) setServerVersion(null); });
+    return () => { alive = false; };
+  }, []);
+
   // ── available-update check (updater service on :9000; reachable from the server's own browser) ──
   const [updateAvail, setUpdateAvail] = useState<{ version: string; publishedAt: string | null } | null>(null);
   useEffect(() => {
@@ -457,7 +465,9 @@ function AppShell() {
                     <span className="h-[7px] w-[7px] rounded-full bg-emerald-400" style={{ boxShadow: "none" }} />
                     {t("app.serverOnline")}
                   </span>
-                  <span className="text-[10px] text-white/40 font-[family-name:var(--font-geist-mono)]">v{APP_VERSION}</span>
+                  <span className="text-[10px] text-white/40 font-[family-name:var(--font-geist-mono)]">
+                    {serverVersion ? `v${serverVersion}` : "…"}
+                  </span>
                 </div>
                 <div className="mt-[5px] text-[10px] text-white/35 font-[family-name:var(--font-geist-mono)]">{host}</div>
               </div>
