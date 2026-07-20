@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api/client";
 import ErrorModal from "@/app/components/ErrorModal";
+import Portal from "@/app/components/Portal";
 
 function cx(...classes: (string | undefined | null | false)[]) {
     return classes.filter(Boolean).join(" ");
@@ -442,6 +443,7 @@ export default function StationsPage() {
 
             {/* JSON Preview Modal */}
             {previewData && (
+                <Portal>
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
                     <div className="flex h-full max-h-[90vh] w-full max-w-4xl flex-col rounded-3xl border border-white/10 bg-[#0A0A0B] shadow-2xl">
                         <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
@@ -474,6 +476,7 @@ export default function StationsPage() {
                         </div>
                     </div>
                 </div>
+                </Portal>
             )}
         </div >
     );

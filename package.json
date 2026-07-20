@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently -n web,api -c cyan,magenta \"NEXT_DISABLE_ESLINT=1 NEXT_DISABLE_TYPECHECK=1 next dev\" \"pnpm:dev:api\"",
+    "dev": "concurrently -n web,api -c cyan,magenta \"cross-env NEXT_DISABLE_ESLINT=1 NEXT_DISABLE_TYPECHECK=1 next dev\" \"pnpm:dev:api\"",
     "dev:api": "tsx watch --clear-screen=false backend/src/server.ts",
-    "build": "next build",
-    "build:web": "next build",
+    "build": "cross-env NODE_ENV=production next build",
+    "build:web": "cross-env NODE_ENV=production next build",
     "build:api": "tsc -p backend/tsconfig.json",
     "start": "next start",
     "start:api": "node backend/dist/server.js",
@@ -39,16 +39,23 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
     "oxlint": "^1.12.0",
     "postcss": "^8",
     "supabase": "2.34.3",
     "tailwindcss": "^3.4.1",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "unrs-resolver"
+      "unrs-resolver",
+      "better-sqlite3",
+      "esbuild",
+      "sharp",
+      "supabase",
+      "protobufjs"
     ],
     "peerDependencyRules": {
       "allowAny": [
