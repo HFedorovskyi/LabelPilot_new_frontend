@@ -41,7 +41,8 @@ type UpdateStatus =
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const UPDATER_BASE = "http://localhost:9000";
+// 127.0.0.1 (not "localhost") avoids IPv6 resolving to a different stack on dual-install machines.
+const UPDATER_BASE = "http://127.0.0.1:9000";
 // Derive API base from the current host — works in any environment.
 // Frontend runs on :3000, backend/nginx is on :8000.
 function getApiBase(): string {

@@ -16,6 +16,7 @@ import { AuthProvider, useAuth } from "./components/auth/AuthProvider";
 import { LoginScreen, BootstrapScreen } from "./components/auth/AuthScreens";
 import { useTranslation } from "@/lib/i18n";
 import { api } from "@/lib/api/client";
+import { isNewerVersion } from "@/lib/version";
 import SearchModal from "./components/SearchModal";
 import NotificationsPanel from "./components/NotificationsPanel";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -256,15 +257,22 @@ function AppShell() {
   }, []);
 
   // ── available-update check (updater service on :9000; reachable from the server's own browser) ──
+  // Prefer 127.0.0.1 over "localhost" so we don't hit a different stack via IPv6.
   const [updateAvail, setUpdateAvail] = useState<{ version: string; publishedAt: string | null } | null>(null);
   useEffect(() => {
     let alive = true;
     const check = () => {
       try {
         const signal = (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal) ? AbortSignal.timeout(4000) : undefined;
-        fetch("http://localhost:9000/check", signal ? { signal } : undefined)
+        fetch("http://127.0.0.1:9000/check", signal ? { signal } : undefined)
           .then((r) => r.json())
-          .then((d: any) => { if (alive) setUpdateAvail(d?.available ? { version: d.version, publishedAt: d.published_at || null } : null); })
+          .then((d: any) => {
+            if (!alive) return;
+            // Trust updater's available flag, but also require the candidate to be a real version string.
+            setUpdateAvail(d?.available && d?.version
+              ? { version: String(d.version).trim(), publishedAt: d.published_at || null }
+              : null);
+          })
           .catch(() => { if (alive) setUpdateAvail(null); });
       } catch { if (alive) setUpdateAvail(null); }
     };
@@ -273,9 +281,15 @@ function AppShell() {
     return () => { alive = false; clearInterval(id); };
   }, []);
 
+  // Hide the "update available" chrome when the live server version already matches/exceeds
+  // the candidate (e.g. dual Docker+native installs, or VERSION file lag on the updater side).
+  const effectiveUpdate = updateAvail && isNewerVersion(updateAvail.version, serverVersion)
+    ? updateAvail
+    : null;
+
   // Surface an available update both as a header badge and as a notifications-panel item.
-  const updateNotif = updateAvail
-    ? { id: `update-${updateAvail.version}`, level: "INFO", title: t("app.updateAvailable", { version: updateAvail.version }), subtitle: t("app.updateAvailableHint"), created_at: updateAvail.publishedAt }
+  const updateNotif = effectiveUpdate
+    ? { id: `update-${effectiveUpdate.version}`, level: "INFO", title: t("app.updateAvailable", { version: effectiveUpdate.version }), subtitle: t("app.updateAvailableHint"), created_at: effectiveUpdate.publishedAt }
     : null;
   const allNotifItems = updateNotif ? [updateNotif, ...notifItems] : notifItems;
   const notifUnread = allNotifItems.filter((n) => n.created_at && (!notifSeen || n.created_at > notifSeen)).length;
@@ -520,7 +534,7 @@ function AppShell() {
               onClick={() => setActive("settings")}
               className={cx(
                 "relative inline-flex items-center gap-[6px] rounded-lg border px-[10px] py-[6px] text-[11.5px] transition",
-                updateAvail
+                effectiveUpdate
                   ? "border-amber-400/40 bg-amber-400/[0.15] text-amber-200 hover:bg-amber-400/25"
                   : "border-indigo-400/30 bg-indigo-400/[0.13] text-indigo-200 hover:bg-indigo-400/20"
               )}
@@ -529,8 +543,8 @@ function AppShell() {
                 <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
                 <path d="M12 16V8m0 0-3 3m3-3 3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              {updateAvail ? t("app.updateTo", { version: updateAvail.version }) : t("app.updates")}
-              {updateAvail && (
+              {effectiveUpdate ? t("app.updateTo", { version: effectiveUpdate.version }) : t("app.updates")}
+              {effectiveUpdate && (
                 <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-[#06070b] animate-pulse" />
               )}
             </button>
