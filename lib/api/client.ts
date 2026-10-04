@@ -50,6 +50,15 @@ export function setUnauthorizedHandler(fn: UnauthorizedHandler | null): void {
  * existing per-call `if (!res.ok)` logic continues to work). A 403 (license/demo gate,
  * permission, or CSRF) is deliberately NOT treated as a logout.
  */
+async function seatAction(uuid: string, action: string) {
+    const res = await apiFetch(`${API_BASE}/stations/${uuid}/${action}/`, { method: 'POST' });
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || errorData.error || 'Seat action failed');
+    }
+    return res.json();
+}
+
 export async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
     const method = (init.method ?? "GET").toUpperCase();
     const headers = new Headers(init.headers);
@@ -257,6 +266,11 @@ export const api = {
             }
             return res.json();
         },
+        // Named-seat licensing: admin-only actions; the server returns the updated
+        // station or a localized reason (seat cap, 30-day release allowance).
+        releaseSeat: async (uuid: string) => seatAction(uuid, "release_seat"),
+        activateSeat: async (uuid: string) => seatAction(uuid, "activate_seat"),
+        replaceHardware: async (uuid: string) => seatAction(uuid, "replace_hardware"),
         getFullDump: async (uuid?: string) => {
             const url = uuid ? `${API_BASE}/stations/full_dump/?station_uuid=${uuid}` : `${API_BASE}/stations/full_dump/`;
             const res = await apiFetch(url);

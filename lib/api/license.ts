@@ -13,7 +13,12 @@ export interface LicenseInfo {
     edition: string;
     customer: string | null;
     expires: string | null; // "YYYY-MM-DD"
-    expired: boolean;
+    expired: boolean;           // the expiry date has passed
+    grace?: boolean;            // ...but the 14-day grace period still runs
+    grace_until?: string | null;
+    days_left?: number | null;  // to the expiry date (in grace: to grace_until)
+    clock_rollback?: boolean;   // the server clock was turned back
+    refresh?: { status: LicenseRefreshStatus; detail: string };
     max_stations: number | null;       // null = unlimited
     demo_max_stations: number | null;  // null (no demo cap)
     license_id: string | null;
@@ -23,6 +28,23 @@ export interface LicenseInfo {
     signature_valid: boolean;
     machine_ok: boolean;
     stations_used: number;
+    seats?: SeatSummary;
+}
+
+export type LicenseRefreshStatus =
+    "updated" | "current" | "not_found" | "rejected" | "unavailable" | "disabled" | "no_license";
+
+// Named-seat usage (GET /api/v1/license/ -> seats). limit null = unlimited.
+export interface SeatSummary {
+    limit: number | null;
+    active: number;
+    pending: number;
+    released: number;
+    fingerprinted: number;
+    conflicts: number;
+    over_limit: boolean;
+    releases_30d: number;
+    release_allowance: number | null;
 }
 
 // Runtime-resolved API base — same mechanism as lib/api/client.ts so the static
@@ -53,6 +75,17 @@ export const licenseApi = {
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
             throw new Error(err.detail || err.error || "Failed to import license");
+        }
+        return res.json();
+    },
+
+    // Admin-only: ask the LabelPilot sales service for a renewed licence now (the server
+    // also checks once a day when online). Returns the status plus `refresh.status`.
+    refreshLicense: async (): Promise<LicenseInfo> => {
+        const res = await apiFetch(`${API_BASE}/license/refresh/`, { method: "POST" });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || err.error || "Failed to check for a licence update");
         }
         return res.json();
     },

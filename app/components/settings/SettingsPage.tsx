@@ -534,6 +534,7 @@ function LicenseSection() {
     const [error, setError] = useState<string | null>(null);
     const [importing, setImporting] = useState(false);
     const [importMsg, setImportMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+    const [refreshing, setRefreshing] = useState(false);
     const [copied, setCopied] = useState(false);
 
     useEffect(() => {
@@ -579,6 +580,9 @@ function LicenseSection() {
     }
 
     const isDemo = info.mode === "demo";
+    const inGrace = !isDemo && info.expired && Boolean(info.grace);
+    const pastGrace = !isDemo && info.expired && !info.grace;
+    const expiresSoon = !isDemo && !info.expired && info.days_left != null && info.days_left <= 30;
 
     const rows: { label: string; value: string }[] = isDemo
         ? [
@@ -587,14 +591,27 @@ function LicenseSection() {
         : [
               { label: t('settings.fieldEdition'), value: info.edition || "—" },
               { label: t('settings.fieldCustomer'), value: info.customer || "—" },
-              { label: t('settings.fieldValidUntil'), value: info.expires ? formatLicenseDate(info.expires) : t('settings.perpetual') },
+              {
+                  label: t('settings.fieldValidUntil'),
+                  value: !info.expires
+                      ? t('settings.perpetual')
+                      : inGrace && info.grace_until
+                          ? t('settings.graceUntilValue', { date: formatLicenseDate(info.expires), until: formatLicenseDate(info.grace_until) })
+                          : formatLicenseDate(info.expires),
+              },
               { label: t('settings.fieldLicenseId'), value: info.license_id || "—" },
           ];
 
     return (
         <div className="space-y-6">
             {/* Status card */}
-            <Card className={isDemo ? "border-amber-400/30 bg-amber-400/[0.06]" : "border-emerald-400/30 bg-emerald-400/[0.06]"}>
+            <Card className={
+                pastGrace
+                    ? "border-red-400/30 bg-red-400/[0.06]"
+                    : isDemo || inGrace || expiresSoon
+                        ? "border-amber-400/30 bg-amber-400/[0.06]"
+                        : "border-emerald-400/30 bg-emerald-400/[0.06]"
+            }>
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <div className="text-sm font-medium text-white/60 mb-1">{t('settings.licenseStatus')}</div>
@@ -604,6 +621,8 @@ function LicenseSection() {
                             </span>
                             {isDemo ? (
                                 <Badge color="yellow">{t('settings.noLicense')}</Badge>
+                            ) : inGrace ? (
+                                <Badge color="yellow">{t('settings.grace')}</Badge>
                             ) : info.expired ? (
                                 <Badge color="red">{t('settings.expired')}</Badge>
                             ) : (
@@ -613,6 +632,19 @@ function LicenseSection() {
                         {isDemo && (
                             <div className="mt-1.5 text-xs text-white/50">
                                 {t('settings.demoUnlimitedHint')}
+                            </div>
+                        )}
+                        {inGrace && (
+                            <div className="mt-1.5 max-w-xl text-xs text-amber-200/90">
+                                {t('settings.graceHint', { date: info.grace_until ? formatLicenseDate(info.grace_until) : "—", days: info.days_left ?? 0 })}
+                            </div>
+                        )}
+                        {pastGrace && (
+                            <div className="mt-1.5 max-w-xl text-xs text-red-200/90">{t('settings.expiredHint')}</div>
+                        )}
+                        {expiresSoon && (
+                            <div className="mt-1.5 max-w-xl text-xs text-amber-200/90">
+                                {t('settings.expiresSoon', { days: info.days_left ?? 0 })}
                             </div>
                         )}
                     </div>
@@ -627,6 +659,12 @@ function LicenseSection() {
                     </div>
                 </div>
             </Card>
+
+            {info.clock_rollback && (
+                <div className="rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200">
+                    {t('settings.clockRollback')}
+                </div>
+            )}
 
             {/* Details */}
             <Card>
@@ -719,12 +757,39 @@ function LicenseSection() {
                                 }}
                             />
                         </label>
+                        {!isDemo && (
+                            <button
+                                type="button"
+                                disabled={refreshing || importing}
+                                onClick={async () => {
+                                    setRefreshing(true);
+                                    setImportMsg(null);
+                                    try {
+                                        const updated = await licenseApi.refreshLicense();
+                                        setInfo(updated);
+                                        const result = updated.refresh?.status ?? "unavailable";
+                                        setImportMsg({
+                                            type: result === "updated" || result === "current" ? "ok" : "err",
+                                            text: t(`settings.licenseRefresh.${result}`),
+                                        });
+                                    } catch (err) {
+                                        setImportMsg({ type: "err", text: err instanceof Error ? err.message : t('settings.licenseRefresh.unavailable') });
+                                    } finally {
+                                        setRefreshing(false);
+                                    }
+                                }}
+                                className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-white/80 transition hover:bg-white/10 disabled:opacity-50"
+                            >
+                                {refreshing ? t('settings.licenseRefreshing') : t('settings.licenseRefreshButton')}
+                            </button>
+                        )}
                         {importMsg && (
                             <span className={importMsg.type === "ok" ? "text-sm text-emerald-300" : "text-sm text-red-300"}>
                                 {importMsg.text}
                             </span>
                         )}
                     </div>
+                    {!isDemo && <div className="mt-2 text-xs text-white/40">{t('settings.licenseRefreshHint')}</div>}
                 </Card>
             )}
 

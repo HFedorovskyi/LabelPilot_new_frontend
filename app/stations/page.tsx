@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api/client";
 import ErrorModal from "@/app/components/ErrorModal";
 import Portal from "@/app/components/Portal";
+import { SeatSummaryBar, StationSeatControls } from "@/app/components/stations/StationSeat";
 
 function cx(...classes: (string | undefined | null | false)[]) {
     return classes.filter(Boolean).join(" ");
@@ -18,10 +19,14 @@ type Station = {
     station_port: number;
     is_online: boolean;
     created_at: string;
+    seat_state?: "active" | "pending" | "released";
+    station_fingerprint?: string;
+    conflict_fingerprint?: string;
 };
 
 export default function StationsPage() {
     const [stations, setStations] = useState<Station[]>([]);
+    const [seatRefresh, setSeatRefresh] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
     const [newName, setNewName] = useState("");
@@ -233,6 +238,8 @@ export default function StationsPage() {
                 </div>
             </div>
 
+            <SeatSummaryBar refreshKey={seatRefresh + stations.length} />
+
             <div className="mb-8 rounded-2xl border border-white/10 bg-white/5 p-6 md:w-3/4">
                 <h3 className="mb-4 text-lg font-medium text-white">Добавить станцию</h3>
                 <div className="flex flex-wrap gap-3">
@@ -378,6 +385,14 @@ export default function StationsPage() {
                             </div>
                         </div>
 
+
+                        <StationSeatControls
+                            station={s}
+                            onChanged={() => {
+                                setSeatRefresh((value) => value + 1);
+                                fetchStations(true);
+                            }}
+                        />
 
                         <div className="mb-4 flex flex-wrap gap-2 border-t border-white/5 pt-4">
                             <button
