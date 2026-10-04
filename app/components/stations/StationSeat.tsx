@@ -14,6 +14,8 @@ export type SeatStation = {
     station_name: string;
     seat_state?: "active" | "pending" | "released";
     seat_within_cap?: boolean;
+    // Licences with a vendor seat list: whether the station is in it (else it gets no data).
+    seat_list?: "listed" | "unlisted" | "no_list" | null;
     station_fingerprint?: string;
     conflict_fingerprint?: string;
 };
@@ -69,6 +71,8 @@ export function StationSeatControls({ station, onChanged }: { station: SeatStati
     const conflict = Boolean(station.conflict_fingerprint);
     // An active station beyond the licence's seat count gets no data (server-side cap).
     const outsideCap = state === "active" && station.seat_within_cap === false;
+    const unlisted = state === "active" && !outsideCap
+        && (station.seat_list === "unlisted" || station.seat_list === "no_list");
 
     const run = async (operation: () => Promise<unknown>, confirmKey?: string) => {
         if (confirmKey && !window.confirm(t(confirmKey, { name: station.station_name }))) return;
@@ -88,6 +92,8 @@ export function StationSeatControls({ station, onChanged }: { station: SeatStati
         ? { text: t("seats.stateConflict"), tone: "border-rose-500/30 bg-rose-500/10 text-rose-300" }
         : outsideCap
             ? { text: t("seats.stateOutsideCap"), tone: "border-rose-500/30 bg-rose-500/10 text-rose-300" }
+            : unlisted
+            ? { text: t("seats.stateUnlisted"), tone: "border-rose-500/30 bg-rose-500/10 text-rose-300" }
             : state === "active"
             ? { text: t("seats.stateActive"), tone: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" }
             : state === "pending"

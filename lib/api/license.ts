@@ -29,6 +29,30 @@ export interface LicenseInfo {
     machine_ok: boolean;
     stations_used: number;
     seats?: SeatSummary;
+    seat_list?: SeatListStatus;
+    seat_list_sync?: { status: SeatListSyncStatus; detail: string };
+}
+
+export type SeatListSyncStatus =
+    "updated" | "rejected" | "not_found" | "unavailable" | "disabled" | "not_required";
+
+// Vendor-signed seat list (licences with the "seat-list" feature). Counts only.
+export interface SeatListStatus {
+    required: boolean;
+    present?: boolean;
+    issued?: string | null;
+    expires?: string | null;      // "YYYY-MM-DD"
+    expired?: boolean;
+    days_left?: number | null;
+    renewal_due?: boolean;
+    stations: number;             // fingerprints in the list
+    limit?: number | null;
+    missing: number;              // seated stations not in the list (they get no data)
+    extra?: number;
+    in_sync?: boolean;
+    linked?: boolean;             // the sales service knows this installation
+    sync_enabled?: boolean;
+    last_sync?: { status: SeatListSyncStatus; detail: string; at: string } | null;
 }
 
 export type LicenseRefreshStatus =
@@ -87,6 +111,48 @@ export const licenseApi = {
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
             throw new Error(err.detail || err.error || "Failed to check for a licence update");
+        }
+        return res.json();
+    },
+
+    // Admin-only: ask the sales service for a fresh seat list now (the server also renews
+    // it daily and after every seat change). Returns the status plus `seat_list_sync`.
+    syncSeatList: async (): Promise<LicenseInfo> => {
+        const res = await apiFetch(`${API_BASE}/license/seat-list/`, { method: "POST" });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || err.error || "Failed to update the seat list");
+        }
+        return res.json();
+    },
+
+    // Admin-only (offline sites): save the request file to have signed in the customer cabinet.
+    downloadSeatListRequest: async (): Promise<void> => {
+        const res = await apiFetch(`${API_BASE}/license/seat-list/request/`, { method: "GET" });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || err.error || "Failed to create the seat list request");
+        }
+        const disposition = res.headers.get("Content-Disposition") || "";
+        const name = /filename="([^"]+)"/.exec(disposition)?.[1] || "seat-request.json";
+        const url = URL.createObjectURL(await res.blob());
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = name;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    },
+
+    // Admin-only (offline sites): install the seat list signed in the customer cabinet.
+    importSeatList: async (file: File): Promise<LicenseInfo> => {
+        const form = new FormData();
+        form.append("file", file);
+        const res = await apiFetch(`${API_BASE}/license/seat-list/import/`, { method: "POST", body: form });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || err.error || "Failed to import the seat list");
         }
         return res.json();
     },

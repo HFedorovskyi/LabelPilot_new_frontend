@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { licenseApi, type LicenseInfo } from "@/lib/api/license";
+import { SeatListCard } from "./SeatListCard";
 import { useTranslation, LANGS, LANG_LABELS } from "@/lib/i18n";
 import { useAuth } from "../auth/AuthProvider";
 
@@ -693,6 +694,8 @@ function LicenseSection() {
                     </div>
                 )}
             </Card>
+
+            <SeatListCard info={info} isAdmin={user?.role === "admin"} onInfo={setInfo} />
 
             {/* Machine ID — ALWAYS visible + copyable. The buyer sends this to the supplier so the
                 license can be bound to this exact server (it's needed regardless of demo/active state). */}
