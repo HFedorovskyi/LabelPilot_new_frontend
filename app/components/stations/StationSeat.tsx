@@ -13,6 +13,7 @@ export type SeatStation = {
     station_uuid: string;
     station_name: string;
     seat_state?: "active" | "pending" | "released";
+    seat_within_cap?: boolean;
     station_fingerprint?: string;
     conflict_fingerprint?: string;
 };
@@ -66,6 +67,8 @@ export function StationSeatControls({ station, onChanged }: { station: SeatStati
     const [error, setError] = useState<string | null>(null);
     const state = station.seat_state ?? "active";
     const conflict = Boolean(station.conflict_fingerprint);
+    // An active station beyond the licence's seat count gets no data (server-side cap).
+    const outsideCap = state === "active" && station.seat_within_cap === false;
 
     const run = async (operation: () => Promise<unknown>, confirmKey?: string) => {
         if (confirmKey && !window.confirm(t(confirmKey, { name: station.station_name }))) return;
@@ -83,7 +86,9 @@ export function StationSeatControls({ station, onChanged }: { station: SeatStati
 
     const badge = conflict
         ? { text: t("seats.stateConflict"), tone: "border-rose-500/30 bg-rose-500/10 text-rose-300" }
-        : state === "active"
+        : outsideCap
+            ? { text: t("seats.stateOutsideCap"), tone: "border-rose-500/30 bg-rose-500/10 text-rose-300" }
+            : state === "active"
             ? { text: t("seats.stateActive"), tone: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" }
             : state === "pending"
                 ? { text: t("seats.statePending"), tone: "border-amber-500/30 bg-amber-500/10 text-amber-300" }
@@ -126,6 +131,7 @@ export function StationSeatControls({ station, onChanged }: { station: SeatStati
                 </div>
             </div>
             {conflict && <p className="text-xs text-rose-200/80">{t("seats.conflictHint")}</p>}
+            {outsideCap && !conflict && <p className="text-xs text-rose-200/80">{t("seats.outsideCapHint")}</p>}
             {error && <p className="text-xs text-rose-300">{error}</p>}
         </div>
     );

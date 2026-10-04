@@ -20,6 +20,7 @@ type Station = {
     is_online: boolean;
     created_at: string;
     seat_state?: "active" | "pending" | "released";
+    seat_within_cap?: boolean;
     station_fingerprint?: string;
     conflict_fingerprint?: string;
 };

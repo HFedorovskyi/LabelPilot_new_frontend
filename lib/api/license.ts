@@ -43,6 +43,7 @@ export interface SeatSummary {
     fingerprinted: number;
     conflicts: number;
     over_limit: boolean;
+    outside_cap?: number;   // active stations beyond the seat count (they get no data)
     releases_30d: number;
     release_allowance: number | null;
 }
