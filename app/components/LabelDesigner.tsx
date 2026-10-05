@@ -516,7 +516,7 @@ function VariableTextInput({
       </div>
 
       {open && (
-        <div className="absolute right-0 top-11 z-[100] w-64 rounded-2xl border border-white/10 bg-[#1A1F2B]/95 p-1.5 backdrop-blur-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+        <div className="absolute right-0 top-11 z-[100] w-64 rounded-2xl border border-white/10 bg-lp-surface/95 p-1.5 backdrop-blur-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-200">
           <div className="mb-1.5 px-3 py-2">
             <div className="text-[10px] font-bold uppercase tracking-widest text-white/30">
               {t('designer.insertAttribute')}
@@ -659,7 +659,7 @@ function CustomSelect<T extends string | number>({
       </button>
 
       {open && (
-        <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-[100] overflow-hidden rounded-xl border border-white/10 bg-[#0B1220]/95 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-[100] overflow-hidden rounded-xl border border-white/10 bg-lp-surface/95 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="max-h-60 overflow-y-auto p-1 custom-scrollbar">
             {options.map((opt) => (
               <div
@@ -2187,14 +2187,14 @@ export default function LabelDesigner() {
         </button>
         <div className="leading-tight">
           <div className="text-sm font-semibold text-white">{labelName}</div>
-          <div className="font-[family-name:var(--font-geist-mono)] text-[10px] text-white/45">
+          <div className="font-mono text-[10px] text-white/45">
             {doc.canvas.widthCm}×{doc.canvas.heightCm} {t('designer.cmUnit')} · {doc.canvas.labelType === "pack" ? t('designer.typePack') : doc.canvas.labelType === "box" ? t('designer.typeBox') : t('designer.typePallet')}
           </div>
         </div>
 
         <div className="mx-1 h-6 w-px bg-white/10" />
 
-        <span className="font-[family-name:var(--font-geist-mono)] text-[9px] uppercase tracking-wider text-indigo-300/70">{t('designer.add')}</span>
+        <span className="font-mono text-[9px] uppercase tracking-wider text-indigo-300/70">{t('designer.add')}</span>
         <SmallButton variant="secondary" onClick={addText}>
           <Icon name="text" />
           {t('designer.text')}
@@ -2215,9 +2215,9 @@ export default function LabelDesigner() {
                 }
               }}
             >
-              <option value="" disabled className="bg-[#1A1D24]">{t('designer.barcodeDots')}</option>
+              <option value="" disabled className="bg-lp-surface">{t('designer.barcodeDots')}</option>
               {barcodeTemplates.map((t: any) => (
-                <option key={t.id} value={t.name} className="bg-[#1A1D24]">{t.name}</option>
+                <option key={t.id} value={t.name} className="bg-lp-surface">{t.name}</option>
               ))}
             </select>
             <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-white/40">
@@ -2240,9 +2240,9 @@ export default function LabelDesigner() {
             value={selectedNomenclatureId}
             onChange={(e) => handleNomenclatureSelect(e.target.value)}
           >
-            <option value="" className="bg-[#1A1D24]">{t('designer.selectProduct')}</option>
+            <option value="" className="bg-lp-surface">{t('designer.selectProduct')}</option>
             {nomenclatures.map((n) => (
-              <option key={n.id} value={n.id} className="bg-[#1A1D24]">
+              <option key={n.id} value={n.id} className="bg-lp-surface">
                 {n.article} - {n.name}
               </option>
             ))}
@@ -2396,7 +2396,7 @@ export default function LabelDesigner() {
       <main
         ref={mainRef}
         className={cx(
-          "relative flex min-w-0 flex-1 items-center justify-center bg-white overflow-hidden rounded-2xl border border-slate-200 shadow-inner",
+          "relative flex min-w-0 flex-1 items-center justify-center bg-[#fff] overflow-hidden rounded-2xl border border-slate-200 shadow-inner",
           isSpacePressed && !isPanning && "cursor-grab",
           isPanning && "cursor-grabbing"
         )}
@@ -2405,7 +2405,7 @@ export default function LabelDesigner() {
         onPointerUp={onPointerUpViewport}
       >
         {/* Workspace Info */}
-        <div className="absolute top-4 left-4 z-10 flex cursor-default items-center gap-3 rounded-xl border border-slate-200 bg-white/80 p-2 px-3 text-xs font-medium text-slate-600 backdrop-blur-md shadow-sm">
+        <div className="absolute top-4 left-4 z-10 flex cursor-default items-center gap-3 rounded-xl border border-slate-200 bg-[#fff]/80 p-2 px-3 text-xs font-medium text-slate-600 backdrop-blur-md shadow-sm">
           <div className="flex items-center gap-2">
             <span className="text-slate-400">{t('designer.layoutLabel')}</span>
             <span className="text-slate-900 font-bold max-w-[200px] truncate" title={labelName}>
@@ -2498,7 +2498,7 @@ export default function LabelDesigner() {
                     return (
                       <div
                         key={h}
-                        className="absolute h-3 w-3 border border-blue-500 bg-white shadow-sm z-50 rounded-full"
+                        className="absolute h-3 w-3 border border-blue-500 bg-[#fff] shadow-sm z-50 rounded-full"
                         style={{ top, left, cursor: "pointer" }}
                         onPointerDown={(e) => {
                           e.stopPropagation();
@@ -2801,7 +2801,7 @@ export default function LabelDesigner() {
                         }}
                       >
                         {barcodeTemplates.map((t: any) => (
-                          <option key={t.id} value={t.name} className="bg-[#1A1D24]">{t.name}</option>
+                          <option key={t.id} value={t.name} className="bg-lp-surface">{t.name}</option>
                         ))}
                       </select>
                     </Field>
@@ -2857,7 +2857,7 @@ export default function LabelDesigner() {
                               }}
                               className="h-8 w-[116px] flex-none cursor-pointer rounded-lg border border-white/10 bg-white/10 px-1.5 text-xs text-white outline-none"
                             >
-                              {TABLE_COLUMN_KEYS.map(a => <option key={a.key} value={a.key} className="bg-[#1A1D24]">{t(a.labelKey)}</option>)}
+                              {TABLE_COLUMN_KEYS.map(a => <option key={a.key} value={a.key} className="bg-lp-surface">{t(a.labelKey)}</option>)}
                             </select>
                             <input
                               type="number"
@@ -3014,9 +3014,9 @@ export default function LabelDesigner() {
                   setDoc(d => ({ ...d, canvas: { ...d.canvas, labelType: val } }));
                 }}
               >
-                <option value="pack" className="bg-[#1A1D24]">{t('designer.labelOnPackage')}</option>
-                <option value="box" className="bg-[#1A1D24]">{t('designer.labelOnBox')}</option>
-                <option value="pallet" className="bg-[#1A1D24]">{t('designer.palletSheet')}</option>
+                <option value="pack" className="bg-lp-surface">{t('designer.labelOnPackage')}</option>
+                <option value="box" className="bg-lp-surface">{t('designer.labelOnBox')}</option>
+                <option value="pallet" className="bg-lp-surface">{t('designer.palletSheet')}</option>
               </select>
             </Field>
 

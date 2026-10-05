@@ -19,9 +19,9 @@ function relTime(iso: string | null, t: (k: string, p?: Record<string, string | 
 }
 
 const LEVEL_DOT: Record<string, string> = {
-  ERROR: "bg-rose-400",
-  WARNING: "bg-amber-400",
-  INFO: "bg-white/30",
+  ERROR: "bg-lp-bad",
+  WARNING: "bg-lp-warn",
+  INFO: "bg-lp-off",
 };
 
 export default function NotificationsPanel({
@@ -36,11 +36,10 @@ export default function NotificationsPanel({
   anchorRef: React.RefObject<HTMLElement | null>;
 }) {
   const { t } = useTranslation();
-  // Render into <body> via a portal so the dropdown escapes the header's
-  // backdrop-blur stacking context (which otherwise traps it BELOW <main>,
-  // hiding it behind the dashboard cards regardless of its z-index).
+  // Render into <body> via a portal so the dropdown escapes the side menu's stacking
+  // context (which otherwise traps it below <main>, whatever its z-index).
   const [mounted, setMounted] = React.useState(false);
-  const [pos, setPos] = React.useState<{ top: number; right: number } | null>(null);
+  const [pos, setPos] = React.useState<{ top: number; left: number } | null>(null);
   React.useEffect(() => setMounted(true), []);
 
   React.useEffect(() => {
@@ -49,10 +48,11 @@ export default function NotificationsPanel({
       const el = anchorRef.current;
       if (!el) return;
       const r = el.getBoundingClientRect();
-      // Anchor the panel's top below the bell and align its right edge to the
-      // bell's right edge (clamped so it never spills off-screen on the left).
-      const right = Math.min(Math.max(8, window.innerWidth - r.right), window.innerWidth - 348);
-      setPos({ top: Math.round(r.bottom + 8), right: Math.round(Math.max(8, right)) });
+      // The bell sits in the side menu: open the panel to its right, top-aligned,
+      // clamped so it never spills off-screen.
+      const left = Math.max(8, Math.min(r.right + 8, window.innerWidth - 348));
+      const top = Math.max(8, Math.min(r.top, window.innerHeight - 120));
+      setPos({ top: Math.round(top), left: Math.round(left) });
     };
     compute();
     window.addEventListener("resize", compute);
@@ -69,23 +69,23 @@ export default function NotificationsPanel({
     <>
       <div className="fixed inset-0 z-[199]" onClick={onClose} />
       <div
-        className="fixed z-[200] w-[340px] overflow-hidden rounded-2xl border border-white/[0.12] bg-[#0c0c0e] shadow-2xl"
-        style={{ top: pos.top, right: pos.right }}
+        className="fixed z-[200] w-[340px] overflow-hidden rounded-2xl border border-lp-line bg-lp-surface shadow-2xl"
+        style={{ top: pos.top, left: pos.left }}
       >
-        <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-          <span className="text-[13px] font-semibold text-white">{t("notif.title")}</span>
-          <span className="text-[11px] text-white/35">{items.length}</span>
+        <div className="flex items-center justify-between border-b border-lp-line px-4 py-3">
+          <span className="text-[14px] font-bold text-lp-ink">{t("notif.title")}</span>
+          <span className="text-[12px] text-lp-ink-3">{items.length}</span>
         </div>
         <div className="max-h-[60vh] overflow-y-auto">
           {items.length === 0 ? (
-            <div className="px-4 py-10 text-center text-[13px] text-white/35">{t("notif.empty")}</div>
+            <div className="px-4 py-10 text-center text-[13px] text-lp-ink-3">{t("notif.empty")}</div>
           ) : (
             items.map((n) => (
-              <div key={n.id} className="flex gap-2.5 border-b border-white/[0.05] px-4 py-2.5 last:border-0">
+              <div key={n.id} className="flex gap-2.5 border-b border-lp-line px-4 py-2.5 last:border-0">
                 <span className={cx("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", LEVEL_DOT[n.level] ?? LEVEL_DOT.INFO)} />
                 <div className="min-w-0 flex-1">
-                  <div className="text-[12.5px] leading-snug text-white/90">{n.title}</div>
-                  <div className="mt-0.5 flex items-center gap-1.5 text-[10.5px] text-white/35">
+                  <div className="text-[13px] font-semibold leading-snug text-lp-ink">{n.title}</div>
+                  <div className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-lp-ink-3">
                     {n.subtitle ? <span className="truncate">{n.subtitle}</span> : null}
                     {n.subtitle ? <span className="shrink-0">·</span> : null}
                     <span className="shrink-0">{relTime(n.created_at, t)}</span>

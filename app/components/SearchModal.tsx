@@ -111,7 +111,7 @@ export default function SearchModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-xl overflow-hidden rounded-2xl border border-white/[0.12] bg-[#0c0c0e] shadow-2xl"
+        className="w-full max-w-xl overflow-hidden rounded-2xl border border-white/[0.12] bg-lp-surface shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2.5 border-b border-white/10 px-4 py-3">

@@ -25,7 +25,7 @@ function Spinner({ className }: { className?: string }) {
  */
 function AuthShell({ children }: { children: React.ReactNode }) {
     return (
-        <div className="relative flex h-screen items-center justify-center overflow-hidden bg-[#06070b] px-4 text-white font-[family-name:var(--font-geist-sans)]">
+        <div className="relative flex h-screen items-center justify-center overflow-hidden bg-lp-bg px-4 text-white font-sans">
             {/* Атмосферный фон */}
             <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
                 <div className="absolute -left-24 -top-32 h-[420px] w-[420px] rounded-full blur-[80px]" style={{ background: "rgba(99,102,241,0.13)" }} />

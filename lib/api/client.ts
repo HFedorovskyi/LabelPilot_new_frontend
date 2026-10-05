@@ -1,16 +1,8 @@
 import { getSavedLang } from "@/lib/i18n";
+import { resolveApiBase } from "./base";
 
 declare const process: any;
 
-// Runtime-resolved API base: works for a static export served from any LAN host.
-// In the browser → derive from the current host (so other machines on the LAN hit
-// the right server); during build/SSR → fall back to env or localhost.
-function resolveApiBase(): string {
-    if (typeof window !== "undefined") {
-        return `${window.location.protocol}//${window.location.hostname}:8000/api/v1`;
-    }
-    return (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) || "http://localhost:8000/api/v1";
-}
 const API_BASE = resolveApiBase();
 
 // ─── Auth plumbing (session-cookie + CSRF) ──────────────────────────────────
@@ -50,6 +42,21 @@ export function setUnauthorizedHandler(fn: UnauthorizedHandler | null): void {
  * existing per-call `if (!res.ok)` logic continues to work). A 403 (license/demo gate,
  * permission, or CSRF) is deliberately NOT treated as a logout.
  */
+export type SeatEvent = {
+    station_uuid: string | null;
+    station_name: string;
+    event: string;
+    actor: string;
+    detail: string;
+    created_at: string;
+};
+
+export type StationsToday = {
+    date: string;
+    hours: string[];
+    stations: { id: number; labels: number; weight_kg: number; last_at: string | null; last_product: string; hourly: number[] }[];
+};
+
 async function seatAction(uuid: string, action: string) {
     const res = await apiFetch(`${API_BASE}/stations/${uuid}/${action}/`, { method: 'POST' });
     if (!res.ok) {
@@ -271,6 +278,12 @@ export const api = {
         releaseSeat: async (uuid: string) => seatAction(uuid, "release_seat"),
         activateSeat: async (uuid: string) => seatAction(uuid, "activate_seat"),
         replaceHardware: async (uuid: string) => seatAction(uuid, "replace_hardware"),
+        // Seat audit trail (assignments, releases, hardware changes), newest first, all stations.
+        seatEvents: async (): Promise<SeatEvent[]> => {
+            const res = await apiFetch(`${API_BASE}/stations/seat_events/`);
+            if (!res.ok) throw new Error('Failed to fetch seat events');
+            return res.json();
+        },
         getFullDump: async (uuid?: string) => {
             const url = uuid ? `${API_BASE}/stations/full_dump/?station_uuid=${uuid}` : `${API_BASE}/stations/full_dump/`;
             const res = await apiFetch(url);
@@ -435,6 +448,12 @@ export const api = {
             if (opts.offset != null) p.set('offset', String(opts.offset));
             const res = await apiFetch(`${API_BASE}/statistics/station_labels/?${p.toString()}`);
             if (!res.ok) throw new Error('Failed to fetch station labels');
+            return res.json();
+        },
+        // Today's labels per station (count, net kg, last label, labels per hour since midnight).
+        stationsToday: async (): Promise<StationsToday> => {
+            const res = await apiFetch(`${API_BASE}/statistics/stations_today/`);
+            if (!res.ok) throw new Error('Failed to fetch today per station');
             return res.json();
         },
     },

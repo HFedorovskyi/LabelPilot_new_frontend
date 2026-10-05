@@ -5,6 +5,7 @@ import { licenseApi, type LicenseInfo } from "@/lib/api/license";
 import { SeatListCard } from "./SeatListCard";
 import { useTranslation, LANGS, LANG_LABELS } from "@/lib/i18n";
 import { useAuth } from "../auth/AuthProvider";
+import { resolveApiBase } from "@/lib/api/base";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -44,14 +45,7 @@ type UpdateStatus =
 
 // 127.0.0.1 (not "localhost") avoids IPv6 resolving to a different stack on dual-install machines.
 const UPDATER_BASE = "http://127.0.0.1:9000";
-// Derive API base from the current host — works in any environment.
-// Frontend runs on :3000, backend/nginx is on :8000.
-function getApiBase(): string {
-    if (typeof window === "undefined") return "http://localhost:8000/api/v1";
-    const { protocol, hostname } = window.location;
-    return `${protocol}//${hostname}:8000/api/v1`;
-}
-const API_BASE = getApiBase();
+const API_BASE = resolveApiBase();
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -703,7 +697,7 @@ function LicenseSection() {
                 <div className="text-sm font-semibold text-white">{t('settings.machineIdTitle')}</div>
                 <div className="mt-1 text-xs text-white/50">{t('settings.machineIdHint')}</div>
                 <div className="mt-3 flex items-center gap-2">
-                    <code className="min-w-0 flex-1 truncate rounded-lg border border-white/10 bg-black/30 px-3 py-2 font-[family-name:var(--font-geist-mono)] text-sm text-white">
+                    <code className="min-w-0 flex-1 truncate rounded-lg border border-white/10 bg-black/30 px-3 py-2 font-mono text-sm text-white">
                         {info.machine_id || "—"}
                     </code>
                     <button
@@ -803,7 +797,7 @@ function LicenseSection() {
                     </svg>
                     <span>
                         {t('settings.activateContactSupplier')}{" "}
-                        <code className="rounded bg-white/10 px-1 font-[family-name:var(--font-geist-mono)] text-xs">{info.machine_id}</code>.
+                        <code className="rounded bg-white/10 px-1 font-mono text-xs">{info.machine_id}</code>.
                     </span>
                 </div>
             )}
@@ -858,9 +852,9 @@ function LanguageSection() {
 
 // ─── Main SettingsPage ────────────────────────────────────────────────────────
 
-export default function SettingsPage() {
+export default function SettingsPage({ initialTab = "updates" }: { initialTab?: SettingsTab }) {
     const { t } = useTranslation();
-    const [activeTab, setActiveTab] = useState<SettingsTab>("updates");
+    const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
     const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
     const settingsTabs = getSettingsTabs(t);
 

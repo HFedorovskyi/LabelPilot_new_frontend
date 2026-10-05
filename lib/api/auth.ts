@@ -1,6 +1,7 @@
 declare const process: any;
 
 import { apiFetch } from "./client";
+import { resolveApiBase } from "./base";
 
 // ─── Auth types ─────────────────────────────────────────────────────────────
 // Mirrors the JSON returned by the Django session-cookie auth endpoints.
@@ -18,15 +19,6 @@ export interface BootstrapStatus {
     needs_bootstrap: boolean;
 }
 
-// Runtime-resolved API base — same mechanism as lib/api/client.ts and
-// lib/api/license.ts so the static export works from any LAN host (browser →
-// derive from current host; build/SSR → env or localhost). Do NOT hardcode.
-function resolveApiBase(): string {
-    if (typeof window !== "undefined") {
-        return `${window.location.protocol}//${window.location.hostname}:8000/api/v1`;
-    }
-    return (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) || "http://localhost:8000/api/v1";
-}
 const API_BASE = resolveApiBase();
 
 /** Pull a human-readable error message out of a non-ok auth response. */

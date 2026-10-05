@@ -44,9 +44,71 @@
   font-style: normal;
 }
 
-/* No global colors; components decide their own colors */
+/* Design tokens of the admin redesign (canvas «LabelPilot Server — редизайн»): light by
+   default, `.dark` on <html> switches. RGB triplets so Tailwind's `lp-*` colors take /alpha. */
+:root {
+  color-scheme: light;
+  --lp-bg: 244 246 249;
+  --lp-surface: 255 255 255;
+  --lp-raised: 248 249 251;
+  --lp-line: 227 231 237;
+  --lp-line-2: 210 216 225;
+  --lp-ink: 18 23 34;
+  --lp-ink-2: 75 84 99;
+  --lp-ink-3: 95 104 118;
+  --lp-ok: 11 122 82;
+  --lp-ok-bg: 229 245 238;
+  --lp-warn: 138 90 0;
+  --lp-warn-bg: 255 242 214;
+  --lp-bad: 180 35 27;
+  --lp-bad-bg: 252 233 231;
+  --lp-off: 95 104 118;
+  --lp-off-bg: 236 239 243;
+  --lp-coral: 232 82 79;
+  --lp-coral-bg: 253 237 235;
+  --lp-sky: 111 162 214;
+  --lp-accent: 35 97 170;
+  --lp-accent-bg: 232 241 251;
+  --lp-accent-ink: 29 79 140;
+  --lp-bar: 185 210 238;
+}
+
+.dark {
+  color-scheme: dark;
+  --lp-bg: 13 17 23;
+  --lp-surface: 21 27 35;
+  --lp-raised: 26 33 43;
+  --lp-line: 37 48 64;
+  --lp-line-2: 50 64 82;
+  --lp-ink: 233 238 245;
+  --lp-ink-2: 179 188 201;
+  --lp-ink-3: 147 160 177;
+  --lp-ok: 93 211 158;
+  --lp-ok-bg: 14 42 32;
+  --lp-warn: 242 195 94;
+  --lp-warn-bg: 44 35 16;
+  --lp-bad: 255 143 133;
+  --lp-bad-bg: 52 22 19;
+  --lp-off: 147 160 177;
+  --lp-off-bg: 33 42 54;
+  --lp-coral: 242 113 110;
+  --lp-coral-bg: 53 25 26;
+  --lp-sky: 141 184 228;
+  --lp-accent: 43 108 184;
+  --lp-accent-bg: 21 42 68;
+  --lp-accent-ink: 156 196 240;
+  --lp-bar: 36 69 108;
+}
+
 body {
-  font-family: Arial, Helvetica, sans-serif;
+  background: rgb(var(--lp-bg));
+  color: rgb(var(--lp-ink));
+  font-family: "Manrope Variable", Manrope, system-ui, sans-serif;
+}
+
+:focus-visible {
+  outline: 2px solid rgb(var(--lp-accent));
+  outline-offset: 2px;
 }
 
 @layer utilities {
@@ -59,7 +121,7 @@ body {
 /* Firefox */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+  scrollbar-color: rgb(var(--lg-white) / 0.14) transparent;
 }
 
 /* Webkit (Chrome, Edge, Safari) */
@@ -73,12 +135,12 @@ body {
 }
 
 *::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgb(var(--lg-white) / 0.14);
   border-radius: 9999px;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: rgb(var(--lg-white) / 0.26);
 }
 
 *::-webkit-scrollbar-corner {

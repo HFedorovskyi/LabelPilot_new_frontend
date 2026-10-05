@@ -1,4 +1,5 @@
 import { apiFetch } from "./client";
+import { resolveApiBase } from "./base";
 
 declare const process: any;
 
@@ -72,15 +73,6 @@ export interface SeatSummary {
     release_allowance: number | null;
 }
 
-// Runtime-resolved API base — same mechanism as lib/api/client.ts so the static
-// export works from any LAN host (browser → derive from current host; build/SSR
-// → env or localhost). Do NOT hardcode a host here.
-function resolveApiBase(): string {
-    if (typeof window !== "undefined") {
-        return `${window.location.protocol}//${window.location.hostname}:8000/api/v1`;
-    }
-    return (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) || "http://localhost:8000/api/v1";
-}
 const API_BASE = resolveApiBase();
 
 export const licenseApi = {

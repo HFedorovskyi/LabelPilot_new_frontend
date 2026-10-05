@@ -456,7 +456,7 @@ function StationDetailModal({ station, onClose, t }: { station: any; onClose: ()
       onClick={onClose}
     >
       <div
-        className="my-6 w-full max-w-3xl overflow-hidden rounded-3xl border border-white/[0.12] bg-[#0A0A0B] shadow-2xl"
+        className="my-6 w-full max-w-3xl overflow-hidden rounded-3xl border border-white/[0.12] bg-lp-surface shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-indigo-500/[0.06] px-5 py-4">
@@ -536,7 +536,7 @@ function StationDetailModal({ station, onClose, t }: { station: any; onClose: ()
             <div className="px-4 py-12 text-center text-sm text-white/40">{t("dashboard.noMarks")}</div>
           ) : (
             <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10 bg-[#0A0A0B] text-left text-[10px] uppercase tracking-[0.08em] text-white/35">
+              <thead className="sticky top-0 z-10 bg-lp-surface text-left text-[10px] uppercase tracking-[0.08em] text-white/35">
                 <tr className="border-b border-white/10">
                   <th className="px-4 py-2 font-medium">{t("dashboard.colTime")}</th>
                   <th className="px-2 py-2 font-medium">{t("dashboard.colOperator")}</th>
@@ -651,7 +651,7 @@ function StationsModal({
         onClick={onClose}
       >
         <div
-          className="my-6 w-full max-w-2xl overflow-hidden rounded-3xl border border-white/[0.12] bg-[#0A0A0B] shadow-2xl"
+          className="my-6 w-full max-w-2xl overflow-hidden rounded-3xl border border-white/[0.12] bg-lp-surface shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between border-b border-white/10 bg-indigo-500/[0.06] px-6 py-4">
@@ -794,7 +794,7 @@ function ProductBar({
   const bar = BAR_PALETTE[rank] ?? "bg-white/30";
   return (
     <div className="flex items-center gap-3 py-2">
-      <span className="w-5 shrink-0 text-right text-[10px] font-bold text-white/30 font-[family-name:var(--font-geist-mono)]">
+      <span className="w-5 shrink-0 text-right text-[10px] font-bold text-white/30 font-mono">
         #{rank + 1}
       </span>
       <div className="flex-1 min-w-0">
@@ -1382,7 +1382,7 @@ export default function Dashboard() {
                       </span>
                     </p>
                   </div>
-                  <span className="shrink-0 text-xs font-semibold tabular-nums text-white/55 font-[family-name:var(--font-geist-mono)]">
+                  <span className="shrink-0 text-xs font-semibold tabular-nums text-white/55 font-mono">
                     {fmt(s.labels_count)}
                   </span>
                 </div>
@@ -1462,7 +1462,7 @@ export default function Dashboard() {
             <div className="flex flex-col divide-y divide-white/5">
               {stats.recent_jobs.filter(Boolean).map((j: any) => (
                 <div key={j.id} className="flex items-center gap-3 py-2.5">
-                  <span className="w-8 shrink-0 text-[10px] font-bold text-white/25 font-[family-name:var(--font-geist-mono)]">
+                  <span className="w-8 shrink-0 text-[10px] font-bold text-white/25 font-mono">
                     #{j.id}
                   </span>
                   <div className="min-w-0 flex-1">

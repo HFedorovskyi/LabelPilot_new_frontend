@@ -300,7 +300,7 @@ export default function TemplateHub({ templates, onOpen, onCreate, onDelete }: P
         <Portal>
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => setModalOpen(false)}>
           <div
-            className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0d0e13] p-5 shadow-2xl"
+            className="w-full max-w-md rounded-2xl border border-white/10 bg-lp-surface p-5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 text-base font-semibold text-white">{t("templates.newTemplate")}</div>

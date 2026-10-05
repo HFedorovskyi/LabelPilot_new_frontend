@@ -1,20 +1,11 @@
 import type { Metadata } from "next";
-import localFont from "next/font/local";
+// Self-hosted (EU: no Google Fonts CDN; servers often run offline).
+import "@fontsource-variable/manrope";
+import "@fontsource-variable/jetbrains-mono";
 import "./globals.css";
 
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-  weight: "100 900",
-});
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
-  weight: "100 900",
-});
-
 export const metadata: Metadata = {
-  title: "Локальная система этикеток",
+  title: "LabelPilot Server",
   description:
     "Дизайнер этикеток, номенклатура, упаковки, штрихкоды и пользователи — локально.",
   icons: {
@@ -22,18 +13,21 @@ export const metadata: Metadata = {
   },
 };
 
+// Applies the saved theme before the first paint so a dark-theme user never sees a
+// light flash. Light is the default (lib/theme.ts owns the key).
+const THEME_BOOT = `try{if(localStorage.getItem("lp_theme")==="dark")document.documentElement.classList.add("dark")}catch(e){}`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-      </body>
+    <html lang="ru" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
+      </head>
+      <body className="antialiased">{children}</body>
     </html>
   );
 }

@@ -124,8 +124,8 @@ function CreateUserForm({ onCreated }: { onCreated: () => void }) {
                 <div>
                     <label className="mb-1.5 block text-xs font-medium text-white/55">{t("users.role")}</label>
                     <select value={role} onChange={(e) => setRole(e.target.value as Role)} className={cx(fieldCls, "cursor-pointer")}>
-                        <option value="manager" className="bg-[#0d0e13]">{t("users.roleManager")}</option>
-                        <option value="admin" className="bg-[#0d0e13]">{t("users.roleAdmin")}</option>
+                        <option value="manager" className="bg-lp-surface">{t("users.roleManager")}</option>
+                        <option value="admin" className="bg-lp-surface">{t("users.roleAdmin")}</option>
                     </select>
                 </div>
                 <Btn type="submit" disabled={busy}>
@@ -213,8 +213,8 @@ function UserRow({
                     title={isSelf ? t("users.cannotChangeOwnRole") : t("users.changeRole")}
                     className="cursor-pointer rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white outline-none transition focus:border-indigo-400/40 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                    <option value="manager" className="bg-[#0d0e13]">{t("users.roleManager")}</option>
-                    <option value="admin" className="bg-[#0d0e13]">{t("users.roleAdmin")}</option>
+                    <option value="manager" className="bg-lp-surface">{t("users.roleManager")}</option>
+                    <option value="admin" className="bg-lp-surface">{t("users.roleAdmin")}</option>
                 </select>
 
                 <Btn variant="secondary" onClick={toggleActive} disabled={busy || isSelf} className="px-3 py-1.5 text-xs">

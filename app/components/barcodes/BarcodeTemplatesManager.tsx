@@ -850,7 +850,7 @@ export default function BarcodeTemplatesManager() {
                         />
                     </div>
 
-                    <div className="flex min-h-[200px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/20 bg-white p-4">
+                    <div className="flex min-h-[200px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/20 bg-[#fff] p-4">
                         {previewPng ? (
                             <img
                                 src={`data:image/png;base64,${previewPng}`}
@@ -858,9 +858,9 @@ export default function BarcodeTemplatesManager() {
                                 className="max-w-full max-h-[180px] object-contain"
                             />
                         ) : (
-                            <div className="text-center text-sm text-black/40">
+                            <div className="text-center text-sm text-[#000]/40">
                                 {t("barcodes.previewHint")} <br />
-                                <span className="text-black/60">"{t("barcodes.checkStructure")}"</span>
+                                <span className="text-[#000]/60">"{t("barcodes.checkStructure")}"</span>
                             </div>
                         )}
                     </div>

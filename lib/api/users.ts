@@ -2,6 +2,7 @@ declare const process: any;
 
 import { apiFetch } from "./client";
 import type { Role } from "./auth";
+import { resolveApiBase } from "./base";
 
 // ─── User types ─────────────────────────────────────────────────────────────
 // Mirrors GET /api/v1/users/ (admin-only).
@@ -26,13 +27,6 @@ export interface UpdateUserPayload {
     password?: string;
 }
 
-// Runtime-resolved API base — same mechanism as the rest of lib/api.
-function resolveApiBase(): string {
-    if (typeof window !== "undefined") {
-        return `${window.location.protocol}//${window.location.hostname}:8000/api/v1`;
-    }
-    return (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) || "http://localhost:8000/api/v1";
-}
 const API_BASE = resolveApiBase();
 
 async function readError(res: Response, fallback: string): Promise<string> {

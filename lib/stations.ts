@@ -1,0 +1,43 @@
+// What, if anything, needs the admin's attention on a station — one rule shared by the
+// side-menu counter and the Stations page so they never disagree. The server enforces
+// every seat rule; this only reads the fields GET /stations/ returns.
+
+export type Station = {
+    id: number;
+    station_name: string;
+    station_number: string | null;
+    station_uuid: string;
+    station_ip: string | null;
+    station_port: number;
+    is_online: boolean;
+    mode?: "online" | "offline" | "hybrid";
+    last_sync_at?: string | null;
+    created_at: string;
+    changed_at?: string | null;
+    seat_state?: "active" | "pending" | "released";
+    seat_changed_at?: string | null;
+    seat_within_cap?: boolean;
+    seat_list?: "listed" | "unlisted" | "no_list" | null;
+    station_fingerprint?: string;
+    conflict_fingerprint?: string;
+};
+
+/** Ordered from most to least urgent. */
+export const PROBLEMS = ["conflict", "outside_cap", "unlisted", "pending", "offline"] as const;
+export type StationProblem = (typeof PROBLEMS)[number];
+
+export function stationProblem(station: Station): StationProblem | null {
+    const seat = station.seat_state ?? "active";
+    if (station.conflict_fingerprint) return "conflict";
+    if (seat === "released") return null;
+    if (seat === "pending") return "pending";
+    if (station.seat_within_cap === false) return "outside_cap";
+    if (station.seat_list === "unlisted" || station.seat_list === "no_list") return "unlisted";
+    if (!station.is_online) return "offline";
+    return null;
+}
+
+/** Stations the admin should look at (released ones are not in use, so never counted). */
+export function attentionCount(stations: Station[]): number {
+    return stations.filter((station) => stationProblem(station) !== null).length;
+}
