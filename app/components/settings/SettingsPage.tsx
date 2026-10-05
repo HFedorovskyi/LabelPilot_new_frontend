@@ -374,7 +374,7 @@ function UpdatesSection() {
                             <input
                                 ref={fileInputRef}
                                 type="file"
-                                accept=".zip"
+                                accept=".lpupdate,.zip"
                                 className="sr-only"
                                 onChange={handleOfflineFile}
                                 disabled={isBusy || updaterOnline === false}
