@@ -37,7 +37,7 @@ const roleLabel = (t: (key: string) => string, role: string | undefined): string
 };
 
 // Redesigned screens render their own page header; the others get the shared one.
-const OWN_HEADER: NavKey[] = ["stations", "labels"];
+const OWN_HEADER: NavKey[] = ["home", "stations", "labels"];
 
 function AppShell() {
   const { user, logout } = useAuth();
@@ -224,7 +224,7 @@ function AppShell() {
                   <p className="m-0 text-[14px] text-lp-ink-2">{t(`nav.${active}Desc`)}</p>
                 </div>
               )}
-              {active === "home" ? <Dashboard /> : null}
+              {active === "home" ? <Dashboard onNavigate={setActive} /> : null}
               {active === "labels" ? <LabelDesigner /> : null}
               {active === "catalog" ? <ProductCatalog /> : null}
               {active === "packaging" ? <PackagingManager /> : null}
