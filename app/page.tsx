@@ -5,7 +5,7 @@ import LabelDesigner from "./components/LabelDesigner";
 import ProductCatalog from "./components/catalog/ProductCatalog";
 import PackagingManager from "./components/catalog/PackagingManager";
 import BarcodeTemplatesManager from "./components/barcodes/BarcodeTemplatesManager";
-import StationsPage from "./stations/page";
+import StationsPage from "./components/stations/StationsPage";
 import SettingsPage from "./components/settings/SettingsPage";
 import PrintJobsManager from "./components/print_jobs/PrintJobsManager";
 import Dashboard from "./components/home/Dashboard";
