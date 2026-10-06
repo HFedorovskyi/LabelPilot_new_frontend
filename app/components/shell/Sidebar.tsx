@@ -74,6 +74,7 @@ export default function Sidebar({
     onSearch,
     bellRef,
     unread,
+    unreadSevere,
     onBell,
     serverVersion,
     host,
@@ -92,6 +93,8 @@ export default function Sidebar({
     onSearch: () => void;
     bellRef: React.RefObject<HTMLButtonElement | null>;
     unread: number;
+    /** Any unread critical/error item (red badge); otherwise only warnings (amber). */
+    unreadSevere: boolean;
     onBell: () => void;
     serverVersion: string | null;
     host: string;
@@ -142,7 +145,7 @@ export default function Sidebar({
                     >
                         <NavIcon name="bell" className="h-[19px] w-[19px]" />
                         {unread > 0 && (
-                            <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-lp-bad px-1 text-[10px] font-bold leading-none text-[#fff]">
+                            <span className={cx("absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none text-[#fff]", unreadSevere ? "bg-lp-bad" : "bg-lp-warn")}>
                                 {unread > 9 ? "9+" : unread}
                             </span>
                         )}
@@ -178,7 +181,7 @@ export default function Sidebar({
                     className="relative mb-2 flex min-h-[42px] items-center justify-center rounded-[11px] text-lp-ink-3 transition hover:bg-lp-raised hover:text-lp-ink"
                 >
                     <NavIcon name="bell" className="h-[19px] w-[19px]" />
-                    {unread > 0 && <span className="absolute right-3 top-2 h-2 w-2 rounded-full bg-lp-bad" />}
+                    {unread > 0 && <span className={cx("absolute right-3 top-2 h-2 w-2 rounded-full", unreadSevere ? "bg-lp-bad" : "bg-lp-warn")} />}
                 </button>
             )}
 

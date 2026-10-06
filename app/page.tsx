@@ -23,6 +23,8 @@ import { attentionCount, type Station } from "@/lib/stations";
 import { isNewerVersion } from "@/lib/version";
 import SearchModal from "./components/SearchModal";
 import NotificationsPanel from "./components/NotificationsPanel";
+import NotificationToasts from "./components/NotificationToasts";
+import { useNotifications, type NotificationItem } from "@/lib/notifications";
 import ErrorBoundary from "./components/ErrorBoundary";
 
 const roleLabel = (t: (key: string) => string, role: string | undefined): string => {
@@ -67,11 +69,7 @@ function AppShell() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const bellRef = useRef<HTMLButtonElement>(null);
-  const [notifItems, setNotifItems] = useState<any[]>([]);
-  const [notifSeen, setNotifSeen] = useState<string>("");
-  useEffect(() => {
-    if (typeof window !== "undefined") setNotifSeen(window.localStorage.getItem("lp_notif_seen") || "");
-  }, []);
+  const notifications = useNotifications();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -81,14 +79,6 @@ function AppShell() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
-  useEffect(() => {
-    let alive = true;
-    const load = () =>
-      api.notifications().then((d: any) => { if (alive) setNotifItems(d.notifications ?? []); }).catch(() => {});
-    load();
-    const id = setInterval(load, 60_000);
-    return () => { alive = false; clearInterval(id); };
   }, []);
 
   // Live server version for the menu (must match backend VERSION, not a frontend constant).
@@ -126,25 +116,28 @@ function AppShell() {
     return () => { alive = false; clearInterval(id); };
   }, []);
 
+  // The server checks for updates too (notification "update.server"), so the chip also
+  // shows on admin PCs that cannot reach the updater on the server machine.
+  const serverUpdate = notifications.feed?.items.find((n) => n.code === "update.server" && n.resolved_at === null);
+  const candidate = updateAvail?.version ?? (serverUpdate ? String(serverUpdate.params.version ?? "") : "");
   // Hide the "update available" chrome when the live server version already matches/exceeds
   // the candidate (e.g. dual Docker+native installs, or VERSION file lag on the updater side).
-  const effectiveUpdate = updateAvail && isNewerVersion(updateAvail.version, serverVersion)
-    ? updateAvail
-    : null;
+  const effectiveUpdate = candidate && isNewerVersion(candidate, serverVersion) ? candidate : null;
 
-  // Surface an available update both in the menu and as a notifications-panel item.
-  const updateNotif = effectiveUpdate
-    ? { id: `update-${effectiveUpdate.version}`, level: "INFO", title: t("app.updateAvailable", { version: effectiveUpdate.version }), subtitle: t("app.updateAvailableHint"), created_at: effectiveUpdate.publishedAt }
-    : null;
-  const allNotifItems = updateNotif ? [updateNotif, ...notifItems] : notifItems;
-  const notifUnread = allNotifItems.filter((n) => n.created_at && (!notifSeen || n.created_at > notifSeen)).length;
-  const openNotif = () => {
-    if (!notifOpen) {
-      const now = new Date().toISOString();
-      setNotifSeen(now);
-      if (typeof window !== "undefined") window.localStorage.setItem("lp_notif_seen", now);
-    }
+  const unread = notifications.feed?.unread;
+  const notifUnread = unread?.total ?? 0;
+  const notifSevere = (unread?.critical ?? 0) + (unread?.error ?? 0) > 0;
+  // Read = seen when the list is closed, so new items stay marked while the user reads them.
+  const toggleNotif = () => {
+    if (notifOpen) void notifications.markSeen();
     setNotifOpen((o) => !o);
+  };
+  const closeNotif = () => {
+    setNotifOpen(false);
+    void notifications.markSeen();
+  };
+  const openNotification = (item: NotificationItem) => {
+    if (item.link_tab) setActive(item.link_tab as NavKey);
   };
 
   // ── menu counters: stations that need a decision, licence seats in use ──
@@ -196,16 +189,18 @@ function AppShell() {
         onSearch={() => setSearchOpen(true)}
         bellRef={bellRef}
         unread={notifUnread}
-        onBell={openNotif}
+        unreadSevere={notifSevere}
+        onBell={toggleNotif}
         serverVersion={serverVersion}
         host={host}
-        update={effectiveUpdate?.version ?? null}
+        update={effectiveUpdate}
         onUpdate={() => setActive("settings")}
         userName={user?.username ?? ""}
         userRole={roleLabel(t, user?.role)}
         onLogout={() => void logout()}
       />
-      <NotificationsPanel open={notifOpen} onClose={() => setNotifOpen(false)} items={allNotifItems} anchorRef={bellRef} />
+      <NotificationsPanel open={notifOpen} onClose={closeNotif} feed={notifications.feed} anchorRef={bellRef} onOpenItem={openNotification} />
+      <NotificationToasts toasts={notifications.toasts} onDismiss={notifications.dismissToast} onOpen={openNotification} />
       <SearchModal
         open={searchOpen}
         onClose={() => setSearchOpen(false)}

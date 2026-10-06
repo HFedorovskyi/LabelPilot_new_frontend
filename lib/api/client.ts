@@ -462,9 +462,17 @@ export const api = {
         if (!res.ok) throw new Error('Search failed');
         return res.json();
     },
-    notifications: async () => {
-        const res = await apiFetch(`${API_BASE}/notifications/`);
+    /** Notification feed; `since` (the previous poll's server_time) returns new pop-ups. */
+    notifications: async (since?: string) => {
+        const query = since ? `?since=${encodeURIComponent(since)}` : '';
+        const res = await apiFetch(`${API_BASE}/notifications/${query}`);
         if (!res.ok) throw new Error('Failed to fetch notifications');
+        return res.json();
+    },
+    /** The user opened the notification list: everything up to now counts as read. */
+    notificationsSeen: async () => {
+        const res = await apiFetch(`${API_BASE}/notifications/seen/`, { method: 'POST' });
+        if (!res.ok) throw new Error('Failed to mark notifications as read');
         return res.json();
     },
     /** Live server version from GET /version/ (reads VERSION file — not a frontend constant). */

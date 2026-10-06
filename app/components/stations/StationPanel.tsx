@@ -101,23 +101,25 @@ function Legend({ onClose }: { onClose: () => void }) {
 
 // ─── Connect a station ───────────────────────────────────────────────────────
 
+// The station client listens for the server's data on this port (ingress.rs).
+const STATION_PORT = 5556;
+
 function AddStation({ license, host, onClose, onCreated }: Props) {
     const { t } = useTranslation();
     const [name, setName] = useState("");
+    const [ip, setIp] = useState("");
     const [busy, setBusy] = useState(false);
-    const [created, setCreated] = useState<string | null>(null);
+    const [created, setCreated] = useState<{ uuid: string; name: string } | null>(null);
+    const [sent, setSent] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const seats = license?.seats;
     const full = seats != null && seats.limit != null && seats.active >= seats.limit;
 
-    const create = async () => {
+    const run = async (operation: () => Promise<void>) => {
         setBusy(true);
         setError(null);
         try {
-            const station = await api.stations.create({ station_name: name.trim() });
-            download(await api.stations.downloadIdentity(station.station_uuid), `identity_${name.trim().replace(/\s+/g, "_")}.lpi`);
-            setCreated(name.trim());
-            onCreated(station.station_uuid);
+            await operation();
         } catch (e) {
             setError(e instanceof Error ? e.message : String(e));
         } finally {
@@ -125,12 +127,30 @@ function AddStation({ license, host, onClose, onCreated }: Props) {
         }
     };
 
-    const step = (n: number, body: React.ReactNode) => (
+    // A 2.0 station gets its identity with the first data the server sends it, so the
+    // server needs the station's address; the .lpi file is for the older client.
+    const create = () => run(async () => {
+        const station = await api.stations.create({ station_name: name.trim(), station_ip: ip.trim(), station_port: STATION_PORT });
+        setCreated({ uuid: station.station_uuid, name: name.trim() });
+        onCreated(station.station_uuid);
+    });
+    const send = () => run(async () => {
+        if (!created) return;
+        await api.stations.sync(created.uuid);
+        setSent(true);
+    });
+    const legacyFile = () => run(async () => {
+        if (!created) return;
+        download(await api.stations.downloadIdentity(created.uuid), `identity_${created.name.replace(/\s+/g, "_")}.lpi`);
+    });
+
+    const step = (n: number, body: React.ReactNode, done = false) => (
         <li className="flex gap-3">
-            <span aria-hidden="true" className="flex h-7 w-7 flex-none items-center justify-center rounded-[9px] bg-lp-accent-bg text-[14px] font-extrabold text-lp-accent-ink">{n}</span>
+            <span aria-hidden="true" className={cx("flex h-7 w-7 flex-none items-center justify-center rounded-[9px] text-[14px] font-extrabold", done ? "bg-lp-ok-bg text-lp-ok" : "bg-lp-accent-bg text-lp-accent-ink")}>{done ? "✓" : n}</span>
             <div className="flex min-w-0 flex-1 flex-col gap-1.5">{body}</div>
         </li>
     );
+    const input = "min-h-[42px] rounded-[10px] border border-lp-line-2 bg-lp-surface px-3 text-[14px] text-lp-ink outline-none focus:border-lp-accent disabled:opacity-60";
 
     return (
         <>
@@ -139,29 +159,36 @@ function AddStation({ license, host, onClose, onCreated }: Props) {
             </div>
             <ol className="m-0 flex list-none flex-col gap-[18px] p-[18px]">
                 {step(1, <>
-                    <label htmlFor="add-station-name" className="text-[14px] font-extrabold text-lp-ink">{t("stp.a.step1")}</label>
-                    <input
-                        id="add-station-name"
-                        value={name}
-                        onChange={(e) => { setName(e.target.value); setCreated(null); }}
-                        placeholder={t("stp.a.placeholder")}
-                        className="min-h-[42px] rounded-[10px] border border-lp-line-2 bg-lp-surface px-3 text-[14px] text-lp-ink outline-none focus:border-lp-accent"
-                    />
+                    <span className="text-[14px] font-extrabold text-lp-ink">{t("stp.a.step1")}</span>
+                    <label htmlFor="add-station-name" className="text-[12px] font-bold text-lp-ink-3">{t("stp.s.name")}</label>
+                    <input id="add-station-name" value={name} disabled={created !== null} onChange={(e) => setName(e.target.value)} placeholder={t("stp.a.placeholder")} className={input} />
+                    <label htmlFor="add-station-ip" className="text-[12px] font-bold text-lp-ink-3">{t("stp.a.ipLabel")}</label>
+                    <input id="add-station-ip" value={ip} disabled={created !== null} onChange={(e) => setIp(e.target.value)} placeholder="192.168.1.25" className={cx(input, "font-mono")} />
                     <span className="text-[12px] text-lp-ink-3">{t("stp.a.step1Hint")}</span>
-                </>)}
+                    {created === null && (
+                        <button type="button" disabled={!name.trim() || !ip.trim() || busy} onClick={create} className={cx(primaryButton, "mt-1 self-start")}>
+                            {t("stp.a.create")}
+                        </button>
+                    )}
+                </>, created !== null)}
                 {step(2, <>
                     <span className="text-[14px] font-extrabold text-lp-ink">{t("stp.a.step2")}</span>
-                    <button type="button" disabled={!name.trim() || busy || created !== null} onClick={create} className={cx(primaryButton, "self-start")}>
-                        {t("stp.a.create")}
-                    </button>
-                    {created && <span className="text-[14px] font-bold text-lp-ok">● {t("stp.a.created", { name: created })}</span>}
-                    {error && <span className="text-[13px] font-bold text-lp-bad">■ {error}</span>}
+                    <span className="text-[14px] text-lp-ink-2">{t("stp.a.step2Text", { host })}</span>
                 </>)}
                 {step(3, <>
                     <span className="text-[14px] font-extrabold text-lp-ink">{t("stp.a.step3")}</span>
-                    <span className="text-[14px] text-lp-ink-2">{t("stp.a.step3Text", { host })}</span>
-                </>)}
+                    <button type="button" disabled={created === null || busy || sent} onClick={send} className={cx(primaryButton, "self-start")}>
+                        {t("stp.a.send")}
+                    </button>
+                    {sent && <span className="text-[14px] font-bold text-lp-ok">● {t("stp.a.sent", { name: created?.name ?? "" })}</span>}
+                    {created !== null && !sent && (
+                        <button type="button" onClick={legacyFile} disabled={busy} className="self-start border-0 bg-transparent p-0 text-[13px] font-bold text-lp-accent-ink hover:underline">
+                            {t("stp.a.legacyFile")}
+                        </button>
+                    )}
+                </>, sent)}
             </ol>
+            {error && <p className="mx-[18px] mb-[18px] mt-0 rounded-[12px] bg-lp-bad-bg px-3.5 py-2.5 text-[13px] font-bold text-lp-bad">■ {t("stp.err", { message: error })}</p>}
             {full && seats && (
                 <div className="mx-[18px] mb-[18px] flex flex-col gap-1.5 rounded-[14px] bg-lp-warn-bg p-3.5">
                     <span className="text-[14px] font-extrabold text-lp-warn">▲ {t("stp.a.noSeats", { used: seats.active, limit: seats.limit ?? 0 })}</span>
