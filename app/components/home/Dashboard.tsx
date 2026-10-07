@@ -58,7 +58,8 @@ function LabelPath({ steps, onNavigate }: { steps: Step[]; onNavigate?: (key: Na
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(210px,100%),1fr))] gap-2.5">
         {steps.map((s) => (
           <button
-            key={s.key}
+            // Two steps can lead to the same section (products, then their templates).
+            key={s.n}
             type="button"
             onClick={() => onNavigate?.(s.key)}
             className={cx(

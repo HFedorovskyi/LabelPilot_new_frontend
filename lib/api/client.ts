@@ -83,10 +83,21 @@ export async function apiFetch(input: string, init: RequestInit = {}): Promise<R
     return res;
 }
 
+/** The server's reason from a DRF error body: `detail`/`error`, else the first field message. */
+function fieldError(body: any, fallback: string): string {
+    if (typeof body?.detail === 'string') return body.detail;
+    if (typeof body?.error === 'string') return body.error;
+    const first = body && typeof body === 'object' ? Object.values(body)[0] : null;
+    if (Array.isArray(first) && typeof first[0] === 'string') return first[0];
+    return fallback;
+}
+
 export const api = {
     nomenclature: {
-        list: async () => {
-            const res = await apiFetch(`${API_BASE}/nomenclature/`);
+        /** `no_template`: only products without a pack label template (stations cannot print them). */
+        list: async (params: { no_template?: boolean } = {}) => {
+            const suffix = params.no_template ? '?no_template=1' : '';
+            const res = await apiFetch(`${API_BASE}/nomenclature/${suffix}`);
             if (!res.ok) throw new Error('Failed to fetch nomenclature');
             return res.json();
         },
@@ -96,7 +107,7 @@ export const api = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data),
             });
-            if (!res.ok) throw new Error('Failed to create nomenclature');
+            if (!res.ok) throw new Error(fieldError(await res.json().catch(() => ({})), 'Failed to create nomenclature'));
             return res.json();
         },
         update: async (id: number | string, data: any) => {
@@ -105,25 +116,12 @@ export const api = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data),
             });
-            if (!res.ok) throw new Error('Failed to update nomenclature');
+            if (!res.ok) throw new Error(fieldError(await res.json().catch(() => ({})), 'Failed to update nomenclature'));
             return res.json();
         },
         delete: async (id: number | string) => {
             const res = await apiFetch(`${API_BASE}/nomenclature/${id}/`, { method: 'DELETE' });
             if (!res.ok) throw new Error('Failed to delete nomenclature');
-        },
-        // Add update if needed
-        sendToStations: async (stationIds: string[]) => {
-            const res = await apiFetch(`${API_BASE}/nomenclature/send_to_stations/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ stations: stationIds }),
-            });
-            if (!res.ok) {
-                const errorData = await res.json().catch(() => ({}));
-                throw new Error(errorData.detail || errorData.error || 'Failed to send to stations');
-            }
-            return res.json();
         },
         previewImport: async (file: File, separator: string) => {
             const formData = new FormData();

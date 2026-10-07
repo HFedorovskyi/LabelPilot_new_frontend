@@ -20,6 +20,8 @@ export type Station = {
     seat_list?: "listed" | "unlisted" | "no_list" | null;
     station_fingerprint?: string;
     conflict_fingerprint?: string;
+    /** When the station last got the data set (push, USB file or its own pull). */
+    data_pushed_at?: string | null;
 };
 
 /** Ordered from most to least urgent. */

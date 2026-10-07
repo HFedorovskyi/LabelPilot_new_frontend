@@ -2,7 +2,8 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import LabelDesigner from "./components/LabelDesigner";
-import ProductCatalog from "./components/catalog/ProductCatalog";
+import ProductsPage from "./components/catalog/ProductsPage";
+import { mayLeave } from "@/lib/navGuard";
 import PackagingManager from "./components/catalog/PackagingManager";
 import BarcodeTemplatesManager from "./components/barcodes/BarcodeTemplatesManager";
 import StationsPage from "./components/stations/StationsPage";
@@ -39,7 +40,7 @@ const roleLabel = (t: (key: string) => string, role: string | undefined): string
 };
 
 // Redesigned screens render their own page header; the others get the shared one.
-const OWN_HEADER: NavKey[] = ["home", "stations", "print_tasks", "labels"];
+const OWN_HEADER: NavKey[] = ["home", "stations", "print_tasks", "catalog", "labels"];
 
 function AppShell() {
   const { user, logout } = useAuth();
@@ -48,7 +49,11 @@ function AppShell() {
   // «Доступ к серверу» (server users) is admin-only — the server enforces it, this hides the UI.
   const hidden: NavKey[] = isAdmin ? [] : ["users"];
 
-  const [active, setActive] = useState<NavKey>("home");
+  const [active, setActiveTab] = useState<NavKey>("home");
+  // A page with unsaved changes (a product being edited) may hold the switch.
+  const setActive = useCallback((tab: NavKey) => {
+    if (mayLeave()) setActiveTab(tab);
+  }, []);
   useEffect(() => {
     if (active === "users" && !isAdmin) setActive("home");
   }, [active, isAdmin]);
@@ -144,6 +149,10 @@ function AppShell() {
   const [stationProblems, setStationProblems] = useState(0);
   const [jobErrors, setJobErrors] = useState(0);
   const [seats, setSeats] = useState<{ active: number; limit: number | null } | null>(null);
+  const [noTemplate, setNoTemplate] = useState(0);
+  const loadNoTemplate = useCallback(() => {
+    api.nomenclature.list({ no_template: true }).then((list: unknown[]) => setNoTemplate(list.length)).catch(() => { });
+  }, []);
   const loadJobErrors = useCallback(() => {
     api.printJobs.list({ status: "error" }).then((list) => setJobErrors(list.length)).catch(() => { });
   }, []);
@@ -156,13 +165,15 @@ function AppShell() {
         .then((info) => setSeats(info.seats ? { active: info.seats.active, limit: info.seats.limit } : null))
         .catch(() => { });
       loadJobErrors();
+      loadNoTemplate();
     };
     load();
     const id = setInterval(load, 30_000);
     return () => clearInterval(id);
-  }, [loadJobErrors]);
+  }, [loadJobErrors, loadNoTemplate]);
   const badges: Partial<Record<NavKey, NavBadge>> = {};
   if (stationProblems > 0) badges.stations = { text: String(stationProblems), tone: "bad", title: t("nav.stationsBadge", { count: stationProblems }) };
+  if (noTemplate > 0) badges.catalog = { text: String(noTemplate), tone: "warn", title: t("nav.catalogBadge", { count: noTemplate }) };
   if (jobErrors > 0) badges.print_tasks = { text: String(jobErrors), tone: "bad", title: t("nav.printBadge", { count: jobErrors }) };
   if (seats && seats.limit != null) badges.license = { text: `${seats.active}/${seats.limit}`, tone: "plain", title: t("nav.licenseBadge") };
 
@@ -226,7 +237,7 @@ function AppShell() {
               )}
               {active === "home" ? <Dashboard onNavigate={setActive} /> : null}
               {active === "labels" ? <LabelDesigner /> : null}
-              {active === "catalog" ? <ProductCatalog /> : null}
+              {active === "catalog" ? <ProductsPage onNavigate={setActive} onCatalogChanged={loadNoTemplate} /> : null}
               {active === "packaging" ? <PackagingManager /> : null}
               {active === "barcodes" ? <BarcodeTemplatesManager /> : null}
               {active === "print_tasks" ? <PrintPage onNavigate={setActive} onJobsChanged={loadJobErrors} /> : null}

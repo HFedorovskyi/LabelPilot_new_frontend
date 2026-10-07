@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { api } from "@/lib/api/client";
 import { useTranslation } from "@/lib/i18n";
-import { SmallButton, Select, Card } from "./ProductCatalog";
+import { SmallButton, Select, Card } from "./legacy";
 import type { GlobalAttribute, Packaging, LabelTemplate } from "./types";
 import Portal from "../Portal";
 
