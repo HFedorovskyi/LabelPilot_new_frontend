@@ -41,3 +41,14 @@ export function stationProblem(station: Station): StationProblem | null {
 export function attentionCount(stations: Station[]): number {
     return stations.filter((station) => stationProblem(station) !== null).length;
 }
+
+/** How new data (a print job) can reach a station now: over the network, only as a file for
+ *  a USB stick (it is offline), or not at all — the server refuses stations without an
+ *  active seat (pending, over the cap, not in the seat list) and a conflict needs a decision. */
+export type Delivery = "network" | "file" | "blocked";
+
+export function stationDelivery(station: Station): Delivery {
+    const problem = stationProblem(station);
+    if ((station.seat_state ?? "active") !== "active" || (problem !== null && problem !== "offline")) return "blocked";
+    return problem === "offline" ? "file" : "network";
+}

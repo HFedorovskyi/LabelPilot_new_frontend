@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import LabelDesigner from "./components/LabelDesigner";
 import ProductCatalog from "./components/catalog/ProductCatalog";
 import PackagingManager from "./components/catalog/PackagingManager";
 import BarcodeTemplatesManager from "./components/barcodes/BarcodeTemplatesManager";
 import StationsPage from "./components/stations/StationsPage";
 import SettingsPage from "./components/settings/SettingsPage";
-import PrintJobsManager from "./components/print_jobs/PrintJobsManager";
+import PrintPage from "./components/print/PrintPage";
 import Dashboard from "./components/home/Dashboard";
 import DemoBanner from "./components/DemoBanner";
 import UsersManager from "./components/users/UsersManager";
@@ -39,7 +39,7 @@ const roleLabel = (t: (key: string) => string, role: string | undefined): string
 };
 
 // Redesigned screens render their own page header; the others get the shared one.
-const OWN_HEADER: NavKey[] = ["home", "stations", "labels"];
+const OWN_HEADER: NavKey[] = ["home", "stations", "print_tasks", "labels"];
 
 function AppShell() {
   const { user, logout } = useAuth();
@@ -140,25 +140,30 @@ function AppShell() {
     if (item.link_tab) setActive(item.link_tab as NavKey);
   };
 
-  // ── menu counters: stations that need a decision, licence seats in use ──
+  // ── menu counters: stations that need a decision, jobs that did not go out, seats in use ──
   const [stationProblems, setStationProblems] = useState(0);
+  const [jobErrors, setJobErrors] = useState(0);
   const [seats, setSeats] = useState<{ active: number; limit: number | null } | null>(null);
+  const loadJobErrors = useCallback(() => {
+    api.printJobs.list({ status: "error" }).then((list) => setJobErrors(list.length)).catch(() => { });
+  }, []);
   useEffect(() => {
-    let alive = true;
     const load = () => {
       api.stations.list()
-        .then((list: Station[]) => { if (alive) setStationProblems(attentionCount(list)); })
+        .then((list: Station[]) => setStationProblems(attentionCount(list)))
         .catch(() => { });
       licenseApi.get()
-        .then((info) => { if (alive) setSeats(info.seats ? { active: info.seats.active, limit: info.seats.limit } : null); })
+        .then((info) => setSeats(info.seats ? { active: info.seats.active, limit: info.seats.limit } : null))
         .catch(() => { });
+      loadJobErrors();
     };
     load();
     const id = setInterval(load, 30_000);
-    return () => { alive = false; clearInterval(id); };
-  }, []);
+    return () => clearInterval(id);
+  }, [loadJobErrors]);
   const badges: Partial<Record<NavKey, NavBadge>> = {};
   if (stationProblems > 0) badges.stations = { text: String(stationProblems), tone: "bad", title: t("nav.stationsBadge", { count: stationProblems }) };
+  if (jobErrors > 0) badges.print_tasks = { text: String(jobErrors), tone: "bad", title: t("nav.printBadge", { count: jobErrors }) };
   if (seats && seats.limit != null) badges.license = { text: `${seats.active}/${seats.limit}`, tone: "plain", title: t("nav.licenseBadge") };
 
   const [collapsed, setCollapsed] = useState(false);
@@ -224,7 +229,7 @@ function AppShell() {
               {active === "catalog" ? <ProductCatalog /> : null}
               {active === "packaging" ? <PackagingManager /> : null}
               {active === "barcodes" ? <BarcodeTemplatesManager /> : null}
-              {active === "print_tasks" ? <PrintJobsManager /> : null}
+              {active === "print_tasks" ? <PrintPage onNavigate={setActive} onJobsChanged={loadJobErrors} /> : null}
               {active === "stations" ? <StationsPage /> : null}
               {active === "operators" ? <OperatorsManager /> : null}
               {active === "settings" ? <SettingsPage key="settings" /> : null}

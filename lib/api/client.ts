@@ -1,5 +1,6 @@
 import { getSavedLang } from "@/lib/i18n";
 import { resolveApiBase } from "./base";
+import type { PrintJob } from "@/lib/printJobs";
 
 declare const process: any;
 
@@ -482,8 +483,13 @@ export const api = {
         return res.json();
     },
     printJobs: {
-        list: async () => {
-            const res = await apiFetch(`${API_BASE}/print_jobs/`);
+        /** `status` is a comma-separated list; `recent_days` drops jobs completed earlier. */
+        list: async (params: { status?: string; recent_days?: number } = {}): Promise<PrintJob[]> => {
+            const query = new URLSearchParams();
+            if (params.status) query.set('status', params.status);
+            if (params.recent_days != null) query.set('recent_days', String(params.recent_days));
+            const suffix = query.toString() ? `?${query}` : '';
+            const res = await apiFetch(`${API_BASE}/print_jobs/${suffix}`);
             if (!res.ok) throw new Error('Failed to fetch print jobs');
             return res.json();
         },
