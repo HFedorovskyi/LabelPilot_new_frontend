@@ -35,7 +35,7 @@ function Toast({ item, onClose, onOpen }: { item: NotificationItem; onClose: () 
         {body && <span className="text-[13px] leading-snug text-lp-ink-2">{body}</span>}
         <div className="mt-1 flex items-center gap-3">
           {item.link_tab && (
-            <button type="button" onClick={onOpen} className="min-h-[34px] rounded-[9px] bg-lp-accent px-3 text-[13px] font-extrabold text-[#fff] transition hover:brightness-110">
+            <button type="button" onClick={onOpen} className="min-h-[34px] rounded-[9px] lp-btn-primary px-3 text-[13px] font-extrabold text-[#fff] transition hover:brightness-110">
               {t("ntf.open")}
             </button>
           )}

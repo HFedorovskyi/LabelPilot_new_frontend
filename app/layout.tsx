@@ -14,8 +14,8 @@ export const metadata: Metadata = {
 };
 
 // Applies the saved theme before the first paint so a dark-theme user never sees a
-// light flash. Light is the default (lib/theme.ts owns the key).
-const THEME_BOOT = `try{if(localStorage.getItem("lp_theme")==="dark")document.documentElement.classList.add("dark")}catch(e){}`;
+// light flash. Light is the default; "system" follows the computer (lib/theme.ts owns the key).
+const THEME_BOOT = `try{var t=localStorage.getItem("lp_theme");if(t==="dark"||(t==="system"&&matchMedia("(prefers-color-scheme: dark)").matches))document.documentElement.classList.add("dark")}catch(e){}`;
 
 export default function RootLayout({
   children,

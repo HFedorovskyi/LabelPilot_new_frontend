@@ -11,6 +11,7 @@ import { apiHost } from "@/lib/api/base";
 import { licenseApi, type LicenseInfo } from "@/lib/api/license";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import { useTranslation } from "@/lib/i18n";
+import PageTitle from "@/app/components/shell/PageTitle";
 import { PROBLEMS, stationProblem, type Station, type StationProblem } from "@/lib/stations";
 import StationPanel, { type TodayRow } from "@/app/components/stations/StationPanel";
 import {
@@ -119,28 +120,26 @@ export default function StationsPage() {
 
     return (
         <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-[22px]">
-            <div className="flex flex-wrap items-end gap-3">
-                <div className="mr-auto flex max-w-[640px] flex-col gap-1">
-                    <span className="text-[13px] font-bold text-lp-coral">
-                        {updatedAt
-                            ? t("stp.eyebrow", { time: updatedAt.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" }) })
-                            : t("nav.groupProduction")}
-                    </span>
-                    <h1 className="m-0 text-[28px] font-extrabold tracking-[-0.02em] text-lp-ink">{t("nav.stations")}</h1>
-                    <p className="m-0 text-[14px] text-lp-ink-2">{t("nav.stationsDesc")}</p>
-                </div>
+            <PageTitle
+                icon="stations"
+                eyebrow={updatedAt
+                    ? t("stp.eyebrow", { time: updatedAt.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" }) })
+                    : t("nav.groupProduction")}
+                title={t("nav.stations")}
+                description={t("nav.stationsDesc")}
+            >
                 <button
                     type="button"
                     onClick={() => setPanel({ mode: "add" })}
-                    className="flex min-h-[44px] items-center gap-2 rounded-[11px] bg-lp-accent px-[18px] text-[14px] font-extrabold text-[#fff] transition hover:brightness-110"
+                    className="flex min-h-[44px] items-center gap-2 rounded-[11px] lp-btn-primary px-[18px] text-[14px] font-extrabold text-[#fff] transition hover:brightness-110"
                 >
                     <Icon name="plus" className="h-5 w-5" />
                     {t("stp.connect")}
                 </button>
-            </div>
+            </PageTitle>
 
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(240px,100%),1fr))] gap-3">
-                <div className="flex flex-col gap-2.5 rounded-[16px] border border-lp-line bg-lp-surface px-[18px] py-4">
+                <div className="flex flex-col gap-2.5 lp-card px-[18px] py-4">
                     <span className="text-[13px] font-bold text-lp-ink-3">{t("stp.kpiOnline")}</span>
                     <div className="flex items-baseline gap-1.5">
                         <span className="text-[30px] font-extrabold tabular-nums tracking-[-0.02em]">{online}</span>
@@ -160,7 +159,7 @@ export default function StationsPage() {
                         })}
                     </div>
                 </div>
-                <div className="flex flex-col gap-2.5 rounded-[16px] border border-lp-line bg-lp-surface px-[18px] py-4">
+                <div className="flex flex-col gap-2.5 lp-card px-[18px] py-4">
                     <span className="text-[13px] font-bold text-lp-ink-3">{t("stp.kpiPrinted")}</span>
                     <div className="flex items-end justify-between gap-3">
                         <div className="flex items-baseline gap-1.5">
@@ -170,7 +169,7 @@ export default function StationsPage() {
                         <Bars values={tileBars({ labels: 0, weight_kg: 0, last_at: null, last_product: "", hourly: totalHourly })} height={34} now={TILE_HOURS - 1} width={7} />
                     </div>
                 </div>
-                <div className="flex flex-col gap-2.5 rounded-[16px] border border-lp-line bg-lp-surface px-[18px] py-4">
+                <div className="flex flex-col gap-2.5 lp-card px-[18px] py-4">
                     <span className="text-[13px] font-bold text-lp-ink-3">{t("stp.kpiSeats")}</span>
                     {seats ? (
                         <>
@@ -226,7 +225,7 @@ export default function StationsPage() {
                                                 <div
                                                     key={station.station_uuid}
                                                     className={cx(
-                                                        "flex flex-col gap-2.5 rounded-[16px] border bg-lp-surface p-4",
+                                                        "flex flex-col gap-2.5 rounded-[20px] border bg-lp-surface p-4 shadow-[var(--lp-shadow)]",
                                                         isOpen ? "border-lp-accent ring-1 ring-lp-accent" : "border-lp-line",
                                                     )}
                                                 >
@@ -286,7 +285,7 @@ export default function StationsPage() {
                                                     onClick={() => openStation(station.station_uuid)}
                                                     aria-pressed={isOpen}
                                                     className={cx(
-                                                        "flex flex-col gap-2.5 rounded-[16px] border bg-lp-surface px-4 py-3.5 text-left transition hover:border-lp-line-2 hover:shadow-[0_4px_14px_rgba(18,23,34,0.07)]",
+                                                        "lp-lift flex flex-col gap-2.5 rounded-[20px] border bg-lp-surface px-4 py-3.5 text-left shadow-[var(--lp-shadow)] hover:border-lp-line-2",
                                                         isOpen ? "border-lp-accent ring-1 ring-lp-accent" : "border-lp-line",
                                                     )}
                                                 >

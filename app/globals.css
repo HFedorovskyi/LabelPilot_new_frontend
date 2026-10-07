@@ -44,26 +44,29 @@
   font-style: normal;
 }
 
-/* Design tokens of the admin redesign (canvas «LabelPilot Server — редизайн»): light by
-   default, `.dark` on <html> switches. RGB triplets so Tailwind's `lp-*` colors take /alpha. */
+/* Design tokens of the admin redesign (canvas «LabelPilot Server — редизайн», style D):
+   light by default, `.dark` on <html> switches. Colors are RGB triplets so Tailwind's
+   `lp-*` classes take /alpha; the rest (mesh, glass, shadows, button) are used by the
+   lp-* component classes below. Status colors (ok/warn/bad) only ever mean a status;
+   the group (g-*) and label type (t-*) hues give sections and kinds their identity. */
 :root {
   color-scheme: light;
-  --lp-bg: 244 246 249;
+  --lp-bg: 237 241 247;
   --lp-surface: 255 255 255;
-  --lp-raised: 248 249 251;
-  --lp-line: 227 231 237;
-  --lp-line-2: 210 216 225;
-  --lp-ink: 18 23 34;
-  --lp-ink-2: 75 84 99;
-  --lp-ink-3: 95 104 118;
+  --lp-raised: 246 248 252;
+  --lp-line: 226 231 239;
+  --lp-line-2: 207 215 227;
+  --lp-ink: 11 19 36;
+  --lp-ink-2: 69 80 106;
+  --lp-ink-3: 90 102 128;
   --lp-ok: 11 122 82;
-  --lp-ok-bg: 229 245 238;
+  --lp-ok-bg: 227 245 236;
   --lp-warn: 138 90 0;
-  --lp-warn-bg: 255 242 214;
+  --lp-warn-bg: 255 241 209;
   --lp-bad: 180 35 27;
-  --lp-bad-bg: 252 233 231;
-  --lp-off: 95 104 118;
-  --lp-off-bg: 236 239 243;
+  --lp-bad-bg: 252 232 230;
+  --lp-off: 90 102 128;
+  --lp-off-bg: 234 238 245;
   --lp-coral: 232 82 79;
   --lp-coral-bg: 253 237 235;
   --lp-sky: 111 162 214;
@@ -71,39 +74,130 @@
   --lp-accent-bg: 232 241 251;
   --lp-accent-ink: 29 79 140;
   --lp-bar: 185 210 238;
+  --lp-g-prod: 210 68 63;
+  --lp-g-what: 37 99 197;
+  --lp-g-people: 106 71 199;
+  --lp-g-sys: 14 138 108;
+  --lp-t-pack: 37 99 197;
+  --lp-t-box: 176 90 6;
+  --lp-t-pallet: 106 71 199;
+  --lp-mesh-1: rgba(232, 82, 79, 0.12);
+  --lp-mesh-2: rgba(76, 141, 240, 0.18);
+  --lp-mesh-3: rgba(140, 110, 240, 0.12);
+  --lp-glass: rgba(255, 255, 255, 0.66);
+  --lp-glass-line: rgba(255, 255, 255, 0.8);
+  --lp-glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 24px 60px -34px rgba(20, 30, 60, 0.45);
+  --lp-shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 18px 40px -26px rgba(16, 24, 40, 0.32);
+  --lp-shadow-hover: 0 2px 4px rgba(16, 24, 40, 0.06), 0 26px 50px -24px rgba(16, 24, 40, 0.42);
+  --lp-btn: linear-gradient(180deg, #3c7cd9, #2361aa);
+  --lp-btn-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 12px 26px -12px rgba(35, 97, 170, 0.95);
+  --lp-nav-active: #ffffff;
+  --lp-nav-active-shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 10px 24px -14px rgba(16, 24, 40, 0.35);
 }
 
 .dark {
   color-scheme: dark;
-  --lp-bg: 13 17 23;
-  --lp-surface: 21 27 35;
-  --lp-raised: 26 33 43;
-  --lp-line: 37 48 64;
-  --lp-line-2: 50 64 82;
-  --lp-ink: 233 238 245;
-  --lp-ink-2: 179 188 201;
-  --lp-ink-3: 147 160 177;
+  --lp-bg: 7 10 16;
+  --lp-surface: 15 20 29;
+  --lp-raised: 19 26 37;
+  --lp-line: 33 40 52;
+  --lp-line-2: 48 58 74;
+  --lp-ink: 238 242 249;
+  --lp-ink-2: 176 186 203;
+  --lp-ink-3: 134 146 167;
   --lp-ok: 93 211 158;
   --lp-ok-bg: 14 42 32;
-  --lp-warn: 242 195 94;
+  --lp-warn: 245 200 102;
   --lp-warn-bg: 44 35 16;
-  --lp-bad: 255 143 133;
+  --lp-bad: 255 156 147;
   --lp-bad-bg: 52 22 19;
-  --lp-off: 147 160 177;
-  --lp-off-bg: 33 42 54;
+  --lp-off: 134 146 167;
+  --lp-off-bg: 30 38 50;
   --lp-coral: 242 113 110;
   --lp-coral-bg: 53 25 26;
   --lp-sky: 141 184 228;
-  --lp-accent: 43 108 184;
+  --lp-accent: 47 111 208;
   --lp-accent-bg: 21 42 68;
-  --lp-accent-ink: 156 196 240;
+  --lp-accent-ink: 156 200 255;
   --lp-bar: 36 69 108;
+  --lp-g-prod: 255 138 128;
+  --lp-g-what: 134 185 255;
+  --lp-g-people: 190 162 255;
+  --lp-g-sys: 94 214 188;
+  --lp-t-pack: 134 185 255;
+  --lp-t-box: 246 186 92;
+  --lp-t-pallet: 190 162 255;
+  --lp-mesh-1: rgba(232, 82, 79, 0.2);
+  --lp-mesh-2: rgba(76, 141, 240, 0.24);
+  --lp-mesh-3: rgba(150, 110, 255, 0.16);
+  --lp-glass: rgba(16, 22, 32, 0.62);
+  --lp-glass-line: rgba(255, 255, 255, 0.07);
+  --lp-glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 24px 60px -30px rgba(0, 0, 0, 0.8);
+  --lp-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 20px 44px -28px rgba(0, 0, 0, 0.9);
+  --lp-shadow-hover: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 0 0 1px rgba(134, 185, 255, 0.25), 0 26px 56px -24px rgba(76, 141, 240, 0.4);
+  --lp-btn: linear-gradient(180deg, #4c8df0, #2f6fd0);
+  --lp-btn-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 14px 30px -12px rgba(76, 141, 240, 0.75);
+  --lp-nav-active: rgba(255, 255, 255, 0.08);
+  --lp-nav-active-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 body {
   background: rgb(var(--lp-bg));
   color: rgb(var(--lp-ink));
   font-family: "Manrope Variable", Manrope, system-ui, sans-serif;
+}
+
+@layer components {
+  /* The page ground: soft brand-colored light behind everything. */
+  .lp-mesh {
+    background:
+      radial-gradient(900px 520px at -5% -10%, var(--lp-mesh-1), transparent 60%),
+      radial-gradient(1000px 640px at 105% -15%, var(--lp-mesh-2), transparent 60%),
+      radial-gradient(800px 600px at 55% 110%, var(--lp-mesh-3), transparent 60%),
+      rgb(var(--lp-bg));
+  }
+  /* Floating chrome only (menu, top bar, sticky bars) — never tables or forms. */
+  .lp-glass {
+    background: var(--lp-glass);
+    border: 1px solid var(--lp-glass-line);
+    box-shadow: var(--lp-glass-shadow);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    backdrop-filter: blur(18px) saturate(1.4);
+  }
+  .lp-card {
+    border-radius: 20px;
+    border: 1px solid rgb(var(--lp-line));
+    background: rgb(var(--lp-surface));
+    box-shadow: var(--lp-shadow);
+  }
+  .lp-lift {
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  }
+  .lp-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--lp-shadow-hover);
+  }
+  .lp-btn-primary {
+    background: var(--lp-btn);
+    box-shadow: var(--lp-btn-shadow);
+    color: #fff;
+  }
+  .lp-btn-primary:hover:not(:disabled) {
+    filter: brightness(1.07);
+  }
+  .lp-nav-active {
+    background: var(--lp-nav-active);
+    box-shadow: var(--lp-nav-active-shadow);
+  }
+  /* A page's icon tile, colored by its menu group. */
+  .lp-tile {
+    color: #fff;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 14px 30px -14px var(--lp-tile-glow);
+  }
+  .lp-tile-prod { background: linear-gradient(145deg, #f59a7e, #e8524f); --lp-tile-glow: rgba(232, 82, 79, 0.75); }
+  .lp-tile-what { background: linear-gradient(145deg, #6aa6f2, #2361aa); --lp-tile-glow: rgba(35, 97, 170, 0.85); }
+  .lp-tile-people { background: linear-gradient(145deg, #b39bfa, #6a47c7); --lp-tile-glow: rgba(106, 71, 199, 0.75); }
+  .lp-tile-sys { background: linear-gradient(145deg, #5fd5b8, #0e8a6c); --lp-tile-glow: rgba(14, 138, 108, 0.7); }
 }
 
 :focus-visible {

@@ -48,7 +48,7 @@ function PanelHeader({ title, number, onClose }: { title: string; number?: strin
     );
 }
 
-const primaryButton = "min-h-[42px] rounded-[11px] bg-lp-accent px-4 text-[14px] font-extrabold text-[#fff] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50";
+const primaryButton = "min-h-[42px] rounded-[11px] lp-btn-primary px-4 text-[14px] font-extrabold text-[#fff] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50";
 const secondaryButton = "min-h-[40px] rounded-[10px] border border-lp-line-2 bg-lp-surface px-3.5 text-[14px] font-extrabold text-lp-ink transition hover:bg-lp-raised disabled:cursor-not-allowed disabled:opacity-50";
 const linkButton = "border-0 bg-transparent p-0 text-[13px] font-bold text-lp-accent-ink hover:underline";
 
@@ -56,7 +56,7 @@ export default function StationPanel(props: Props) {
     return (
         <aside
             aria-label={props.mode === "station" && props.station ? props.station.station_name : undefined}
-            className="flex w-full min-w-0 flex-col overflow-hidden rounded-[18px] border border-lp-line bg-lp-surface lg:sticky lg:top-0 lg:max-h-[calc(100vh-60px)] lg:w-[420px] lg:flex-none lg:overflow-y-auto"
+            className="flex w-full min-w-0 flex-col overflow-hidden lp-card lg:sticky lg:top-0 lg:max-h-[calc(100vh-60px)] lg:w-[420px] lg:flex-none lg:overflow-y-auto"
         >
             {props.mode === "legend" && <Legend onClose={props.onClose} />}
             {props.mode === "add" && <AddStation {...props} />}

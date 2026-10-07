@@ -11,6 +11,7 @@ import { useTranslation } from "@/lib/i18n";
 import { stationDelivery, type Delivery, type Station } from "@/lib/stations";
 import { ACTIVE_STATUSES, DONE_DAYS, jobMatches, jobStage, STAGES, type PrintJob } from "@/lib/printJobs";
 import type { NavKey } from "@/app/components/shell/Sidebar";
+import PageTitle from "@/app/components/shell/PageTitle";
 import { cx, download } from "@/app/components/stations/shared";
 import JobPanel from "./JobPanel";
 import {
@@ -241,13 +242,9 @@ export default function PrintPage({ onNavigate, onJobsChanged }: { onNavigate: (
 
     return (
         <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-5">
-            <div className="flex max-w-[640px] flex-col gap-1">
-                <span className="text-[13px] font-bold text-lp-coral">{t("nav.groupProduction")}</span>
-                <h1 className="m-0 text-[28px] font-extrabold tracking-[-0.02em] text-lp-ink">{t("nav.print_tasks")}</h1>
-                <p className="m-0 text-[14px] text-lp-ink-2">{t("nav.print_tasksDesc")}</p>
-            </div>
+            <PageTitle icon="print_tasks" eyebrow={t("nav.groupProduction")} title={t("nav.print_tasks")} description={t("nav.print_tasksDesc")} />
 
-            <section aria-labelledby="print-new" className="flex flex-col gap-2.5 rounded-[18px] border border-lp-line bg-lp-surface px-[18px] py-4">
+            <section aria-labelledby="print-new" className="flex flex-col gap-2.5 lp-card px-[18px] py-4">
                 <h2 id="print-new" className="m-0 text-[16px] font-extrabold">{t("prt.new")}</h2>
                 <div className="flex flex-wrap items-end gap-2.5">
                     <ProductPicker
@@ -348,7 +345,7 @@ export default function PrintPage({ onNavigate, onJobsChanged }: { onNavigate: (
             )}
 
             <div className="flex flex-col items-start gap-4 lg:flex-row">
-                <section aria-labelledby="print-list" className="w-full min-w-0 flex-1 overflow-hidden rounded-[18px] border border-lp-line bg-lp-surface">
+                <section aria-labelledby="print-list" className="w-full min-w-0 flex-1 overflow-hidden lp-card">
                     <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2.5 px-[18px] py-3.5">
                         <h2 id="print-list" className="m-0 text-[16px] font-extrabold">{t("prt.jobs")}</h2>
                         <div role="tablist" aria-label={t("prt.tabsLabel")} className="flex max-w-full gap-1 overflow-x-auto rounded-[11px] bg-lp-bg p-[3px]">

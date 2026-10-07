@@ -20,7 +20,7 @@ function PanelFrame({ title, onClose, children }: { title: string; onClose: () =
     return (
         <aside
             aria-label={title}
-            className="flex w-full min-w-0 flex-col overflow-hidden rounded-[18px] border border-lp-line bg-lp-surface lg:sticky lg:top-0 lg:max-h-[calc(100vh-60px)] lg:w-[400px] lg:flex-none lg:overflow-y-auto"
+            className="flex w-full min-w-0 flex-col overflow-hidden lp-card lg:sticky lg:top-0 lg:max-h-[calc(100vh-60px)] lg:w-[400px] lg:flex-none lg:overflow-y-auto"
         >
             <div className="flex items-center gap-2.5 border-b border-lp-line px-[18px] py-4">
                 <h2 className="m-0 min-w-0 flex-1 text-[18px] font-extrabold text-lp-ink">{title}</h2>
@@ -58,7 +58,7 @@ function AddRow({ id, label, placeholder, busy, onAdd }: { id: string; label: st
                 maxLength={255}
                 className="min-h-[42px] min-w-0 flex-1 rounded-[10px] border border-lp-line-2 bg-lp-surface px-3 text-[14px] text-lp-ink outline-none focus:border-lp-accent"
             />
-            <button type="submit" disabled={busy || !name.trim()} className="min-h-[42px] rounded-[10px] bg-lp-accent px-3.5 text-[14px] font-extrabold text-[#fff] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="submit" disabled={busy || !name.trim()} className="min-h-[42px] rounded-[10px] lp-btn-primary px-3.5 text-[14px] font-extrabold text-[#fff] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50">
                 {t("prd.create")}
             </button>
         </form>

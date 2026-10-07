@@ -56,7 +56,7 @@ export default function JobPanel({ job, delivery, busy, onClose, onSend, onFile,
     return (
         <aside
             aria-label={t("prt.p.label", { id: job.id })}
-            className="flex w-full min-w-0 flex-col overflow-hidden rounded-[18px] border border-lp-line bg-lp-surface lg:sticky lg:top-0 lg:max-h-[calc(100vh-60px)] lg:w-[420px] lg:flex-none lg:overflow-y-auto"
+            className="flex w-full min-w-0 flex-col overflow-hidden lp-card lg:sticky lg:top-0 lg:max-h-[calc(100vh-60px)] lg:w-[420px] lg:flex-none lg:overflow-y-auto"
         >
             <div className="flex flex-col gap-2 border-b border-lp-line px-[18px] pb-3.5 pt-4">
                 <div className="flex items-center gap-2.5">

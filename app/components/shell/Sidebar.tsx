@@ -1,12 +1,12 @@
 "use client";
 
-// Side menu of the redesigned admin UI: sections grouped by work scenario, plain names
-// with icons, problem counters, and the server/user/theme footer. Pure view — the
-// shell (app/page.tsx) owns navigation state and data.
+// Side menu of the redesigned admin UI: a floating glass panel with the sections grouped by
+// work scenario, each group with its own icon color, plain names, problem counters, and the
+// server/user footer. Pure view — the shell (app/page.tsx) owns navigation state and data;
+// search, notifications and the theme live in the top bar (TopBar.tsx).
 
 import React from "react";
 import { useTranslation } from "@/lib/i18n";
-import { useTheme } from "@/lib/theme";
 
 export type NavKey =
     | "home" | "print_tasks" | "stations"
@@ -16,7 +16,7 @@ export type NavKey =
 
 export type NavBadge = { text: string; tone: "bad" | "warn" | "accent" | "plain"; title?: string };
 
-type IconName = NavKey | "search" | "bell" | "logout" | "sun" | "moon" | "chevron";
+type IconName = NavKey | "search" | "bell" | "logout" | "sun" | "moon" | "monitor" | "check" | "chevron";
 
 const PATHS: Record<IconName, React.ReactNode> = {
     home: <><path d="M3 11l9-7 9 7" /><path d="M5 10v10h14V10" /><path d="M10 20v-6h4v6" /></>,
@@ -35,6 +35,8 @@ const PATHS: Record<IconName, React.ReactNode> = {
     logout: <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />,
     sun: <><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></>,
     moon: <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z" />,
+    monitor: <><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></>,
+    check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
     chevron: <path d="m15 6-6 6 6 6" />,
 };
 
@@ -46,12 +48,26 @@ export function NavIcon({ name, className = "h-5 w-5" }: { name: IconName; class
     );
 }
 
-const GROUPS: { title: string; items: NavKey[] }[] = [
-    { title: "nav.groupProduction", items: ["home", "print_tasks", "stations"] },
-    { title: "nav.groupWhatWePrint", items: ["catalog", "labels", "packaging", "barcodes"] },
-    { title: "nav.groupPeople", items: ["operators", "users"] },
-    { title: "nav.groupSystem", items: ["settings", "license"] },
+export type NavGroup = "prod" | "what" | "people" | "sys";
+
+const GROUPS: { id: NavGroup; title: string; items: NavKey[] }[] = [
+    { id: "prod", title: "nav.groupProduction", items: ["home", "print_tasks", "stations"] },
+    { id: "what", title: "nav.groupWhatWePrint", items: ["catalog", "labels", "packaging", "barcodes"] },
+    { id: "people", title: "nav.groupPeople", items: ["operators", "users"] },
+    { id: "sys", title: "nav.groupSystem", items: ["settings", "license"] },
 ];
+
+export function groupOf(key: NavKey): NavGroup {
+    return GROUPS.find((group) => group.items.includes(key))?.id ?? "sys";
+}
+
+/** The icon chip of a menu item: the group's color on a soft tint of it. */
+const ICON_CHIP: Record<NavGroup, string> = {
+    prod: "bg-lp-g-prod/15 text-lp-g-prod",
+    what: "bg-lp-g-what/15 text-lp-g-what",
+    people: "bg-lp-g-people/15 text-lp-g-people",
+    sys: "bg-lp-g-sys/15 text-lp-g-sys",
+};
 
 const BADGE_TONE: Record<NavBadge["tone"], string> = {
     bad: "bg-lp-bad-bg text-lp-bad",
@@ -71,15 +87,8 @@ export default function Sidebar({
     badges,
     collapsed,
     onToggleCollapsed,
-    onSearch,
-    bellRef,
-    unread,
-    unreadSevere,
-    onBell,
     serverVersion,
     host,
-    update,
-    onUpdate,
     userName,
     userRole,
     onLogout,
@@ -90,29 +99,20 @@ export default function Sidebar({
     badges: Partial<Record<NavKey, NavBadge>>;
     collapsed: boolean;
     onToggleCollapsed: () => void;
-    onSearch: () => void;
-    bellRef: React.RefObject<HTMLButtonElement | null>;
-    unread: number;
-    /** Any unread critical/error item (red badge); otherwise only warnings (amber). */
-    unreadSevere: boolean;
-    onBell: () => void;
     serverVersion: string | null;
     host: string;
-    update: string | null;
-    onUpdate: () => void;
     userName: string;
     userRole: string;
     onLogout: () => void;
 }) {
     const { t } = useTranslation();
-    const { theme, toggleTheme } = useTheme();
     const initials = (userName || "?").slice(0, 2).toUpperCase();
 
     return (
         <aside
             aria-label={t("nav.mainMenu")}
             className={cx(
-                "relative z-20 flex flex-none flex-col border-r border-lp-line bg-lp-surface py-[18px] transition-[width] duration-200",
+                "lp-glass relative z-20 m-3 mr-0 flex h-[calc(100vh-24px)] flex-none flex-col rounded-[24px] py-[18px] transition-[width] duration-200",
                 collapsed ? "w-[72px] px-2.5" : "w-[248px] px-3.5",
             )}
         >
@@ -121,7 +121,7 @@ export default function Sidebar({
                 onClick={onToggleCollapsed}
                 aria-label={collapsed ? t("app.expandMenu") : t("app.collapseMenu")}
                 title={collapsed ? t("app.expandMenu") : t("app.collapseMenu")}
-                className="absolute -right-3 top-[26px] z-30 flex h-6 w-6 items-center justify-center rounded-full border border-lp-line-2 bg-lp-surface text-lp-ink-3 transition hover:text-lp-ink"
+                className="absolute -right-3 top-[26px] z-30 flex h-6 w-6 items-center justify-center rounded-full border border-lp-line-2 bg-lp-surface text-lp-ink-3 shadow-sm transition hover:text-lp-ink"
             >
                 <NavIcon name="chevron" className={cx("h-3.5 w-3.5", collapsed && "rotate-180")} />
             </button>
@@ -134,63 +134,18 @@ export default function Sidebar({
                         <span className="text-[12px] font-semibold text-lp-ink-3">{t("nav.server")}</span>
                     </div>
                 )}
-                {!collapsed && (
-                    <button
-                        ref={bellRef}
-                        type="button"
-                        onClick={onBell}
-                        aria-label={t("app.notifications")}
-                        title={t("app.notifications")}
-                        className="relative ml-auto flex h-9 w-9 items-center justify-center rounded-[10px] text-lp-ink-3 transition hover:bg-lp-raised hover:text-lp-ink"
-                    >
-                        <NavIcon name="bell" className="h-[19px] w-[19px]" />
-                        {unread > 0 && (
-                            <span className={cx("absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none text-[#fff]", unreadSevere ? "bg-lp-bad" : "bg-lp-warn")}>
-                                {unread > 9 ? "9+" : unread}
-                            </span>
-                        )}
-                    </button>
-                )}
             </div>
             <div className="mx-2 my-3 flex h-[3px] overflow-hidden rounded-sm" aria-hidden="true">
                 <span className="flex-[3] bg-lp-coral" />
                 <span className="flex-[2] bg-lp-sky" />
             </div>
 
-            <button
-                type="button"
-                onClick={onSearch}
-                title={collapsed ? t("nav.search") : undefined}
-                aria-label={collapsed ? t("nav.search") : undefined}
-                className={cx(
-                    "mb-2 flex min-h-[42px] items-center gap-2 rounded-[11px] border border-lp-line bg-lp-bg text-left text-lp-ink-3 transition hover:border-lp-line-2",
-                    collapsed ? "justify-center" : "px-2.5",
-                )}
-            >
-                <NavIcon name="search" className="h-[18px] w-[18px]" />
-                {!collapsed && <span className="min-w-0 flex-1 truncate text-[13px]">{t("nav.search")}</span>}
-                {!collapsed && <span className="rounded-[5px] border border-lp-line-2 px-[5px] py-px font-mono text-[11px]">Ctrl K</span>}
-            </button>
-            {collapsed && (
-                <button
-                    ref={bellRef}
-                    type="button"
-                    onClick={onBell}
-                    aria-label={t("app.notifications")}
-                    title={t("app.notifications")}
-                    className="relative mb-2 flex min-h-[42px] items-center justify-center rounded-[11px] text-lp-ink-3 transition hover:bg-lp-raised hover:text-lp-ink"
-                >
-                    <NavIcon name="bell" className="h-[19px] w-[19px]" />
-                    {unread > 0 && <span className={cx("absolute right-3 top-2 h-2 w-2 rounded-full", unreadSevere ? "bg-lp-bad" : "bg-lp-warn")} />}
-                </button>
-            )}
-
             <nav aria-label={t("app.appSections")} className="flex min-h-0 flex-1 flex-col overflow-y-auto">
                 {GROUPS.map((group) => {
                     const items = group.items.filter((key) => !hidden.includes(key));
                     if (items.length === 0) return null;
                     return (
-                        <div key={group.title} className="flex flex-col gap-0.5">
+                        <div key={group.id} className="flex flex-col gap-0.5">
                             {collapsed ? (
                                 <div className="mx-3 my-2 h-px bg-lp-line" aria-hidden="true" />
                             ) : (
@@ -208,14 +163,14 @@ export default function Sidebar({
                                         aria-current={current ? "page" : undefined}
                                         title={collapsed ? (badge ? `${label} · ${badge.title ?? badge.text}` : label) : undefined}
                                         className={cx(
-                                            "relative flex min-h-[42px] items-center rounded-[11px] text-left text-[14px] transition",
-                                            collapsed ? "justify-center" : "gap-[11px] px-2.5",
-                                            current
-                                                ? "bg-lp-accent-bg font-bold text-lp-accent-ink"
-                                                : "font-semibold text-lp-ink-2 hover:bg-lp-raised hover:text-lp-ink",
+                                            "relative flex min-h-[42px] items-center rounded-[12px] text-left text-[14px] transition",
+                                            collapsed ? "justify-center" : "gap-2.5 px-1.5",
+                                            current ? "lp-nav-active font-extrabold text-lp-ink" : "font-semibold text-lp-ink-2 hover:bg-lp-surface/60 hover:text-lp-ink",
                                         )}
                                     >
-                                        <NavIcon name={key} />
+                                        <span className={cx("flex h-[30px] w-[30px] flex-none items-center justify-center rounded-[9px]", ICON_CHIP[group.id])}>
+                                            <NavIcon name={key} className="h-[18px] w-[18px]" />
+                                        </span>
                                         {!collapsed && <span className="min-w-0 flex-1 truncate">{label}</span>}
                                         {badge && !collapsed && (
                                             <span title={badge.title} className={cx("rounded-full px-2 py-px text-[12px] font-bold tabular-nums", BADGE_TONE[badge.tone])}>
@@ -223,7 +178,7 @@ export default function Sidebar({
                                             </span>
                                         )}
                                         {badge && collapsed && badge.tone !== "plain" && (
-                                            <span className={cx("absolute right-2 top-2 h-2 w-2 rounded-full", badge.tone === "bad" ? "bg-lp-bad" : badge.tone === "warn" ? "bg-lp-warn" : "bg-lp-accent")} />
+                                            <span className={cx("absolute right-1.5 top-1.5 h-2 w-2 rounded-full", badge.tone === "bad" ? "bg-lp-bad" : badge.tone === "warn" ? "bg-lp-warn" : "bg-lp-accent")} />
                                         )}
                                     </button>
                                 );
@@ -234,16 +189,6 @@ export default function Sidebar({
             </nav>
 
             <div className={cx("mt-3 flex flex-col gap-3 border-t border-lp-line pt-3.5", collapsed ? "items-center" : "px-2.5")}>
-                {update && (
-                    collapsed ? (
-                        <button type="button" onClick={onUpdate} title={t("app.updateTo", { version: update })} aria-label={t("app.updateTo", { version: update })} className="h-2.5 w-2.5 rounded-full bg-lp-warn" />
-                    ) : (
-                        <button type="button" onClick={onUpdate} className="flex items-center gap-2 rounded-[10px] bg-lp-warn-bg px-2.5 py-2 text-left text-[13px] font-bold text-lp-warn">
-                            <span aria-hidden="true">▲</span>
-                            <span className="min-w-0 flex-1">{t("app.updateTo", { version: update })}</span>
-                        </button>
-                    )
-                )}
                 {collapsed ? (
                     <span className="h-2 w-2 rounded-full bg-lp-ok" title={`${t("nav.serverRunning")} · ${host}${serverVersion ? ` · ${serverVersion}` : ""}`} />
                 ) : (
@@ -266,15 +211,6 @@ export default function Sidebar({
                             <span className="text-[12px] text-lp-ink-3">{userRole}</span>
                         </div>
                     )}
-                    <button
-                        type="button"
-                        onClick={toggleTheme}
-                        aria-label={theme === "dark" ? t("nav.themeLight") : t("nav.themeDark")}
-                        title={theme === "dark" ? t("nav.themeLight") : t("nav.themeDark")}
-                        className="flex h-8 w-8 items-center justify-center rounded-[9px] text-lp-ink-3 transition hover:bg-lp-raised hover:text-lp-ink"
-                    >
-                        <NavIcon name={theme === "dark" ? "sun" : "moon"} className="h-[18px] w-[18px]" />
-                    </button>
                     <button
                         type="button"
                         onClick={onLogout}

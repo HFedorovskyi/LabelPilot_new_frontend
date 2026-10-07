@@ -9,6 +9,7 @@ const TOKENS = [
   "bg", "surface", "raised", "line", "line-2", "ink", "ink-2", "ink-3",
   "ok", "ok-bg", "warn", "warn-bg", "bad", "bad-bg", "off", "off-bg",
   "coral", "coral-bg", "sky", "accent", "accent-bg", "accent-ink", "bar",
+  "g-prod", "g-what", "g-people", "g-sys", "t-pack", "t-box", "t-pallet",
 ];
 
 // Screens not redesigned yet were written for a dark UI (white text, white/5 washes,

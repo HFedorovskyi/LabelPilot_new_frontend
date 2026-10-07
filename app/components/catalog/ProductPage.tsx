@@ -123,7 +123,7 @@ function problem(draft: Draft, self: Product | null, products: Product[], t: T):
 
 const input = "min-h-[44px] w-full rounded-[10px] border border-lp-line-2 bg-lp-surface px-3 text-[14px] text-lp-ink outline-none focus:border-lp-accent";
 const labelCls = "text-[12px] font-bold text-lp-ink-3";
-const card = "flex flex-col gap-3 rounded-[18px] border border-lp-line bg-lp-surface px-[18px] py-4";
+const card = "flex flex-col gap-3 lp-card px-[18px] py-4";
 
 export default function ProductPage(props: Props) {
     const { product, copyOf, products, folders, attributes, packs, templates, position, behindStations } = props;
@@ -237,7 +237,7 @@ export default function ProductPage(props: Props) {
 
     return (
         <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-4">
-            <div className="sticky top-[-26px] z-10 -mt-[26px] flex flex-wrap items-center gap-x-3.5 gap-y-2.5 border-b border-lp-line bg-lp-bg pb-3 pt-[26px]">
+            <div className="lp-glass sticky top-0 z-10 flex flex-wrap items-center gap-x-3.5 gap-y-2.5 rounded-[18px] px-3 py-2.5">
                 <button type="button" onClick={() => nav("back")} className="flex min-h-[40px] items-center gap-1.5 rounded-[10px] border border-lp-line bg-lp-surface pl-2 pr-3 text-[14px] font-extrabold text-lp-ink transition hover:bg-lp-raised">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="h-4 w-4"><path d="M15 6l-6 6 6 6" /></svg>
                     {t("nav.catalog")}
@@ -265,7 +265,7 @@ export default function ProductPage(props: Props) {
             {pending !== null && (
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[12px] bg-lp-warn-bg px-4 py-3">
                     <span className="font-extrabold text-lp-warn">▲ {t("prd.unsaved")}</span>
-                    <button type="button" disabled={busy} onClick={() => void saveAndGo()} className="min-h-[38px] rounded-[10px] bg-lp-accent px-3.5 text-[14px] font-extrabold text-[#fff] transition hover:brightness-110 disabled:opacity-50">
+                    <button type="button" disabled={busy} onClick={() => void saveAndGo()} className="min-h-[38px] rounded-[10px] lp-btn-primary px-3.5 text-[14px] font-extrabold text-[#fff] transition hover:brightness-110 disabled:opacity-50">
                         {t("prd.saveAndGo")}
                     </button>
                     <button type="button" onClick={() => { const target = pending; setPending(null); setBase(draft); go(target); }} className={dangerLink}>{t("prd.discard")}</button>
@@ -275,7 +275,7 @@ export default function ProductPage(props: Props) {
 
             <div className="flex max-w-[760px] flex-col gap-1">
                 <span className="text-[13px] font-bold text-lp-coral">{folderName ? t("prd.eyebrowFolder", { folder: folderName }) : t("prd.eyebrow")}</span>
-                <h1 className="m-0 text-[28px] font-extrabold tracking-[-0.02em] text-lp-ink">{product ? product.name : t("prd.new")}</h1>
+                <h1 className="m-0 text-[clamp(26px,2.8vw,36px)] font-extrabold leading-[1.1] tracking-[-0.03em] text-lp-ink">{product ? product.name : t("prd.new")}</h1>
                 <p className="m-0 text-[14px] text-lp-ink-2">{meta}</p>
             </div>
 

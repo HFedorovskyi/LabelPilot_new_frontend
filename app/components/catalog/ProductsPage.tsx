@@ -14,6 +14,7 @@ import {
     type Attribute, type Folder, type Pack, type Product, type Template,
 } from "@/lib/products";
 import type { NavKey } from "@/app/components/shell/Sidebar";
+import PageTitle from "@/app/components/shell/PageTitle";
 import { cx, Icon } from "@/app/components/stations/shared";
 import { linkButton, primaryButton } from "@/app/components/print/shared";
 import ImportModal from "./ImportModal";
@@ -226,12 +227,7 @@ export default function ProductsPage({ onNavigate, onCatalogChanged }: { onNavig
 
     return (
         <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-5">
-            <div className="flex flex-wrap items-end gap-3">
-                <div className="mr-auto flex max-w-[640px] flex-col gap-1">
-                    <span className="text-[13px] font-bold text-lp-coral">{t("nav.groupWhatWePrint")}</span>
-                    <h1 className="m-0 text-[28px] font-extrabold tracking-[-0.02em] text-lp-ink">{t("nav.catalog")}</h1>
-                    <p className="m-0 text-[14px] text-lp-ink-2">{t("nav.catalogDesc")}</p>
-                </div>
+            <PageTitle icon="catalog" eyebrow={t("nav.groupWhatWePrint")} title={t("nav.catalog")} description={t("nav.catalogDesc")}>
                 <button type="button" onClick={() => setImportOpen(true)} className="min-h-[44px] rounded-[11px] border border-lp-line-2 bg-lp-surface px-4 text-[14px] font-extrabold text-lp-ink transition hover:bg-lp-raised">
                     {t("prd.import")}
                 </button>
@@ -239,7 +235,7 @@ export default function ProductsPage({ onNavigate, onCatalogChanged }: { onNavig
                     <Icon name="plus" className="h-5 w-5" />
                     {t("prd.add")}
                 </button>
-            </div>
+            </PageTitle>
 
             {(noTemplate.length > 0 || notOnStations.length > 0) && (
                 <div className="grid grid-cols-[repeat(auto-fit,minmax(min(380px,100%),1fr))] gap-3">
@@ -273,7 +269,7 @@ export default function ProductsPage({ onNavigate, onCatalogChanged }: { onNavig
             )}
 
             <div className="flex flex-col items-start gap-4 lg:flex-row">
-                <section aria-labelledby="catalog-list" className="w-full min-w-0 flex-1 overflow-hidden rounded-[18px] border border-lp-line bg-lp-surface">
+                <section aria-labelledby="catalog-list" className="w-full min-w-0 flex-1 overflow-hidden lp-card">
                     <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2.5 px-[18px] pb-2.5 pt-3.5">
                         <h2 id="catalog-list" className="m-0 text-[16px] font-extrabold">
                             {t("prd.list")} <span className="font-bold tabular-nums text-lp-ink-3">{list.length}</span>
@@ -452,7 +448,7 @@ function AttentionCard({ icon, title, text, action, onAction, primary = false, d
     disabled?: boolean;
 }) {
     return (
-        <div className="flex flex-col gap-2.5 rounded-[16px] border border-lp-line bg-lp-surface p-4">
+        <div className="flex flex-col gap-2.5 lp-card p-4">
             <div className="flex items-start gap-3">
                 <span className="flex h-11 w-11 flex-none items-center justify-center rounded-[12px] bg-lp-warn-bg text-lp-warn">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="h-5 w-5">{icon}</svg>
@@ -468,7 +464,7 @@ function AttentionCard({ icon, title, text, action, onAction, primary = false, d
                 onClick={onAction}
                 className={cx(
                     "min-h-[40px] self-start rounded-[10px] px-3.5 text-[14px] font-extrabold transition disabled:cursor-not-allowed disabled:opacity-50",
-                    primary ? "border-0 bg-lp-accent text-[#fff] hover:brightness-110" : "border border-lp-line-2 bg-lp-surface text-lp-ink hover:bg-lp-raised",
+                    primary ? "border-0 lp-btn-primary text-[#fff] hover:brightness-110" : "border border-lp-line-2 bg-lp-surface text-lp-ink hover:bg-lp-raised",
                 )}
             >
                 {action}

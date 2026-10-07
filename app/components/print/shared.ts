@@ -73,7 +73,7 @@ export function localDate(): string {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export const primaryButton = "min-h-[44px] rounded-[11px] bg-lp-accent px-[18px] text-[14px] font-extrabold text-[#fff] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50";
+export const primaryButton = "min-h-[44px] rounded-[11px] lp-btn-primary px-[18px] text-[14px] font-extrabold text-[#fff] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50";
 export const rowButton = "min-h-[34px] rounded-[9px] border border-lp-line-2 bg-lp-surface px-[11px] text-[13px] font-extrabold text-lp-ink transition hover:bg-lp-raised disabled:cursor-not-allowed disabled:opacity-50";
 export const linkButton = "border-0 bg-transparent p-0 text-[13px] font-extrabold text-lp-accent-ink hover:underline disabled:cursor-not-allowed disabled:opacity-50";
 export const dangerLink = "border-0 bg-transparent p-0 text-[13px] font-extrabold text-lp-bad hover:underline disabled:cursor-not-allowed disabled:opacity-50";

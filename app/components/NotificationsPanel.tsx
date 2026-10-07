@@ -65,7 +65,7 @@ export default function NotificationsPanel({
   onOpenItem: (item: NotificationItem) => void;
 }) {
   const { t } = useTranslation();
-  // Rendered into <body> so it escapes the side menu's stacking context.
+  // Rendered into <body> so it escapes the shell's stacking contexts.
   const [mounted, setMounted] = React.useState(false);
   const [pos, setPos] = React.useState<{ top: number; left: number } | null>(null);
   React.useEffect(() => setMounted(true), []);
@@ -76,10 +76,10 @@ export default function NotificationsPanel({
       const el = anchorRef.current;
       if (!el) return;
       const r = el.getBoundingClientRect();
-      // The bell sits in the side menu: open the panel to its right, top-aligned,
+      // The bell sits in the top bar: open the panel below it, right edges aligned,
       // clamped so it never spills off-screen.
-      const left = Math.max(8, Math.min(r.right + 8, window.innerWidth - 408));
-      const top = Math.max(8, Math.min(r.top, window.innerHeight - 160));
+      const left = Math.max(8, Math.min(r.right - 400, window.innerWidth - 408));
+      const top = Math.max(8, Math.min(r.bottom + 8, window.innerHeight - 160));
       setPos({ top: Math.round(top), left: Math.round(left) });
     };
     compute();
@@ -110,7 +110,7 @@ export default function NotificationsPanel({
       <section
         role="dialog"
         aria-label={t("notif.title")}
-        className="fixed z-[200] flex max-h-[min(640px,calc(100vh-16px))] w-[400px] max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-[16px] border border-lp-line bg-lp-surface font-sans shadow-2xl"
+        className="fixed z-[200] flex max-h-[min(640px,calc(100vh-16px))] w-[400px] max-w-[calc(100vw-16px)] flex-col overflow-hidden lp-card font-sans shadow-2xl"
         style={{ top: pos.top, left: pos.left }}
       >
         <div className="flex items-center justify-between border-b border-lp-line px-4 py-3">

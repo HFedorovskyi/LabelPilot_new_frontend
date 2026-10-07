@@ -12,12 +12,13 @@ import { useTranslation, type Lang } from "@/lib/i18n";
 import { stationProblem, PROBLEMS, type Station, type StationProblem } from "@/lib/stations";
 import Portal from "../Portal";
 import type { NavKey } from "../shell/Sidebar";
+import PageTitle from "../shell/PageTitle";
 import { cx, formatNumber, Icon, PROBLEM_TONE, sinceText, TONE_INK, TONE_SOFT, type Tone } from "../stations/shared";
 
 type TFunc = (key: string, params?: Record<string, string | number | undefined>) => string;
 type Pt = { t: string; count: number };
 
-const card = "rounded-[18px] border border-lp-line bg-lp-surface";
+const card = "lp-card";
 const linkButton = "border-0 bg-transparent p-0 text-[14px] font-extrabold text-lp-accent-ink hover:underline";
 
 function timeOf(iso: string | null | undefined, lang: Lang): string {
@@ -559,15 +560,17 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (key: NavKey) =
 
   return (
     <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-5">
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="mr-auto flex max-w-[600px] flex-col gap-1">
-          <span className="text-[13px] font-bold text-lp-coral">
+      <PageTitle
+        icon="home"
+        eyebrow={
+          <>
             {date.toLocaleDateString(lang, { weekday: "long", day: "numeric", month: "long" })}
             {fetchedAt ? ` · ${t("today.updatedAt", { time: timeOf(fetchedAt.toISOString(), lang) })}` : ""}
-          </span>
-          <h1 className="m-0 text-[28px] font-extrabold tracking-[-0.02em]">{t("today.title")}</h1>
-          <p className="m-0 text-[14px] text-lp-ink-2">{t("nav.homeDesc")}</p>
-        </div>
+          </>
+        }
+        title={t("today.title")}
+        description={t("nav.homeDesc")}
+      >
         <button
           type="button"
           onClick={fetchAll}
@@ -579,12 +582,12 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (key: NavKey) =
         <button
           type="button"
           onClick={() => go("print_tasks")}
-          className="flex min-h-[44px] items-center gap-2 rounded-[11px] bg-lp-accent px-[18px] text-[14px] font-extrabold text-[#fff] transition hover:brightness-110"
+          className="flex min-h-[44px] items-center gap-2 rounded-[11px] lp-btn-primary px-[18px] text-[14px] font-extrabold text-[#fff] transition hover:brightness-110"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5" aria-hidden="true"><path d="M7 8V3h10v5" /><rect x="3" y="8" width="18" height="9" rx="2" /><path d="M7 14h10v7H7z" /></svg>
           {t("today.sendToPrint")}
         </button>
-      </div>
+      </PageTitle>
 
       {error && <p className="m-0 rounded-[12px] bg-lp-warn-bg px-4 py-2.5 text-[14px] font-bold text-lp-warn">▲ {error}</p>}
 
@@ -620,7 +623,7 @@ export default function Dashboard({ onNavigate }: { onNavigate?: (key: NavKey) =
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(200px,100%),1fr))] gap-3">
         {kpis.map((k) => (
-          <div key={k.label} className="flex flex-col gap-1 rounded-[16px] border border-lp-line bg-lp-surface px-[18px] py-4">
+          <div key={k.label} className="flex flex-col gap-1 lp-card px-[18px] py-4">
             <span className="text-[13px] font-bold text-lp-ink-3">{k.label}</span>
             <div className="flex items-baseline gap-1.5">
               <span className="text-[30px] font-extrabold tabular-nums tracking-[-0.02em]">{k.value}</span>

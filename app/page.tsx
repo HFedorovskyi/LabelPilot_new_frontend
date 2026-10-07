@@ -14,6 +14,8 @@ import DemoBanner from "./components/DemoBanner";
 import UsersManager from "./components/users/UsersManager";
 import OperatorsManager from "./components/operators/OperatorsManager";
 import Sidebar, { type NavBadge, type NavKey } from "./components/shell/Sidebar";
+import TopBar from "./components/shell/TopBar";
+import PageTitle from "./components/shell/PageTitle";
 import { AuthProvider, useAuth } from "./components/auth/AuthProvider";
 import { LoginScreen, BootstrapScreen } from "./components/auth/AuthScreens";
 import { useTranslation } from "@/lib/i18n";
@@ -194,7 +196,7 @@ function AppShell() {
     });
 
   return (
-    <div className="flex h-screen overflow-hidden bg-lp-bg font-sans text-lp-ink">
+    <div className="lp-mesh flex h-screen overflow-hidden font-sans text-lp-ink">
       <Sidebar
         active={active}
         onNavigate={setActive}
@@ -202,15 +204,8 @@ function AppShell() {
         badges={badges}
         collapsed={collapsed}
         onToggleCollapsed={toggleCollapsed}
-        onSearch={() => setSearchOpen(true)}
-        bellRef={bellRef}
-        unread={notifUnread}
-        unreadSevere={notifSevere}
-        onBell={toggleNotif}
         serverVersion={serverVersion}
         host={host}
-        update={effectiveUpdate}
-        onUpdate={() => setActive("settings")}
         userName={user?.username ?? ""}
         userRole={roleLabel(t, user?.role)}
         onLogout={() => void logout()}
@@ -226,13 +221,21 @@ function AppShell() {
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Демо-режим: ненавязчивый баннер о лицензии (показывается только когда mode === "demo") */}
         <DemoBanner onActivate={() => setActive("license")} />
-        <main className="relative flex-1 overflow-y-auto px-8 pb-10 pt-[26px]">
+        <main className="relative flex-1 overflow-y-auto px-6 pb-10 pt-3">
+          <TopBar
+            onSearch={() => setSearchOpen(true)}
+            bellRef={bellRef}
+            unread={notifUnread}
+            unreadSevere={notifSevere}
+            onBell={toggleNotif}
+            update={effectiveUpdate}
+            onUpdate={() => setActive("settings")}
+          />
           <ErrorBoundary resetKey={active}>
             <div className="flex flex-col gap-6">
               {!OWN_HEADER.includes(active) && (
-                <div className="flex max-w-[640px] flex-col gap-1">
-                  <h1 className="m-0 text-[28px] font-extrabold tracking-[-0.02em] text-lp-ink">{t(`nav.${active}`)}</h1>
-                  <p className="m-0 text-[14px] text-lp-ink-2">{t(`nav.${active}Desc`)}</p>
+                <div className="mx-auto w-full max-w-[1180px]">
+                  <PageTitle icon={active} title={t(`nav.${active}`)} description={t(`nav.${active}Desc`)} />
                 </div>
               )}
               {active === "home" ? <Dashboard onNavigate={setActive} /> : null}
