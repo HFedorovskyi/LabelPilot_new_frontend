@@ -11,6 +11,7 @@ import {
   RectElement,
   BarcodeElement,
   TableElement,
+  ImageElement,
   PrintedZone,
   ElementType,
   BarcodeType,
@@ -166,6 +167,13 @@ export function validateDoc(input: unknown): LabelDoc | null {
             fontStyle: (["normal", "italic"].includes(t.fontStyle as string) ? t.fontStyle : "normal") as any,
           };
           return tableEl;
+        }
+
+        if (el.type === "image") {
+          const src = (el as Partial<ImageElement>).src;
+          if (typeof src !== "string" || !src.startsWith("data:image/")) return null;
+          const imageEl: ImageElement = { ...base, type: "image", src };
+          return imageEl;
         }
 
         return null;

@@ -1,4 +1,4 @@
-export type ElementType = "text" | "rect" | "barcode" | "table";
+export type ElementType = "text" | "rect" | "barcode" | "table" | "image";
 
 export interface LabelElementBase {
     id: string;
@@ -63,7 +63,13 @@ export interface TableElement extends LabelElementBase {
     maxRows?: number;
 }
 
-export type LabelElement = TextElement | RectElement | BarcodeElement | TableElement;
+/** A picture (logo, sign) embedded in the template as a data URI; stations print it in black and white. */
+export interface ImageElement extends LabelElementBase {
+    type: "image";
+    src: string;
+}
+
+export type LabelElement = TextElement | RectElement | BarcodeElement | TableElement | ImageElement;
 
 export interface PrintedZone {
     id: string;

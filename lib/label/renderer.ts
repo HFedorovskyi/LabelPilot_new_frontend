@@ -1,4 +1,4 @@
-import { LabelDoc, LabelElement, TextElement, RectElement, BarcodeElement, TableElement, TableColumn } from "./types";
+import { LabelDoc, LabelElement, TextElement, RectElement, BarcodeElement, TableElement, TableColumn, ImageElement } from "./types";
 
 export function processDynamicText(
     text: string,
@@ -32,9 +32,11 @@ export function renderLabel(
         scale?: number;
         showZones?: boolean;
         pixelRatio?: number;
+        /** Draw grey bars where a barcode has no picture yet (previews; never for printing). */
+        barcodePlaceholder?: boolean;
     } = {}
 ) {
-    const { scale = 1, showZones = true, pixelRatio = 1 } = options;
+    const { scale = 1, showZones = true, pixelRatio = 1, barcodePlaceholder = false } = options;
     const { canvas, elements } = doc;
 
     // Clear canvas
@@ -68,9 +70,11 @@ export function renderLabel(
         } else if (el.type === "rect") {
             drawRect(ctx, el as RectElement);
         } else if (el.type === "barcode") {
-            drawBarcode(ctx, el as BarcodeElement);
+            drawBarcode(ctx, el as BarcodeElement, barcodePlaceholder);
         } else if (el.type === "table") {
             drawTable(ctx, el as TableElement, previewData);
+        } else if (el.type === "image") {
+            drawImage(ctx, el as ImageElement);
         }
 
         ctx.restore();
@@ -90,9 +94,9 @@ function drawText(
     const fontStyle = el.fontStyle || "normal";
     const fontWeight = el.fontWeight || 400;
     const fontSize = el.fontSize || 14;
-    const fontFamily = el.fontFamily || "Inter, Arial, sans-serif";
+    const fontFamily = el.fontFamily || "Inter";
 
-    ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
+    ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}, Inter, sans-serif`;
     ctx.fillStyle = el.color || "#000000";
     ctx.textBaseline = "top";
 
@@ -212,8 +216,11 @@ function drawRect(ctx: CanvasRenderingContext2D, el: RectElement) {
 
 const imageCache = new Map<string, HTMLImageElement>();
 
-function drawBarcode(ctx: CanvasRenderingContext2D, el: BarcodeElement) {
-    if (!el.imageData) return;
+function drawBarcode(ctx: CanvasRenderingContext2D, el: BarcodeElement, placeholder = false) {
+    if (!el.imageData) {
+        if (placeholder) drawBarsPlaceholder(ctx, el);
+        return;
+    }
 
     const src = `data:image/png;base64,${el.imageData}`;
     let img = imageCache.get(src);
@@ -234,6 +241,80 @@ function drawBarcode(ctx: CanvasRenderingContext2D, el: BarcodeElement) {
         ctx.fillStyle = "rgba(0,0,0,0.05)";
         ctx.fillRect(el.x, el.y, el.w, el.h);
     }
+}
+
+function drawBarsPlaceholder(ctx: CanvasRenderingContext2D, el: BarcodeElement) {
+    ctx.save();
+    ctx.fillStyle = "#c3cad6";
+    const square = Math.abs(el.w - el.h) < Math.min(el.w, el.h) * 0.25;
+    if (square) {
+        const cell = Math.max(2, Math.min(el.w, el.h) / 12);
+        for (let row = 0; row < 12; row++) {
+            for (let col = 0; col < 12; col++) {
+                if ((row * 7 + col * 3 + row * col) % 3 === 0) ctx.fillRect(el.x + col * cell, el.y + row * cell, cell, cell);
+            }
+        }
+    } else {
+        const unit = Math.max(1, el.w / 95);
+        const barH = el.showText ? el.h * 0.82 : el.h;
+        for (let i = 0, x = el.x; x < el.x + el.w - unit; i++) {
+            const width = unit * (1 + (i % 3 === 0 ? 1 : 0));
+            if (i % 2 === 0) ctx.fillRect(x, el.y, width, barH);
+            x += width + unit * (i % 4 === 1 ? 2 : 1);
+        }
+    }
+    ctx.restore();
+}
+
+function drawImage(ctx: CanvasRenderingContext2D, el: ImageElement) {
+    let img = imageCache.get(el.src);
+    if (!img) {
+        img = new Image();
+        img.src = el.src;
+        imageCache.set(el.src, img);
+    }
+    if (img.complete && img.naturalWidth > 0) {
+        ctx.drawImage(img, el.x, el.y, el.w, el.h);
+    } else {
+        ctx.fillStyle = "rgba(0,0,0,0.05)";
+        ctx.fillRect(el.x, el.y, el.w, el.h);
+    }
+}
+
+let fontsLoading: Promise<void> | null = null;
+
+/** Loads the fonts the stations print with (the page only fetches a font once something uses it). */
+export function labelFontsReady(): Promise<void> {
+    if (typeof document === "undefined" || !document.fonts) return Promise.resolve();
+    if (!fontsLoading) {
+        const faces = ["400 16px Inter", "700 16px Inter", "400 16px Roboto", "700 16px Roboto", "400 16px Montserrat", "700 16px Montserrat", "400 16px Ubuntu", "700 16px Ubuntu"];
+        fontsLoading = Promise.all(faces.map((face) => document.fonts.load(face).catch(() => []))).then(() => undefined);
+    }
+    return fontsLoading;
+}
+
+/** Resolves once every picture in the document has loaded, so a render after it shows them all. */
+export function imagesReady(doc: LabelDoc): Promise<void> {
+    const pending: Promise<void>[] = [];
+    for (const el of doc.elements) {
+        const src = el.type === "image" ? (el as ImageElement).src
+            : el.type === "barcode" && (el as BarcodeElement).imageData ? `data:image/png;base64,${(el as BarcodeElement).imageData}` : null;
+        if (!src) continue;
+        let img = imageCache.get(src);
+        if (!img) {
+            img = new Image();
+            img.src = src;
+            imageCache.set(src, img);
+        }
+        if (!img.complete) {
+            const image = img;
+            pending.push(new Promise((resolve) => {
+                image.addEventListener("load", () => resolve(), { once: true });
+                image.addEventListener("error", () => resolve(), { once: true });
+            }));
+        }
+    }
+    return Promise.all(pending).then(() => undefined);
 }
 
 function drawPrintedZones(ctx: CanvasRenderingContext2D, doc: LabelDoc) {

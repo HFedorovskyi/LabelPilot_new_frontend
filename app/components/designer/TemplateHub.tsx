@@ -1,395 +1,422 @@
 "use client";
 
+// «Шаблоны этикеток»: what each label looks like, which products use it and whether a
+// pack label carries what the EU requires. A new template is one click in the gallery.
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "@/lib/i18n";
+import type { LabelDoc } from "@/lib/label/types";
+import { euCheck, EU_REQUIREMENTS, isEuChecked, type EuRequirement } from "@/lib/label/eu";
+import PageTitle from "../shell/PageTitle";
 import Portal from "../Portal";
+import { cx, Icon } from "../stations/shared";
+import { dangerLink, linkButton, primaryButton } from "../print/shared";
+import LabelThumb from "./LabelThumb";
+import { blankDoc, labelType, LTYPES, parseScheme, previewDataFor, sizeMm, type LType, type T } from "./model";
+import { buildStarter, STARTERS, type Starter } from "./starters";
+import { DIcon, inputClass, previewBackdrop, Seg, TypeChip, TYPE_DOT } from "./ui";
 
-type LType = "pack" | "box" | "pallet";
-
-type CreateOpts = { name: string; labelType: LType; widthCm: number; heightCm: number };
+export type SavedTemplate = { id: number; name: string; scheme?: unknown; structure?: unknown };
+export type Product = Record<string, any> & { id: number; name: string };
 
 type Props = {
-  templates: any[];
-  onOpen: (template: any) => void;
-  onCreate: (opts: CreateOpts) => void;
-  onDelete: (id: number) => void;
+    templates: SavedTemplate[];
+    products: Product[];
+    /** Builds a starter's document (creating the product fields it needs); null if it failed. */
+    makeStarter: (starter: Starter) => Promise<{ doc: LabelDoc; note: string | null } | null>;
+    onOpen: (template: SavedTemplate) => void;
+    onCreate: (doc: LabelDoc, name: string, note: string | null) => void;
+    onCopy: (template: SavedTemplate) => Promise<void>;
+    onDelete: (template: SavedTemplate) => Promise<void>;
+    notice: string | null;
 };
 
-const TYPE_BADGE: Record<LType, string> = {
-  pack: "bg-indigo-400/15 text-indigo-200 border-indigo-400/25",
-  box: "bg-teal-400/15 text-teal-200 border-teal-400/25",
-  pallet: "bg-pink-400/15 text-pink-200 border-pink-400/25",
-};
+type Item = { raw: SavedTemplate; doc: LabelDoc | null; type: LType; used: number; gaps: EuRequirement[]; preview: Record<string, any> };
 
-const typeLabel = (t: (key: string) => string, type: LType): string =>
-  type === "box" ? t("templates.typeBox") : type === "pallet" ? t("templates.typePallet") : t("templates.typePack");
+const usedBy = (products: Product[], id: number) =>
+    products.filter((p) => p.templates_pack_label === id || p.templates_box_label === id || p.templates_pallet_label === id);
 
-const PRESETS: Array<{ label: string; w: number; h: number }> = [
-  { label: "100 × 150", w: 100, h: 150 },
-  { label: "58 × 40", w: 58, h: 40 },
-  { label: "100 × 100", w: 100, h: 100 },
-  { label: "120 × 80", w: 120, h: 80 },
-  { label: "A5 · 148 × 210", w: 148, h: 210 },
-  { label: "A4 · 210 × 297", w: 210, h: 297 },
-];
-
-function parseScheme(t: any): any {
-  let scheme = t?.scheme;
-  if (!scheme || typeof scheme !== "object") {
-    const structure = t?.structure ?? t?.scheme;
-    if (typeof structure === "string") {
-      try {
-        scheme = JSON.parse(structure);
-      } catch {
-        scheme = null;
-      }
-    }
-  }
-  return scheme && typeof scheme === "object" ? scheme : null;
+export function starterTitle(t: T, starter: Starter): string {
+    return `${t(`tpl.st.${starter.id}`)} ${starter.w}×${starter.h}`;
 }
 
-function getType(scheme: any): LType {
-  const t = scheme?.canvas?.labelType;
-  return t === "box" || t === "pallet" ? t : "pack";
-}
+export default function TemplateHub({ templates, products, makeStarter, onOpen, onCreate, onCopy, onDelete, notice }: Props) {
+    const { t } = useTranslation();
+    const [tab, setTab] = useState<"all" | LType>("all");
+    const [onlyEu, setOnlyEu] = useState(false);
+    const [query, setQuery] = useState("");
+    const [menu, setMenu] = useState<number | null>(null);
+    const [confirm, setConfirm] = useState<number | null>(null);
+    const [gallery, setGallery] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const [flash, setFlash] = useState<{ text: string; tone: "ok" | "bad" } | null>(null);
 
-/** Faithful mini-preview: renders the label's elements at native px, scaled to fit (letterboxed). */
-function TemplatePreview({ scheme }: { scheme: any }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [box, setBox] = useState({ w: 0, h: 0 });
+    useEffect(() => {
+        if (notice) setFlash({ text: notice, tone: "ok" });
+    }, [notice]);
 
-  useEffect(() => {
-    const measure = () => {
-      if (ref.current) setBox({ w: ref.current.clientWidth, h: ref.current.clientHeight });
+    const items = useMemo<Item[]>(() => templates.map((raw) => {
+        const doc = parseScheme(raw);
+        const users = usedBy(products, raw.id);
+        const type = doc ? labelType(doc) : "pack";
+        const gaps = doc && isEuChecked(doc) ? euCheck(doc).gaps : [];
+        return { raw, doc, type, used: users.length, gaps, preview: previewDataFor(users[0] ?? products[0] ?? null) };
+    }), [templates, products]);
+
+    const packs = items.filter((it) => it.type === "pack" && it.doc);
+    const euReady = packs.filter((it) => it.gaps.length === 0).length;
+    const withGaps = packs.length - euReady;
+    const count = (type: LType) => items.filter((it) => it.type === type).length;
+    const usedTemplates = items.filter((it) => it.used > 0).length;
+
+    const q = query.trim().toLowerCase();
+    const visible = items
+        .filter((it) => tab === "all" || it.type === tab)
+        .filter((it) => !onlyEu || it.gaps.length > 0)
+        .filter((it) => !q || String(it.raw.name ?? "").toLowerCase().includes(q));
+
+    const act = async (job: () => Promise<void>, done: string) => {
+        setBusy(true);
+        try {
+            await job();
+            setFlash({ text: done, tone: "ok" });
+        } catch (error) {
+            setFlash({ text: error instanceof Error && error.message ? error.message : t("tpl.failed"), tone: "bad" });
+        } finally {
+            setBusy(false);
+        }
     };
-    measure();
-    const ro = new ResizeObserver(measure);
-    if (ref.current) ro.observe(ref.current);
-    return () => ro.disconnect();
-  }, []);
 
-  const canvas = scheme?.canvas ?? {};
-  const cw = Number(canvas.width) || (Number(canvas.widthCm) || 10) * 80;
-  const ch = Number(canvas.height) || (Number(canvas.heightCm) || 6) * 80;
-  const els: any[] = Array.isArray(scheme?.elements) ? scheme.elements : [];
+    const pickStarter = async (starter: Starter) => {
+        setBusy(true);
+        try {
+            const made = await makeStarter(starter);
+            if (made) onCreate(made.doc, starterTitle(t, starter), made.note);
+        } finally {
+            setBusy(false);
+        }
+    };
 
-  const scale = box.w && box.h ? Math.min(box.w / cw, box.h / ch) : 0;
+    const requirementList = (gaps: EuRequirement[]) => gaps.map((r) => t(`ed.req.${r}`).toLowerCase()).join(", ");
 
-  return (
-    <div ref={ref} className="flex h-full w-full items-center justify-center">
-      {scale > 0 && (
-        <div
-          className="relative overflow-hidden rounded-[3px]"
-          style={{ width: cw * scale, height: ch * scale, background: canvas.background || "#ffffff", boxShadow: "0 1px 6px rgba(0,0,0,0.35)" }}
-        >
-          <div style={{ position: "absolute", top: 0, left: 0, width: cw, height: ch, transform: `scale(${scale})`, transformOrigin: "top left" }}>
-            {els.map((el, i) => {
-              const baseStyle: React.CSSProperties = {
-                position: "absolute",
-                left: Number(el.x) || 0,
-                top: Number(el.y) || 0,
-                width: Number(el.w) || 0,
-                height: Number(el.h) || 0,
-                transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
-              };
-              if (el.type === "barcode") {
-                return <div key={i} style={{ ...baseStyle, backgroundImage: "repeating-linear-gradient(90deg,#111 0,#111 2px,#fff 2px,#fff 5px)" }} />;
-              }
-              if (el.type === "rect") {
-                return (
-                  <div
-                    key={i}
-                    style={{ ...baseStyle, background: el.fill || "transparent", border: `${Number(el.borderWidth) || 1}px solid ${el.borderColor || "#94a3b8"}`, borderRadius: Number(el.borderRadius) || 0 }}
-                  />
-                );
-              }
-              if (el.type === "table") {
-                return (
-                  <div
-                    key={i}
-                    style={{ ...baseStyle, border: "1px solid #64748b", backgroundImage: "linear-gradient(#cbd5e1 1px,transparent 1px)", backgroundSize: `100% ${Math.max(8, (Number(el.h) || 40) / 4)}px` }}
-                  />
-                );
-              }
-              if (el.type === "image") {
-                return <div key={i} style={{ ...baseStyle, background: "#e2e8f0", border: "1px solid #cbd5e1" }} />;
-              }
-              return (
-                <div
-                  key={i}
-                  style={{
-                    ...baseStyle,
-                    fontSize: Number(el.fontSize) || 16,
-                    color: el.color || "#111827",
-                    fontWeight: el.fontWeight || 400,
-                    fontStyle: el.fontStyle || "normal",
-                    fontFamily: el.fontFamily ? `${el.fontFamily}, sans-serif` : "Inter, sans-serif",
-                    textAlign: (el.textAlign || "left") as React.CSSProperties["textAlign"],
-                    lineHeight: 1.1,
-                    overflow: "hidden",
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
-                  }}
-                >
-                  {String(el.text ?? "")}
-                </div>
-              );
-            })}
-          </div>
+    return (
+        <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-5">
+            <PageTitle icon="labels" eyebrow={t("nav.groupWhatWePrint")} title={t("nav.labels")} description={t("tpl.lead")}>
+                <button type="button" onClick={() => setGallery(true)} className={cx(primaryButton, "flex items-center gap-2")}>
+                    <Icon name="plus" className="h-5 w-5" />
+                    {t("tpl.create")}
+                </button>
+            </PageTitle>
+
+            {flash && (
+                <p role="status" className={cx("m-0 flex items-start gap-2 text-[14px] font-bold", flash.tone === "ok" ? "text-lp-ok" : "text-lp-bad")}>
+                    <span aria-hidden="true">{flash.tone === "ok" ? "●" : "■"}</span>
+                    <span className="flex-1">{flash.text}</span>
+                    <button type="button" onClick={() => setFlash(null)} aria-label={t("tpl.close")} className="text-lp-ink-3 hover:text-lp-ink">
+                        <DIcon name="close" className="h-4 w-4" />
+                    </button>
+                </p>
+            )}
+
+            {templates.length === 0 ? (
+                <section className="lp-card flex flex-col gap-4 p-5">
+                    <div className="flex flex-col gap-1">
+                        <h2 className="m-0 text-[20px] font-extrabold tracking-[-0.02em] text-lp-ink">{t("tpl.emptyTitle")}</h2>
+                        <p className="m-0 text-[14px] text-lp-ink-2">{t("tpl.galleryLead")}</p>
+                    </div>
+                    <StarterGrid t={t} busy={busy} onPick={pickStarter} onBlank={(doc, name) => onCreate(doc, name, null)} />
+                </section>
+            ) : (
+                <>
+                    {/* Bento: EU readiness (focal), kinds, use */}
+                    <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+                        <section className="lp-card flex min-w-0 flex-col gap-3 p-[18px]">
+                            <div className="flex items-center gap-4">
+                                <Ring ready={euReady} total={packs.length} t={t} />
+                                <div className="flex min-w-0 flex-col gap-1">
+                                    <span className="text-[13px] font-extrabold text-lp-ink-3">{t("tpl.euKicker")}</span>
+                                    <span className="text-[17px] font-extrabold text-lp-ink">
+                                        {packs.length === 0 ? t("tpl.euNone") : withGaps === 0 ? t("tpl.euAll") : t("tpl.euGaps", { count: withGaps })}
+                                    </span>
+                                    <span className="text-[13px] text-lp-ink-2">{t("tpl.euExplain")}</span>
+                                </div>
+                            </div>
+                            {withGaps > 0 && !onlyEu && (
+                                <button type="button" onClick={() => { setOnlyEu(true); setTab("all"); setQuery(""); }} className="min-h-[38px] self-start rounded-[11px] border border-lp-line-2 bg-lp-surface px-3.5 text-[13px] font-extrabold text-lp-ink transition hover:bg-lp-raised">
+                                    {t("tpl.showGaps")}
+                                </button>
+                            )}
+                        </section>
+                        <section className="lp-card flex min-w-0 flex-col gap-2.5 p-[18px]">
+                            <span className="text-[13px] font-extrabold text-lp-ink-3">{t("tpl.byType")}</span>
+                            <span className="text-[34px] font-extrabold leading-none tracking-[-0.03em] text-lp-ink">{items.length}</span>
+                            <div className="flex h-2.5 overflow-hidden rounded-full bg-lp-ink/[0.08]" aria-hidden="true">
+                                {LTYPES.map((type) => (
+                                    <span key={type} className={TYPE_DOT[type]} style={{ width: `${items.length ? (count(type) / items.length) * 100 : 0}%` }} />
+                                ))}
+                            </div>
+                            <div className="flex flex-wrap gap-x-3.5 gap-y-1 text-[12px] font-bold text-lp-ink-2">
+                                {LTYPES.map((type) => (
+                                    <span key={type} className="flex items-center gap-1.5">
+                                        <span className={cx("h-2 w-2 rounded-full", TYPE_DOT[type])} aria-hidden="true" />
+                                        {t(`tpl.type.${type}`)} {count(type)}
+                                    </span>
+                                ))}
+                            </div>
+                        </section>
+                        <section className="lp-card flex min-w-0 flex-col gap-2.5 p-[18px]">
+                            <span className="text-[13px] font-extrabold text-lp-ink-3">{t("tpl.inUse")}</span>
+                            <span className="text-[34px] font-extrabold leading-none tracking-[-0.03em] text-lp-ink">{t("tpl.ofTotal", { used: usedTemplates, total: items.length })}</span>
+                            <span className="text-[13px] text-lp-ink-2">{t("tpl.inUseExplain")}</span>
+                        </section>
+                    </div>
+
+                    {/* Kinds, EU filter, search */}
+                    <div className="flex flex-wrap items-center gap-2">
+                        <div role="tablist" aria-label={t("tpl.tabsLabel")} className="flex flex-wrap gap-1.5">
+                            {(["all", ...LTYPES] as const).map((id) => (
+                                <button
+                                    key={id}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={tab === id}
+                                    onClick={() => setTab(id)}
+                                    className={cx(
+                                        "flex min-h-[38px] items-center gap-2 rounded-full px-3.5 text-[13px] font-extrabold transition",
+                                        tab === id ? "bg-lp-surface text-lp-ink shadow-[var(--lp-shadow)]" : "text-lp-ink-2 hover:bg-lp-surface/60",
+                                    )}
+                                >
+                                    {id !== "all" && <span className={cx("h-2 w-2 rounded-full", TYPE_DOT[id])} aria-hidden="true" />}
+                                    {id === "all" ? t("tpl.all") : t(`tpl.type.${id}`)}
+                                    <span className="font-mono text-[12px] text-lp-ink-3">{id === "all" ? items.length : count(id)}</span>
+                                </button>
+                            ))}
+                        </div>
+                        {onlyEu && (
+                            <button type="button" onClick={() => setOnlyEu(false)} className="flex min-h-[38px] items-center gap-2 rounded-full border border-lp-warn/50 bg-lp-warn-bg px-3.5 text-[13px] font-extrabold text-lp-warn">
+                                {t("tpl.onlyGaps")}
+                                <DIcon name="close" className="h-4 w-4" />
+                            </button>
+                        )}
+                        <span className="flex-1" />
+                        <div className="relative w-full max-w-[260px]">
+                            <label htmlFor="tpl-search" className="sr-only">{t("tpl.search")}</label>
+                            <DIcon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-lp-ink-3" />
+                            <input id="tpl-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("tpl.search")} className={cx(inputClass, "min-h-[40px] rounded-[12px] pl-9 font-semibold")} />
+                        </div>
+                    </div>
+
+                    {visible.length === 0 ? (
+                        <p className="lp-card m-0 p-7 text-center text-[14px] text-lp-ink-3">{t("tpl.nothing")}</p>
+                    ) : (
+                        <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-3.5">
+                            {visible.map((it) => {
+                                const { raw, doc, type } = it;
+                                const size = doc ? sizeMm(doc.canvas) : null;
+                                const name = raw.name || t("tpl.untitled");
+                                return (
+                                    <article key={raw.id} className={cx("lp-card relative flex min-w-0 flex-col", menu === raw.id ? "z-30" : "lp-lift")}>
+                                        <button
+                                            type="button"
+                                            onClick={() => onOpen(raw)}
+                                            aria-label={t("tpl.openNamed", { name })}
+                                            className="h-[160px] overflow-hidden rounded-t-[20px] p-3"
+                                            style={previewBackdrop(type)}
+                                        >
+                                            {doc ? <LabelThumb doc={doc} data={it.preview} /> : <span className="text-[12px] text-lp-ink-3">{t("tpl.noPreview")}</span>}
+                                        </button>
+                                        <div className="flex min-w-0 flex-col gap-2 p-3.5">
+                                            <div className="relative flex items-center gap-2">
+                                                <button type="button" onClick={() => onOpen(raw)} className="min-w-0 flex-1 truncate text-left text-[15px] font-extrabold text-lp-ink hover:underline">
+                                                    {name}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    aria-label={t("tpl.actionsNamed", { name })}
+                                                    aria-haspopup="menu"
+                                                    aria-expanded={menu === raw.id}
+                                                    onClick={() => { setMenu(menu === raw.id ? null : raw.id); setConfirm(null); }}
+                                                    className="flex h-8 w-8 flex-none items-center justify-center rounded-[9px] text-lp-ink-3 transition hover:bg-lp-raised hover:text-lp-ink"
+                                                >
+                                                    <DIcon name="more" className="h-5 w-5" />
+                                                </button>
+                                                {menu === raw.id && (
+                                                    <>
+                                                        <div className="fixed inset-0 z-20" onClick={() => setMenu(null)} />
+                                                        <div role="menu" className="lp-card absolute right-0 top-10 z-30 flex min-w-[210px] flex-col p-1.5">
+                                                            <button type="button" role="menuitem" className="min-h-[38px] rounded-[9px] px-2.5 text-left text-[14px] font-bold text-lp-ink hover:bg-lp-raised" onClick={() => { setMenu(null); onOpen(raw); }}>
+                                                                {t("tpl.open")}
+                                                            </button>
+                                                            <button type="button" role="menuitem" disabled={busy} className="min-h-[38px] rounded-[9px] px-2.5 text-left text-[14px] font-bold text-lp-ink hover:bg-lp-raised" onClick={() => { setMenu(null); void act(() => onCopy(raw), t("tpl.copied", { name })); }}>
+                                                                {t("tpl.copy")}
+                                                            </button>
+                                                            <button type="button" role="menuitem" className="min-h-[38px] rounded-[9px] px-2.5 text-left text-[14px] font-bold text-lp-bad hover:bg-lp-bad-bg" onClick={() => { setMenu(null); setConfirm(raw.id); }}>
+                                                                {t("tpl.delete")}
+                                                            </button>
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                                                <TypeChip type={type}>{t(`tpl.type.${type}`)}</TypeChip>
+                                                <span className="font-mono text-[12px] text-lp-ink-3">
+                                                    {size ? `${size.w}×${size.h} ${t("ed.unitMm")}` : "—"} · {it.used > 0 ? t("tpl.usedBy", { count: it.used }) : t("tpl.unused")}
+                                                </span>
+                                            </div>
+                                            {it.gaps.length > 0 && (
+                                                <span className="text-[12px] font-bold leading-snug text-lp-warn">
+                                                    ▲ {it.gaps.length <= 2 ? t("tpl.missing", { list: requirementList(it.gaps) }) : t("tpl.missingMany", { count: it.gaps.length, total: EU_REQUIREMENTS.length })}
+                                                </span>
+                                            )}
+                                            {confirm === raw.id && (
+                                                <div className="mt-1 flex flex-col gap-2 border-t border-lp-line pt-2.5">
+                                                    <span className="text-[13px] font-bold text-lp-ink">
+                                                        {it.used > 0 ? t("tpl.deleteUsed", { count: it.used }) : t("tpl.deleteAsk")}
+                                                    </span>
+                                                    <div className="flex gap-4">
+                                                        <button type="button" disabled={busy} className={dangerLink} onClick={() => act(() => onDelete(raw), t("tpl.deleted", { name }))}>
+                                                            {t("tpl.deleteYes")}
+                                                        </button>
+                                                        <button type="button" className={linkButton} onClick={() => setConfirm(null)}>{t("tpl.no")}</button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </article>
+                                );
+                            })}
+                        </div>
+                    )}
+                </>
+            )}
+
+            {gallery && (
+                <Gallery t={t} busy={busy} onClose={() => setGallery(false)} onPick={pickStarter} onBlank={(doc, name) => onCreate(doc, name, null)} />
+            )}
         </div>
-      )}
-    </div>
-  );
+    );
 }
 
-export default function TemplateHub({ templates, onOpen, onCreate, onDelete }: Props) {
-  const { t } = useTranslation();
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | LType>("all");
-
-  const [modalOpen, setModalOpen] = useState(false);
-  const [name, setName] = useState(t("templates.newTemplate"));
-  const [labelType, setLabelType] = useState<LType>("pack");
-  const [widthMm, setWidthMm] = useState(100);
-  const [heightMm, setHeightMm] = useState(150);
-
-  const items = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return templates
-      .map((t) => ({ raw: t, scheme: parseScheme(t), type: getType(parseScheme(t)) }))
-      .filter((it) => (filter === "all" ? true : it.type === filter))
-      .filter((it) => (q ? String(it.raw?.name ?? "").toLowerCase().includes(q) : true));
-  }, [templates, search, filter]);
-
-  const counts = useMemo(() => {
-    const c = { all: templates.length, pack: 0, box: 0, pallet: 0 } as Record<string, number>;
-    templates.forEach((t) => {
-      c[getType(parseScheme(t))]++;
-    });
-    return c;
-  }, [templates]);
-
-  const filters: Array<{ key: "all" | LType; label: string }> = [
-    { key: "all", label: t("templates.filterAll") },
-    { key: "pack", label: t("templates.typePack") },
-    { key: "box", label: t("templates.typeBox") },
-    { key: "pallet", label: t("templates.typePallet") },
-  ];
-
-  const submitCreate = () => {
-    onCreate({
-      name: name.trim() || t("templates.newTemplate"),
-      labelType,
-      widthCm: Math.max(1, widthMm) / 10,
-      heightCm: Math.max(1, heightMm) / 10,
-    });
-    setModalOpen(false);
-  };
-
-  return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight text-white">{t("templates.heading")}</h2>
-          <p className="text-sm text-white/45">{t("templates.subtitle")}</p>
+function Ring({ ready, total, t }: { ready: number; total: number; t: T }) {
+    const share = total ? ready / total : 1;
+    const color = total === 0 || ready === total ? "rgb(var(--lp-ok))" : "rgb(var(--lp-warn))";
+    return (
+        <div className="flex h-[76px] w-[76px] flex-none items-center justify-center rounded-full" style={{ background: `conic-gradient(${color} 0 ${share * 360}deg, rgb(var(--lp-ink) / 0.08) 0)` }}>
+            <span className="flex h-[58px] w-[58px] flex-col items-center justify-center rounded-full bg-lp-surface text-[18px] font-extrabold leading-none text-lp-ink">
+                {ready}
+                <small className="mt-0.5 whitespace-nowrap text-[10px] font-bold text-lp-ink-3">{t("tpl.ofN", { total })}</small>
+            </span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
-              <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.6" className="text-white/40" />
-              <path d="m20 20-3-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" className="text-white/40" />
-            </svg>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={t("templates.searchPlaceholder")}
-              className="w-40 bg-transparent text-sm text-white placeholder:text-white/35 outline-none"
-            />
-          </div>
-          <button
-            onClick={() => setModalOpen(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-indigo-500 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-indigo-400"
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
-              <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            </svg>
-            {t("templates.createNew")}
-          </button>
-        </div>
-      </div>
+    );
+}
 
-      <div className="flex flex-wrap gap-2">
-        {filters.map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setFilter(f.key)}
-            className={
-              "rounded-full border px-3.5 py-1.5 text-[12px] transition " +
-              (filter === f.key
-                ? "border-indigo-400/40 bg-indigo-400/15 text-indigo-200"
-                : "border-white/10 text-white/55 hover:text-white hover:bg-white/5")
-            }
-          >
-            {f.label}
-            <span className="ml-1.5 text-white/35">{counts[f.key]}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-        <button
-          onClick={() => setModalOpen(true)}
-          className="flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-indigo-400/40 bg-indigo-400/[0.06] text-indigo-200 transition hover:border-indigo-400/70 hover:bg-indigo-400/10"
-        >
-          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" aria-hidden="true">
-            <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-          </svg>
-          <span className="text-[13px]">{t("templates.createNewTemplate")}</span>
-        </button>
-
-        {items.map(({ raw, scheme, type }) => {
-          const cm = scheme?.canvas ?? {};
-          const wMm = Math.round((Number(cm.widthCm) || 0) * 10);
-          const hMm = Math.round((Number(cm.heightCm) || 0) * 10);
-          const badge = TYPE_BADGE[type];
-          return (
-            <div
-              key={raw.id}
-              className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] transition hover:border-indigo-400/40"
-            >
-              <button onClick={() => onOpen(raw)} className="block w-full text-left outline-none">
-                <div className="h-[132px] bg-black/20 p-2.5">
-                  {scheme ? (
-                    <TemplatePreview scheme={scheme} />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-[11px] text-white/30">{t("templates.noPreview")}</div>
-                  )}
-                </div>
-                <div className="px-3 py-2.5">
-                  <div className="truncate text-[13px] text-white">{raw.name || t("templates.untitled")}</div>
-                  <div className="mt-1.5 flex items-center justify-between">
-                    <span className="font-mono text-[11px] text-white/40">{wMm > 0 ? t("templates.dimensions", { w: wMm, h: hMm }) : "—"}</span>
-                    <span className={"rounded-md border px-2 py-0.5 text-[10px] " + badge}>{typeLabel(t, type)}</span>
-                  </div>
-                </div>
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(raw.id);
-                }}
-                title={t("templates.deleteTemplate")}
-                className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-lg bg-black/40 text-white/50 opacity-0 transition hover:bg-red-500/25 hover:text-red-300 group-hover:opacity-100"
-              >
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
-                  <path d="M5 7h14M10 11v6M14 11v6M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12M9 7V4h6v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-            </div>
-          );
-        })}
-      </div>
-
-      {items.length === 0 && (
-        <div className="rounded-xl border border-white/10 bg-white/[0.02] py-10 text-center text-sm text-white/40">
-          {templates.length === 0 ? t("templates.emptyNoTemplates") : t("templates.emptyNoMatches")}
-        </div>
-      )}
-
-      {modalOpen && (
+function Gallery({ t, busy, onClose, onPick, onBlank }: {
+    t: T;
+    busy: boolean;
+    onClose: () => void;
+    onPick: (starter: Starter) => void;
+    onBlank: (doc: LabelDoc, name: string) => void;
+}) {
+    const ref = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        ref.current?.querySelector<HTMLButtonElement>("button[data-starter]")?.focus();
+        const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [onClose]);
+    return (
         <Portal>
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => setModalOpen(false)}>
-          <div
-            className="w-full max-w-md rounded-2xl border border-white/10 bg-lp-surface p-5 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-4 text-base font-semibold text-white">{t("templates.newTemplate")}</div>
-
-            <div className="mb-4">
-              <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-white/50">{t("templates.labelType")}</div>
-              <div className="grid grid-cols-3 gap-2">
-                {(["pack", "box", "pallet"] as LType[]).map((lt) => (
-                  <button
-                    key={lt}
-                    onClick={() => setLabelType(lt)}
-                    className={
-                      "rounded-lg border px-2 py-2.5 text-[12px] transition " +
-                      (labelType === lt
-                        ? "border-indigo-400/50 bg-indigo-400/15 text-indigo-200"
-                        : "border-white/10 text-white/55 hover:bg-white/5")
-                    }
-                  >
-                    {typeLabel(t, lt)}
-                  </button>
-                ))}
-              </div>
+            <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[rgba(12,18,32,.36)] p-4 backdrop-blur-sm dark:bg-[rgba(0,0,0,.6)]" onClick={onClose}>
+                <div ref={ref} role="dialog" aria-modal="true" aria-labelledby="tpl-gallery" className="lp-card flex max-h-[92vh] w-full max-w-[900px] flex-col gap-4 overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-start gap-3">
+                        <div className="flex flex-1 flex-col gap-1">
+                            <h2 id="tpl-gallery" className="m-0 text-[22px] font-extrabold tracking-[-0.02em] text-lp-ink">{t("tpl.galleryTitle")}</h2>
+                            <p className="m-0 text-[14px] text-lp-ink-2">{t("tpl.galleryLead")}</p>
+                        </div>
+                        <button type="button" onClick={onClose} aria-label={t("tpl.close")} className="flex h-10 w-10 items-center justify-center rounded-[12px] text-lp-ink-3 transition hover:bg-lp-raised hover:text-lp-ink">
+                            <DIcon name="close" className="h-5 w-5" />
+                        </button>
+                    </div>
+                    <StarterGrid t={t} busy={busy} onPick={onPick} onBlank={onBlank} />
+                </div>
             </div>
-
-            <div className="mb-4">
-              <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-white/50">{t("templates.size")}</div>
-              <div className="mb-2 flex flex-wrap gap-2">
-                {PRESETS.map((p) => {
-                  const on = widthMm === p.w && heightMm === p.h;
-                  return (
-                    <button
-                      key={p.label}
-                      onClick={() => {
-                        setWidthMm(p.w);
-                        setHeightMm(p.h);
-                      }}
-                      className={
-                        "rounded-md border px-2.5 py-1.5 font-mono text-[11px] transition " +
-                        (on ? "border-indigo-400/50 bg-indigo-400/15 text-indigo-200" : "border-white/10 text-white/55 hover:bg-white/5")
-                      }
-                    >
-                      {p.label}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="flex flex-1 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-                  <span className="text-[11px] text-white/40">{t("templates.widthMm")}</span>
-                  <input
-                    type="number"
-                    value={widthMm}
-                    onChange={(e) => setWidthMm(Number(e.target.value))}
-                    className="w-full bg-transparent text-sm text-white outline-none"
-                  />
-                </label>
-                <label className="flex flex-1 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-                  <span className="text-[11px] text-white/40">{t("templates.heightMm")}</span>
-                  <input
-                    type="number"
-                    value={heightMm}
-                    onChange={(e) => setHeightMm(Number(e.target.value))}
-                    className="w-full bg-transparent text-sm text-white outline-none"
-                  />
-                </label>
-              </div>
-            </div>
-
-            <div className="mb-5">
-              <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-white/50">{t("templates.name")}</div>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-indigo-400/50"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setModalOpen(false)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-white/60 transition hover:bg-white/5">
-                {t("templates.cancel")}
-              </button>
-              <button onClick={submitCreate} className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-400">
-                {t("templates.create")}
-              </button>
-            </div>
-          </div>
-        </div>
         </Portal>
-      )}
-    </div>
-  );
+    );
+}
+
+/** Sample product used in the starter previews. */
+const STARTER_SAMPLE = previewDataFor(null);
+
+function StarterGrid({ t, busy, onPick, onBlank }: { t: T; busy: boolean; onPick: (starter: Starter) => void; onBlank: (doc: LabelDoc, name: string) => void }) {
+    const previews = useMemo(() => {
+        // Previews show every field (none of the extra fields exist here yet).
+        const extras = { ingredients: t("ed.extra.ingredients"), storage: t("ed.extra.storage"), producer: t("ed.extra.producer") };
+        const data = { ...STARTER_SAMPLE, [extras.ingredients]: t("tpl.sample.ingredients"), [extras.storage]: t("tpl.sample.storage"), [extras.producer]: t("tpl.sample.producer") };
+        return { data, docs: STARTERS.map((st) => previewStarter(st, t, extras)) };
+    }, [t]);
+    const [blank, setBlank] = useState<{ type: LType; w: number; h: number }>({ type: "pack", w: 58, h: 40 });
+    return (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-3">
+            {STARTERS.map((starter, i) => (
+                <button
+                    key={starter.id}
+                    type="button"
+                    data-starter
+                    disabled={busy}
+                    onClick={() => onPick(starter)}
+                    className="lp-lift flex flex-col overflow-hidden rounded-[18px] border border-lp-line bg-lp-surface text-left disabled:opacity-60"
+                >
+                    <span className="block h-[124px] p-2.5" style={previewBackdrop(starter.type)}>
+                        <LabelThumb doc={previews.docs[i]} data={previews.data} />
+                    </span>
+                    <span className="flex flex-col gap-1 p-3">
+                        <span className="flex items-center gap-2">
+                            <TypeChip type={starter.type}>{t(`tpl.type.${starter.type}`)}</TypeChip>
+                            <span className="font-mono text-[12px] text-lp-ink-3">{starter.w}×{starter.h}</span>
+                        </span>
+                        <b className="text-[14px] font-extrabold text-lp-ink">{t(`tpl.st.${starter.id}`)}</b>
+                        <span className="text-[12px] text-lp-ink-2">{t(`tpl.st.${starter.id}Hint`)}</span>
+                    </span>
+                </button>
+            ))}
+            <div className="flex flex-col gap-2.5 rounded-[18px] border border-dashed border-lp-line-2 p-3.5">
+                <b className="text-[14px] font-extrabold text-lp-ink">{t("tpl.blank")}</b>
+                <Seg
+                    label={t("tpl.blankType")}
+                    size="sm"
+                    value={blank.type}
+                    onChange={(type) => setBlank((b) => ({ ...b, type }))}
+                    options={LTYPES.map((type) => ({ value: type, label: t(`tpl.type.${type}`) }))}
+                />
+                <div className="grid grid-cols-2 gap-2">
+                    {(["w", "h"] as const).map((side) => (
+                        <div key={side} className="flex flex-col gap-1">
+                            <label htmlFor={`blank-${side}`} className="text-[11px] font-extrabold text-lp-ink-3">{t(side === "w" ? "tpl.widthMm" : "tpl.heightMm")}</label>
+                            <input
+                                id={`blank-${side}`}
+                                inputMode="numeric"
+                                value={blank[side] || ""}
+                                onChange={(e) => setBlank((b) => ({ ...b, [side]: Number(e.target.value.replace(/\D/g, "").slice(0, 4)) }))}
+                                className={cx(inputClass, "font-mono")}
+                            />
+                        </div>
+                    ))}
+                </div>
+                <button
+                    type="button"
+                    disabled={busy || blank.w < 10 || blank.h < 10}
+                    onClick={() => onBlank(blankDoc(blank.type, blank.w, blank.h), `${t(`tpl.type.${blank.type}`)} ${blank.w}×${blank.h}`)}
+                    className="mt-auto min-h-[38px] rounded-[11px] border border-lp-line-2 bg-lp-surface px-3.5 text-[13px] font-extrabold text-lp-ink transition hover:bg-lp-raised disabled:opacity-50"
+                >
+                    {t("tpl.blankCreate")}
+                </button>
+                {(blank.w < 10 || blank.h < 10) && <span className="text-[12px] text-lp-ink-3">{t("tpl.blankMin")}</span>}
+            </div>
+        </div>
+    );
+}
+
+// The gallery previews a starter without touching the server: barcode as grey bars.
+function previewStarter(starter: Starter, t: T, extras: { ingredients: string; storage: string; producer: string }): LabelDoc {
+    return buildStarter(starter, t, extras, { id: 0, name: "EAN-13", structure: { barcode_type: "ean13" } });
 }

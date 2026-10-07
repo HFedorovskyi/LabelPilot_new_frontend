@@ -189,6 +189,16 @@ body {
     background: var(--lp-nav-active);
     box-shadow: var(--lp-nav-active-shadow);
   }
+  /* The label editor's working area: a dotted mat the white label lies on. */
+  .lp-stage {
+    background-color: #f7f9fc;
+    background-image: radial-gradient(rgba(15, 23, 42, 0.13) 1px, transparent 1.2px);
+    background-size: 16px 16px;
+  }
+  .dark .lp-stage {
+    background-color: #0c1119;
+    background-image: radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1.2px);
+  }
   /* A page's icon tile, colored by its menu group. */
   .lp-tile {
     color: #fff;

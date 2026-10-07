@@ -180,6 +180,9 @@ function AppShell() {
   if (seats && seats.limit != null) badges.license = { text: `${seats.active}/${seats.limit}`, tone: "plain", title: t("nav.licenseBadge") };
 
   const [collapsed, setCollapsed] = useState(false);
+  // The label editor takes the whole content area: no top bar, no footer.
+  const [labelsEditing, setLabelsEditing] = useState(false);
+  const fullBleed = active === "labels" && labelsEditing;
   useEffect(() => {
     const s = typeof window !== "undefined" ? window.localStorage.getItem("lp_sidebar_collapsed") : null;
     if (s !== null) setCollapsed(s === "1");
@@ -221,8 +224,8 @@ function AppShell() {
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Демо-режим: ненавязчивый баннер о лицензии (показывается только когда mode === "demo") */}
         <DemoBanner onActivate={() => setActive("license")} />
-        <main className="relative flex-1 overflow-y-auto px-6 pb-10 pt-3">
-          <TopBar
+        <main className={fullBleed ? "relative flex-1 overflow-hidden p-3" : "relative flex-1 overflow-y-auto px-6 pb-10 pt-3"}>
+          {!fullBleed && <TopBar
             onSearch={() => setSearchOpen(true)}
             bellRef={bellRef}
             unread={notifUnread}
@@ -230,16 +233,16 @@ function AppShell() {
             onBell={toggleNotif}
             update={effectiveUpdate}
             onUpdate={() => setActive("settings")}
-          />
+          />}
           <ErrorBoundary resetKey={active}>
-            <div className="flex flex-col gap-6">
+            <div className={fullBleed ? "flex h-full flex-col" : "flex flex-col gap-6"}>
               {!OWN_HEADER.includes(active) && (
                 <div className="mx-auto w-full max-w-[1180px]">
                   <PageTitle icon={active} title={t(`nav.${active}`)} description={t(`nav.${active}Desc`)} />
                 </div>
               )}
               {active === "home" ? <Dashboard onNavigate={setActive} /> : null}
-              {active === "labels" ? <LabelDesigner /> : null}
+              {active === "labels" ? <LabelDesigner onEditorChange={setLabelsEditing} /> : null}
               {active === "catalog" ? <ProductsPage onNavigate={setActive} onCatalogChanged={loadNoTemplate} /> : null}
               {active === "packaging" ? <PackagingManager /> : null}
               {active === "barcodes" ? <BarcodeTemplatesManager /> : null}
@@ -250,9 +253,9 @@ function AppShell() {
               {active === "license" ? <SettingsPage key="license" initialTab="license" /> : null}
               {active === "users" && isAdmin ? <UsersManager /> : null}
 
-              <footer className="border-t border-lp-line pt-5 text-[12px] text-lp-ink-3">
+              {!fullBleed && <footer className="border-t border-lp-line pt-5 text-[12px] text-lp-ink-3">
                 {t("app.footerCopyright", { year: new Date().getFullYear() })}
-              </footer>
+              </footer>}
             </div>
           </ErrorBoundary>
         </main>
