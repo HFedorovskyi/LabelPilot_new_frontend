@@ -8,6 +8,7 @@ import PackagingPage from "./components/catalog/PackagingPage";
 import BarcodesPage from "./components/barcodes/BarcodesPage";
 import StationsPage from "./components/stations/StationsPage";
 import SettingsPage from "./components/settings/SettingsPage";
+import LicensePage from "./components/settings/LicensePage";
 import PrintPage from "./components/print/PrintPage";
 import Dashboard from "./components/home/Dashboard";
 import DemoBanner from "./components/DemoBanner";
@@ -22,6 +23,7 @@ import { useTranslation } from "@/lib/i18n";
 import { api } from "@/lib/api/client";
 import { apiHost } from "@/lib/api/base";
 import { licenseApi } from "@/lib/api/license";
+import { systemApi } from "@/lib/api/system";
 import { attentionCount, type Station } from "@/lib/stations";
 import { isNewerVersion } from "@/lib/version";
 import SearchModal from "./components/SearchModal";
@@ -42,7 +44,7 @@ const roleLabel = (t: (key: string) => string, role: string | undefined): string
 };
 
 // Redesigned screens render their own page header; the others get the shared one.
-const OWN_HEADER: NavKey[] = ["home", "stations", "print_tasks", "catalog", "labels", "packaging", "barcodes", "operators", "users"];
+const OWN_HEADER: NavKey[] = ["home", "stations", "print_tasks", "catalog", "labels", "packaging", "barcodes", "operators", "users", "settings"];
 
 function AppShell() {
   const { user, logout } = useAuth();
@@ -98,25 +100,14 @@ function AppShell() {
     return () => { alive = false; };
   }, []);
 
-  // ── available-update check (updater service on :9000; reachable from the server's own browser) ──
-  // Prefer 127.0.0.1 over "localhost" so we don't hit a different stack via IPv6.
+  // ── available update: asked through the server (it caches GitHub for 10 minutes) ──
   const [updateAvail, setUpdateAvail] = useState<{ version: string; publishedAt: string | null } | null>(null);
   useEffect(() => {
     let alive = true;
     const check = () => {
-      try {
-        const signal = (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal) ? AbortSignal.timeout(4000) : undefined;
-        fetch("http://127.0.0.1:9000/check", signal ? { signal } : undefined)
-          .then((r) => r.json())
-          .then((d: any) => {
-            if (!alive) return;
-            // Trust updater's available flag, but also require the candidate to be a real version string.
-            setUpdateAvail(d?.available && d?.version
-              ? { version: String(d.version).trim(), publishedAt: d.published_at || null }
-              : null);
-          })
-          .catch(() => { if (alive) setUpdateAvail(null); });
-      } catch { if (alive) setUpdateAvail(null); }
+      systemApi.update()
+        .then((d) => { if (alive) setUpdateAvail(d.available && d.version ? { version: d.version.trim(), publishedAt: d.published_at || null } : null); })
+        .catch(() => { if (alive) setUpdateAvail(null); });
     };
     check();
     const id = setInterval(check, 5 * 60_000);
@@ -258,8 +249,8 @@ function AppShell() {
               {active === "print_tasks" ? <PrintPage onNavigate={setActive} onJobsChanged={loadJobErrors} /> : null}
               {active === "stations" ? <StationsPage /> : null}
               {active === "operators" ? <OperatorsPage onNavigate={setActive} /> : null}
-              {active === "settings" ? <SettingsPage key="settings" /> : null}
-              {active === "license" ? <SettingsPage key="license" initialTab="license" /> : null}
+              {active === "settings" ? <SettingsPage host={host} onNavigate={setActive} /> : null}
+              {active === "license" ? <LicensePage /> : null}
               {active === "users" && isAdmin ? <AccessPage host={host} onNavigate={setActive} /> : null}
 
               {!fullBleed && <footer className="border-t border-lp-line pt-5 text-[12px] text-lp-ink-3">

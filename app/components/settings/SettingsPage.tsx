@@ -1,918 +1,363 @@
 "use client";
 
+// «Настройки»: the server update is the one focal card (a newer version, the running update,
+// or why it cannot be checked); then the backups with an honest rollback, the interface
+// language and the facts support asks for. The licence has its own page. Everything goes
+// through the server (lib/api/system.ts): only administrators start updates, rollbacks and
+// backups, from any computer.
+
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { licenseApi, type LicenseInfo } from "@/lib/api/license";
-import { SeatListCard } from "./SeatListCard";
-import { useTranslation, LANGS, LANG_LABELS } from "@/lib/i18n";
-import { useAuth } from "../auth/AuthProvider";
-import { resolveApiBase } from "@/lib/api/base";
+import { api } from "@/lib/api/client";
+import { systemApi, type Backup, type UpdateCheck, type UpdateProgress } from "@/lib/api/system";
+import { LANGS, LANG_LABELS, useTranslation } from "@/lib/i18n";
 import { copyText } from "@/lib/clipboard";
+import { useAuth } from "@/app/components/auth/AuthProvider";
+import PageTitle from "@/app/components/shell/PageTitle";
+import type { NavKey } from "@/app/components/shell/Sidebar";
+import { cx } from "@/app/components/stations/shared";
+import { dangerLink, linkButton, primaryButton } from "@/app/components/print/shared";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+type Op = "update" | "file" | "restore" | "resume";
+type Flash = { ok: boolean; text: string; reload?: boolean };
 
-interface VersionInfo {
-    server_version: string;
-    min_client_version: string;
-    latest_client_version: string;
-}
+const ghost = "inline-flex min-h-[40px] items-center gap-2 rounded-[10px] border border-lp-line-2 bg-lp-surface px-3.5 text-[14px] font-extrabold text-lp-ink transition hover:bg-lp-raised disabled:cursor-not-allowed disabled:opacity-50";
 
-interface ReleaseInfo {
-    available: boolean;
-    version: string;
-    current_version: string;
-    changelog: string;
-    published_at: string;
-    download_url: string;
-}
+// Where the updater's progress (its own percent steps) stands, in our words.
+const UPDATE_STEPS: [number, string][] = [[0, "set.step.download"], [37, "set.step.verify"], [40, "set.step.backup"], [62, "set.step.install"], [96, "set.step.restart"]];
+const RESTORE_STEPS: [number, string][] = [[0, "set.step.stop"], [30, "set.step.restoreData"], [70, "set.step.restartAfter"]];
 
-interface BackupEntry {
-    id: string;
-    version: string;
-    created_at: string;
-    size_mb: number;
-}
+const Svg = ({ children, className = "h-5 w-5" }: { children: React.ReactNode; className?: string }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={cx("flex-none", className)} aria-hidden="true">{children}</svg>
+);
+const DOWN = <><path d="M12 3v12M6 10l6 6 6-6" /><path d="M4 20h16" /></>;
+const CHECK = <><circle cx="12" cy="12" r="9" /><path d="M8 12l3 3 5-6" /></>;
+const WARN = <><path d="M12 4l9 16H3z" /><path d="M12 10v4M12 17.5v.5" /></>;
+const DB = <><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5" /><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" /></>;
+const FILE = <><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><path d="M14 3v6h6M12 18v-6M9 15l3 3 3-3" /></>;
 
-type UpdateStatus =
-    | "idle"
-    | "checking"
-    | "downloading"
-    | "building"
-    | "migrating"
-    | "done"
-    | "error"
-    | "rolling_back";
+export default function SettingsPage({ host, onNavigate }: { host: string; onNavigate?: (key: NavKey) => void }) {
+    const { t, lang, setLang } = useTranslation();
+    const { user } = useAuth();
+    const isAdmin = user?.role === "admin";
+    const [check, setCheck] = useState<UpdateCheck | null>(null);
+    const [checking, setChecking] = useState(false);
+    const [clients, setClients] = useState<{ min: string; latest: string } | null>(null);
+    const [backups, setBackups] = useState<Backup[] | null | "down">(null);
+    const [op, setOp] = useState<Op | null>(null);
+    const [uploading, setUploading] = useState(false);
+    const [progress, setProgress] = useState<UpdateProgress | null>(null);
+    const [confirm, setConfirm] = useState<string | null>(null);
+    const [busy, setBusy] = useState(false);
+    const [flash, setFlash] = useState<Flash | null>(null);
+    const fileRef = useRef<HTMLInputElement>(null);
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-// 127.0.0.1 (not "localhost") avoids IPv6 resolving to a different stack on dual-install machines.
-const UPDATER_BASE = "http://127.0.0.1:9000";
-const API_BASE = resolveApiBase();
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function cx(...parts: Array<string | false | null | undefined>) {
-    return parts.filter(Boolean).join(" ");
-}
-
-function formatDate(iso: string) {
-    try {
-        return new Date(iso).toLocaleString("ru-RU", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-        });
-    } catch {
-        return iso;
-    }
-}
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function Card({ children, className }: { children: React.ReactNode; className?: string }) {
-    return (
-        <div className={cx("rounded-2xl border border-white/10 bg-white/5 p-6", className)}>
-            {children}
-        </div>
-    );
-}
-
-function Badge({ children, color = "neutral" }: { children: React.ReactNode; color?: "green" | "yellow" | "red" | "blue" | "neutral" }) {
-    const colors = {
-        green: "bg-emerald-400/15 text-emerald-300 border-emerald-400/20",
-        yellow: "bg-amber-400/15 text-amber-300 border-amber-400/20",
-        red: "bg-red-400/15 text-red-300 border-red-400/20",
-        blue: "bg-sky-400/15 text-sky-300 border-sky-400/20",
-        neutral: "bg-white/10 text-white/70 border-white/10",
-    };
-    return (
-        <span className={cx("inline-flex items-center rounded-lg border px-2 py-0.5 text-xs font-medium", colors[color])}>
-            {children}
-        </span>
-    );
-}
-
-function Btn({
-    children,
-    onClick,
-    variant = "primary",
-    disabled,
-    className,
-}: {
-    children: React.ReactNode;
-    onClick?: () => void;
-    variant?: "primary" | "secondary" | "danger" | "ghost";
-    disabled?: boolean;
-    className?: string;
-}) {
-    const base =
-        "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-50 disabled:cursor-not-allowed";
-    const styles = {
-        primary: "bg-indigo-500 text-white hover:bg-indigo-400",
-        secondary: "bg-white/10 text-white hover:bg-white/15 border border-white/10",
-        danger: "bg-red-500/20 text-red-300 hover:bg-red-500/30 border border-red-500/20",
-        ghost: "text-white/70 hover:text-white hover:bg-white/10",
-    };
-    return (
-        <button onClick={onClick} disabled={disabled} className={cx(base, styles[variant], className)}>
-            {children}
-        </button>
-    );
-}
-
-function ProgressBar({ value, label }: { value: number; label: string }) {
-    return (
-        <div className="space-y-1.5">
-            <div className="flex justify-between text-xs text-white/60">
-                <span>{label}</span>
-                <span>{value}%</span>
-            </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
-                <div
-                    className="h-full rounded-full bg-indigo-500 transition-all duration-500"
-                    style={{ width: `${value}%` }}
-                />
-            </div>
-        </div>
-    );
-}
-
-// ─── Spinner ──────────────────────────────────────────────────────────────────
-
-function Spinner({ className }: { className?: string }) {
-    return (
-        <svg
-            className={cx("animate-spin", className)}
-            viewBox="0 0 24 24"
-            fill="none"
-            aria-hidden="true"
-        >
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-            />
-        </svg>
-    );
-}
-
-// ─── UpdatesSection ───────────────────────────────────────────────────────────
-
-function UpdatesSection() {
-    const { t } = useTranslation();
-    const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
-    const [release, setRelease] = useState<ReleaseInfo | null>(null);
-    const [backups, setBackups] = useState<BackupEntry[]>([]);
-    const [status, setStatus] = useState<UpdateStatus>("idle");
-    const [progress, setProgress] = useState(0);
-    const [progressLabel, setProgressLabel] = useState("");
-    const [logLines, setLogLines] = useState<string[]>([]);
-    const [error, setError] = useState<string | null>(null);
-    const [updaterOnline, setUpdaterOnline] = useState<boolean | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const logBoxRef = useRef<HTMLDivElement>(null);
-
-    // ── Fetch version from Django API ──────────────────────────────────────────
-    useEffect(() => {
-        fetch(`${API_BASE}/version/`)
-            .then((r) => r.json())
-            .then(setVersionInfo)
-            .catch(() => setVersionInfo(null));
+    const loadCheck = useCallback(async (refresh = false) => {
+        setChecking(true);
+        try {
+            setCheck(await systemApi.update(refresh));
+        } catch {
+            // the server itself restarting: the next poll or a reload brings it back
+        } finally {
+            setChecking(false);
+        }
+    }, []);
+    const loadBackups = useCallback(() => {
+        systemApi.backups().then(setBackups).catch(() => setBackups("down"));
     }, []);
 
-    // ── Check Updater Service availability ────────────────────────────────────
     useEffect(() => {
-        fetch(`${UPDATER_BASE}/status`, { signal: AbortSignal.timeout(2000) })
-            .then((r) => r.json())
-            .then(() => setUpdaterOnline(true))
-            .catch(() => setUpdaterOnline(false));
-    }, []);
+        void loadCheck();
+        loadBackups();
+        api.version().then((d) => d && setClients({ min: d.min_client_version ?? "", latest: d.latest_client_version ?? "" })).catch(() => { });
+        // An update or rollback started earlier (another tab, another computer) keeps showing.
+        systemApi.progress().then((p) => { if (p.status === "running") { setProgress(p); setOp("resume"); } }).catch(() => { });
+    }, [loadCheck, loadBackups]);
 
-    // ── Fetch backups ──────────────────────────────────────────────────────────
-    const fetchBackups = useCallback(() => {
-        if (!updaterOnline) return;
-        fetch(`${UPDATER_BASE}/backups`)
-            .then((r) => r.json())
-            .then((data) => setBackups(data.backups ?? []))
-            .catch(() => { });
-    }, [updaterOnline]);
-
+    // While an operation runs, follow it. The server restarts on the way, so failed polls
+    // are expected and simply retried.
     useEffect(() => {
-        fetchBackups();
-    }, [fetchBackups]);
-
-    // ── Auto-scroll log ────────────────────────────────────────────────────────
-    useEffect(() => {
-        // Scroll ONLY the log box to its bottom. scrollIntoView() would bubble up and scroll
-        // the whole settings page, so the app jumped down on every polled log line during an update.
-        const box = logBoxRef.current;
-        if (box) box.scrollTop = box.scrollHeight;
-    }, [logLines]);
-
-    // ── Poll progress ──────────────────────────────────────────────────────────
-    const startPolling = useCallback(() => {
-        if (pollRef.current) clearInterval(pollRef.current);
-        pollRef.current = setInterval(async () => {
+        if (!op || uploading) return;
+        const id = window.setInterval(async () => {
             try {
-                const r = await fetch(`${UPDATER_BASE}/update/progress`);
-                const data = await r.json();
-                setProgress(data.progress ?? 0);
-                setProgressLabel(data.label ?? "");
-                if (data.log) setLogLines((prev) => [...prev, data.log]);
-                if (data.status === "done") {
-                    setStatus("done");
-                    clearInterval(pollRef.current!);
-                    fetchBackups();
-                    // Refresh version info
-                    fetch(`${API_BASE}/version/`).then((r) => r.json()).then(setVersionInfo).catch(() => { });
-                }
-                if (data.status === "error") {
-                    setStatus("error");
-                    setError(data.error ?? t('settings.unknownError'));
-                    clearInterval(pollRef.current!);
+                const p = await systemApi.progress();
+                setProgress(p);
+                if (p.status === "done") {
+                    setOp(null);
+                    setFlash({ ok: true, text: t(op === "restore" ? "set.restored" : "set.updated"), reload: op !== "restore" });
+                    void loadCheck(true);
+                    loadBackups();
+                } else if (p.status === "error") {
+                    setOp(null);
+                    setFlash({ ok: false, text: t("set.failed", { error: p.error ?? "" }) });
+                    loadBackups();
                 }
             } catch {
-                // Updater may be restarting — ignore transient errors
+                // restarting
             }
         }, 1500);
-    }, [fetchBackups, t]);
+        return () => window.clearInterval(id);
+    }, [op, uploading, t, loadCheck, loadBackups]);
 
-    useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+    const fail = (e: unknown) => setFlash({ ok: false, text: e instanceof Error && e.message ? e.message : t("set.failedShort") });
 
-    // ── Check for updates ──────────────────────────────────────────────────────
-    const handleCheck = async () => {
-        setStatus("checking");
-        setError(null);
-        setRelease(null);
+    const startUpdate = async () => {
+        setFlash(null);
+        setBusy(true);
         try {
-            const r = await fetch(`${UPDATER_BASE}/check`);
-            const data: ReleaseInfo = await r.json();
-            setRelease(data);
-        } catch {
-            setError(t('settings.updaterUnreachable'));
+            await systemApi.startUpdate();
+            setProgress({ status: "running", progress: 1, label: "", log: null, error: null });
+            setOp("update");
+        } catch (e) {
+            fail(e);
         } finally {
-            setStatus("idle");
+            setBusy(false);
         }
     };
 
-    // ── Start online update ────────────────────────────────────────────────────
-    const handleUpdate = async () => {
-        setStatus("downloading");
-        setProgress(0);
-        setLogLines([]);
-        setError(null);
-        try {
-            await fetch(`${UPDATER_BASE}/update`, { method: "POST" });
-            startPolling();
-        } catch {
-            setStatus("error");
-            setError(t('settings.updateStartFailed'));
-        }
-    };
-
-    // ── Offline update via file upload ─────────────────────────────────────────
-    const handleOfflineFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
+    const updateFromFile = async (file: File | undefined) => {
         if (!file) return;
-        setStatus("downloading");
-        setProgress(0);
-        setLogLines([]);
-        setError(null);
-        const form = new FormData();
-        form.append("file", file);
+        setFlash(null);
+        setUploading(true);
+        setOp("file");
+        setProgress({ status: "running", progress: 0, label: "", log: null, error: null });
         try {
-            await fetch(`${UPDATER_BASE}/update/offline`, { method: "POST", body: form });
-            startPolling();
-        } catch {
-            setStatus("error");
-            setError(t('settings.offlineUploadFailed'));
-        }
-        // Reset input so same file can be re-selected
-        if (fileInputRef.current) fileInputRef.current.value = "";
-    };
-
-    // ── Rollback ───────────────────────────────────────────────────────────────
-    const handleRollback = async (backupId: string) => {
-        if (!confirm(t('settings.rollbackConfirm'))) return;
-        setStatus("rolling_back");
-        setProgress(0);
-        setLogLines([]);
-        setError(null);
-        try {
-            await fetch(`${UPDATER_BASE}/rollback`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ backup_id: backupId }),
-            });
-            startPolling();
-        } catch {
-            setStatus("error");
-            setError(t('settings.rollbackStartFailed'));
+            await systemApi.updateFromFile(file);
+        } catch (e) {
+            setOp(null);
+            fail(e);
+        } finally {
+            setUploading(false);
+            if (fileRef.current) fileRef.current.value = "";
         }
     };
 
-    const isBusy = ["downloading", "building", "migrating", "rolling_back"].includes(status);
+    const backupNow = async () => {
+        setFlash(null);
+        setBusy(true);
+        try {
+            const made = await systemApi.backupNow();
+            loadBackups();
+            setFlash({ ok: true, text: t("set.bk.made", { when: when(made.created_at) }) });
+        } catch (e) {
+            fail(e);
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const restore = async (b: Backup) => {
+        setConfirm(null);
+        setFlash(null);
+        try {
+            await systemApi.restore(b.id);
+            setProgress({ status: "running", progress: 1, label: "", log: null, error: null });
+            setOp("restore");
+        } catch (e) {
+            fail(e);
+        }
+    };
+
+    const when = (iso: string) => {
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return iso;
+        return `${d.toLocaleDateString(lang, { day: "numeric", month: "long", year: "numeric" })}, ${d.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" })}`;
+    };
+    const checkedAt = check ? new Date(check.checked_ts * 1000).toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" }) : "";
+
+    const running = !!op;
+    const steps = op === "restore" ? RESTORE_STEPS : UPDATE_STEPS;
+    const pct = Math.max(0, Math.min(100, progress?.progress ?? 0));
+    const stepIndex = steps.reduce((found, [from], i) => (pct >= from ? i : found), 0);
+    const stepText = uploading
+        ? t("set.step.upload")
+        : op === "resume" ? t("set.step.generic")
+            : t("set.step.of", { n: stepIndex + 1, total: steps.length, step: t(steps[stepIndex][1]) });
+
+    // ── the focal card: icon, version line and the one action ──
+    const state = running ? "running"
+        : !check ? "loading"
+            : check.updater === "offline" ? "down"
+                : check.error === "offline" ? "noInternet"
+                    : check.available ? "available" : "latest";
+    const icon = state === "latest"
+        ? <span className="flex h-14 w-14 flex-none items-center justify-center rounded-[18px] bg-lp-g-sys/[0.13] text-lp-g-sys"><Svg className="h-[26px] w-[26px]">{CHECK}</Svg></span>
+        : state === "down" || state === "noInternet"
+            ? <span className="flex h-14 w-14 flex-none items-center justify-center rounded-[18px] bg-lp-warn-bg text-lp-warn"><Svg className="h-[26px] w-[26px]">{WARN}</Svg></span>
+            : <span className="flex h-14 w-14 flex-none items-center justify-center rounded-[18px] bg-lp-accent-bg text-lp-accent-ink"><Svg className="h-[26px] w-[26px]">{DOWN}</Svg></span>;
+    const line = {
+        running: { tone: "", text: t(op === "restore" ? "set.line.restoring" : "set.line.running") },
+        loading: { tone: "", text: t("set.line.loading") },
+        down: { tone: "warn", text: t("set.line.down") },
+        noInternet: { tone: "warn", text: t("set.line.noInternet", { time: checkedAt }) },
+        available: { tone: "", text: t("set.line.available", { time: checkedAt }) },
+        latest: { tone: "ok", text: t("set.line.latest", { time: checkedAt }) },
+    }[state];
 
     return (
-        <div className="space-y-6">
-            {/* Current version card */}
-            <Card>
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <div className="text-sm font-medium text-white/60 mb-1">{t('settings.currentServerVersion')}</div>
-                        <div className="flex items-center gap-3">
-                            <span className="text-3xl font-bold tracking-tight text-white">
-                                {versionInfo ? `v${versionInfo.server_version}` : "—"}
-                            </span>
-                            {versionInfo && (
-                                <Badge color="green">{t('settings.upToDate')}</Badge>
+        <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-5">
+            <PageTitle
+                icon="settings"
+                eyebrow={t("nav.groupSystem")}
+                title={t("nav.settings")}
+                description={<>{t("set.lead")} <button type="button" onClick={() => onNavigate?.("license")} className={cx(linkButton, "text-[14px]")}>{t("set.leadLink")}</button>.</>}
+            />
+
+            <section aria-labelledby="set-update" className="lp-card flex flex-col gap-4 p-[22px]">
+                <div className="flex flex-wrap items-center gap-x-[18px] gap-y-3">
+                    {icon}
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                        <span id="set-update" className="text-[13px] font-extrabold text-lp-ink-3">{t("set.version")}</span>
+                        <span className="text-[34px] font-extrabold leading-[1.05] tracking-[-0.03em] text-lp-ink tabular-nums">
+                            {check?.current ?? "—"}
+                            {check?.available && check.version && (
+                                <span className="ml-2 text-[15px] font-bold tracking-normal text-lp-ink-3">{t("set.arrowNew", { version: check.version })}</span>
                             )}
-                        </div>
-                        {versionInfo && (
-                            <div className="mt-1 text-xs text-white/40">
-                                {t('settings.minClientVersion')}: v{versionInfo.min_client_version}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                        <Btn
-                            variant="secondary"
-                            onClick={handleCheck}
-                            disabled={isBusy || status === "checking" || updaterOnline === false}
-                        >
-                            {status === "checking" ? (
-                                <><Spinner className="h-4 w-4" /> {t('settings.checking')}</>
-                            ) : (
-                                <>
-                                    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
-                                        <path d="M4 12a8 8 0 018-8v4l4-4-4-4v4a10 10 0 100 10" className="stroke-current" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                                    </svg>
-                                    {t('settings.checkForUpdates')}
-                                </>
-                            )}
-                        </Btn>
-
-                        <label className={cx(
-                            "inline-flex cursor-pointer items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium transition",
-                            isBusy || updaterOnline === false
-                                ? "pointer-events-none opacity-50 border-white/10 bg-white/5 text-white/50"
-                                : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
-                        )}>
-                            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
-                                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" className="stroke-current" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                            {t('settings.updateFromFile')}
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept=".lpupdate,.zip"
-                                className="sr-only"
-                                onChange={handleOfflineFile}
-                                disabled={isBusy || updaterOnline === false}
-                            />
-                        </label>
-                    </div>
-                </div>
-
-                {/* Updater Service offline warning */}
-                {updaterOnline === false && (
-                    <div className="mt-4 flex items-start gap-3 rounded-xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-300">
-                        <svg viewBox="0 0 24 24" fill="none" className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true">
-                            <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" className="stroke-current" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                        <span>
-                            <strong>{t('settings.updaterOfflineTitle')}</strong> {t('settings.updaterOfflineEnsure')} <code className="rounded bg-white/10 px-1">LabelPilotUpdater</code> {t('settings.updaterOfflineRunning')}
+                        </span>
+                        <span className={cx("text-[14px] font-bold", line.tone === "ok" ? "text-lp-ok" : line.tone === "warn" ? "text-lp-warn" : "text-lp-ink-2")}>
+                            {line.tone === "ok" && "● "}{line.text}
                         </span>
                     </div>
-                )}
-            </Card>
-
-            {/* Available update banner */}
-            {release?.available && (
-                <Card className="border-indigo-500/30 bg-indigo-500/10">
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                                <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5 text-indigo-400" aria-hidden="true">
-                                    <path d="M12 2l1.2 4.2L17.4 7.4 13.2 8.6 12 12.8 10.8 8.6 6.6 7.4l4.2-1.2L12 2Z" className="fill-current opacity-90" />
-                                </svg>
-                                <span className="font-semibold text-white">
-                                    {t('settings.newVersionAvailable')} — v{release.version}
-                                </span>
-                                <Badge color="blue">{t('settings.newBadge')}</Badge>
-                            </div>
-                            <div className="text-xs text-white/50 mb-3">
-                                {t('settings.publishedAt')}: {formatDate(release.published_at)}
-                            </div>
-                            {release.changelog && (
-                                <pre className="whitespace-pre-wrap rounded-xl bg-black/20 p-3 text-xs text-white/70 max-h-32 overflow-y-auto">
-                                    {release.changelog}
-                                </pre>
+                    {isAdmin && !running && (
+                        <div className="ml-auto flex flex-wrap items-center gap-2.5">
+                            {state === "available" && check?.has_package && (
+                                <button type="button" disabled={busy} onClick={() => void startUpdate()} className={cx(primaryButton, "flex items-center gap-2")}>
+                                    <Svg>{DOWN}</Svg>
+                                    {t("set.updateTo", { version: check.version })}
+                                </button>
                             )}
-                        </div>
-                        <div className="shrink-0">
-                            <Btn onClick={handleUpdate} disabled={isBusy}>
-                                <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
-                                    <path d="M12 2v14M5 9l7 7 7-7" className="stroke-current" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
-                                {t('settings.updateTo')} v{release.version}
-                            </Btn>
-                        </div>
-                    </div>
-                </Card>
-            )}
-
-            {release && !release.available && (
-                <div className="flex items-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-300">
-                    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 shrink-0" aria-hidden="true">
-                        <path d="M20 6L9 17l-5-5" className="stroke-current" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    {t('settings.latestInstalled')}
-                </div>
-            )}
-
-            {/* Progress */}
-            {(isBusy || status === "done") && (
-                <Card>
-                    <div className="mb-3 flex items-center gap-2">
-                        {isBusy && <Spinner className="h-4 w-4 text-indigo-400" />}
-                        {status === "done" && (
-                            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 text-emerald-400" aria-hidden="true">
-                                <path d="M20 6L9 17l-5-5" className="stroke-current" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                        )}
-                        <span className="text-sm font-medium text-white">
-                            {status === "done" ? t('settings.updateComplete') : status === "rolling_back" ? t('settings.rollingBack') : t('settings.updating')}
-                        </span>
-                    </div>
-                    <ProgressBar value={progress} label={progressLabel || t('settings.preparing')} />
-                    {logLines.length > 0 && (
-                        <div ref={logBoxRef} className="mt-3 max-h-40 overflow-y-auto rounded-xl bg-black/30 p-3 font-mono text-xs text-white/60 space-y-0.5">
-                            {logLines.map((line, i) => (
-                                <div key={i}>{line}</div>
-                            ))}
+                            {(state === "latest" || state === "noInternet") && (
+                                <button type="button" disabled={checking} onClick={() => void loadCheck(true)} className={ghost}>{t("set.checkNow")}</button>
+                            )}
+                            {state !== "down" && state !== "loading" && (
+                                <label className={cx(ghost, "cursor-pointer")}>
+                                    <Svg className="h-[18px] w-[18px]">{FILE}</Svg>
+                                    {t("set.fromFile")}
+                                    <input ref={fileRef} type="file" accept=".lpupdate" className="sr-only" onChange={(e) => void updateFromFile(e.target.files?.[0])} />
+                                </label>
+                            )}
                         </div>
                     )}
-                </Card>
-            )}
-
-            {/* Error */}
-            {status === "error" && error && (
-                <div className="flex items-start gap-3 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300">
-                    <svg viewBox="0 0 24 24" fill="none" className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true">
-                        <path d="M18 6L6 18M6 6l12 12" className="stroke-current" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                    <div>
-                        <div className="font-medium">{t('settings.errorTitle')}</div>
-                        <div className="mt-0.5 text-red-300/80">{error}</div>
-                    </div>
                 </div>
-            )}
 
-            {/* Backups */}
-            {backups.length > 0 && (
-                <Card>
-                    <div className="mb-4 text-sm font-semibold text-white">{t('settings.backups')}</div>
-                    <div className="space-y-2">
-                        {backups.map((b) => (
-                            <div
-                                key={b.id}
-                                className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3"
-                            >
-                                <div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-medium text-white">v{b.version}</span>
-                                        <Badge color="neutral">{b.size_mb.toFixed(1)} {t('settings.megabytes')}</Badge>
-                                    </div>
-                                    <div className="mt-0.5 text-xs text-white/40">{formatDate(b.created_at)}</div>
-                                </div>
-                                <Btn
-                                    variant="danger"
-                                    onClick={() => handleRollback(b.id)}
-                                    disabled={isBusy}
-                                >
-                                    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
-                                        <path d="M3 12a9 9 0 009 9 9 9 0 000-18H3M3 12l4-4M3 12l4 4" className="stroke-current" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                                    </svg>
-                                    {t('settings.rollback')}
-                                </Btn>
-                            </div>
-                        ))}
-                    </div>
-                </Card>
-            )}
-        </div>
-    );
-}
-
-// ─── LicenseSection ───────────────────────────────────────────────────────────
-
-function formatLicenseDate(d: string) {
-    // expires comes as "YYYY-MM-DD"; render it RU-style without a time component.
-    try {
-        const dt = new Date(`${d}T00:00:00`);
-        if (Number.isNaN(dt.getTime())) return d;
-        return dt.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
-    } catch {
-        return d;
-    }
-}
-
-function LicenseSection() {
-    const { t } = useTranslation();
-    const { user } = useAuth();
-    const [info, setInfo] = useState<LicenseInfo | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [importing, setImporting] = useState(false);
-    const [importMsg, setImportMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
-    const [refreshing, setRefreshing] = useState(false);
-    const [copied, setCopied] = useState(false);
-
-    useEffect(() => {
-        let alive = true;
-        licenseApi
-            .get()
-            .then((data) => {
-                if (alive) setInfo(data);
-            })
-            .catch(() => {
-                if (alive) setError(t('settings.licenseStatusFailed'));
-            })
-            .finally(() => {
-                if (alive) setLoading(false);
-            });
-        return () => {
-            alive = false;
-        };
-    }, [t]);
-
-    if (loading) {
-        return (
-            <Card>
-                <div className="flex items-center gap-2 text-sm text-white/60">
-                    <Spinner className="h-4 w-4" /> {t('settings.loadingLicenseStatus')}
-                </div>
-            </Card>
-        );
-    }
-
-    if (error || !info) {
-        return (
-            <div className="flex items-start gap-3 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300">
-                <svg viewBox="0 0 24 24" fill="none" className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true">
-                    <path d="M18 6L6 18M6 6l12 12" className="stroke-current" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-                <div>
-                    <div className="font-medium">{t('settings.errorTitle')}</div>
-                    <div className="mt-0.5 text-red-300/80">{error ?? t('settings.noLicenseData')}</div>
-                </div>
-            </div>
-        );
-    }
-
-    const isDemo = info.mode === "demo";
-    const inGrace = !isDemo && info.expired && Boolean(info.grace);
-    const pastGrace = !isDemo && info.expired && !info.grace;
-    const expiresSoon = !isDemo && !info.expired && info.days_left != null && info.days_left <= 30;
-
-    const rows: { label: string; value: string }[] = isDemo
-        ? [
-              { label: t('settings.fieldMode'), value: t('settings.demoModeNoLicense') },
-          ]
-        : [
-              { label: t('settings.fieldEdition'), value: info.edition || "—" },
-              { label: t('settings.fieldCustomer'), value: info.customer || "—" },
-              {
-                  label: t('settings.fieldValidUntil'),
-                  value: !info.expires
-                      ? t('settings.perpetual')
-                      : inGrace && info.grace_until
-                          ? t('settings.graceUntilValue', { date: formatLicenseDate(info.expires), until: formatLicenseDate(info.grace_until) })
-                          : formatLicenseDate(info.expires),
-              },
-              { label: t('settings.fieldLicenseId'), value: info.license_id || "—" },
-          ];
-
-    return (
-        <div className="space-y-6">
-            {/* Status card */}
-            <Card className={
-                pastGrace
-                    ? "border-red-400/30 bg-red-400/[0.06]"
-                    : isDemo || inGrace || expiresSoon
-                        ? "border-amber-400/30 bg-amber-400/[0.06]"
-                        : "border-emerald-400/30 bg-emerald-400/[0.06]"
-            }>
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <div className="text-sm font-medium text-white/60 mb-1">{t('settings.licenseStatus')}</div>
-                        <div className="flex items-center gap-3">
-                            <span className="text-2xl font-bold tracking-tight text-white">
-                                {isDemo ? t('settings.demoMode') : t('settings.licensed')}
-                            </span>
-                            {isDemo ? (
-                                <Badge color="yellow">{t('settings.noLicense')}</Badge>
-                            ) : inGrace ? (
-                                <Badge color="yellow">{t('settings.grace')}</Badge>
-                            ) : info.expired ? (
-                                <Badge color="red">{t('settings.expired')}</Badge>
-                            ) : (
-                                <Badge color="green">{t('settings.active')}</Badge>
-                            )}
-                        </div>
-                        {isDemo && (
-                            <div className="mt-1.5 text-xs text-white/50">
-                                {t('settings.demoUnlimitedHint')}
+                {state === "available" && !running && check && (
+                    <>
+                        {check.changelog && (
+                            <div className="flex flex-col gap-1.5 rounded-[16px] border border-lp-line bg-lp-raised px-4 py-3.5">
+                                <b className="text-[14px]">{t("set.whatsNew", { version: check.version, date: check.published_at ? new Date(check.published_at).toLocaleDateString(lang, { day: "numeric", month: "long", year: "numeric" }) : "" })}</b>
+                                <div className="max-h-40 overflow-y-auto whitespace-pre-wrap text-[14px] text-lp-ink-2">{check.changelog}</div>
                             </div>
                         )}
-                        {inGrace && (
-                            <div className="mt-1.5 max-w-xl text-xs text-amber-200/90">
-                                {t('settings.graceHint', { date: info.grace_until ? formatLicenseDate(info.grace_until) : "—", days: info.days_left ?? 0 })}
-                            </div>
-                        )}
-                        {pastGrace && (
-                            <div className="mt-1.5 max-w-xl text-xs text-red-200/90">{t('settings.expiredHint')}</div>
-                        )}
-                        {expiresSoon && (
-                            <div className="mt-1.5 max-w-xl text-xs text-amber-200/90">
-                                {t('settings.expiresSoon', { days: info.days_left ?? 0 })}
-                            </div>
-                        )}
-                    </div>
+                        <span className="text-[13px] text-lp-ink-3">{check.has_package ? t("set.updateNote") : t("set.installerOnly")}</span>
+                    </>
+                )}
+                {state === "noInternet" && <span className="text-[13px] text-lp-ink-3">{t("set.noInternetHint")}</span>}
+                {state === "down" && <span className="text-[13px] font-bold text-lp-warn">{t("set.downHint")}</span>}
+                {!isAdmin && state !== "down" && <span className="text-[13px] text-lp-ink-3">{t("set.adminOnly")}</span>}
 
-                    {/* Stations usage */}
-                    <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-center">
-                        <div className="text-xs text-white/50 mb-1">{t('settings.stations')}</div>
-                        <div className="text-xl font-semibold text-white">
-                            {info.stations_used}
-                            {info.max_stations != null && <span className="text-white/40"> / {info.max_stations}</span>}
+                {running && (
+                    <div className="flex flex-col gap-2">
+                        <div className="flex justify-between gap-3 text-[14px] font-extrabold">
+                            <span>{stepText}</span>
+                            {!uploading && <span className="tabular-nums">{pct}%</span>}
                         </div>
-                    </div>
-                </div>
-            </Card>
-
-            {info.clock_rollback && (
-                <div className="rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200">
-                    {t('settings.clockRollback')}
-                </div>
-            )}
-
-            {/* Details */}
-            <Card>
-                <div className="mb-4 text-sm font-semibold text-white">
-                    {isDemo ? t('settings.demoModeInfo') : t('settings.licenseDetails')}
-                </div>
-                <div className="grid gap-3 text-sm sm:grid-cols-2">
-                    {rows.map(({ label, value }) => (
-                        <div key={label} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-                            <div className="text-xs text-white/50 mb-1">{label}</div>
-                            <div className="font-medium text-white">{value}</div>
+                        <div className="h-2.5 overflow-hidden rounded-full bg-lp-ink/[0.08]" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={stepText}>
+                            <span className={cx("block h-full rounded-full bg-gradient-to-r from-[#3C7CD9] to-[#2361AA] transition-all duration-500", uploading && "animate-pulse")} style={{ width: uploading ? "100%" : `${pct}%` }} />
                         </div>
-                    ))}
-                </div>
-
-                {!isDemo && info.features.length > 0 && (
-                    <div className="mt-4">
-                        <div className="text-xs text-white/50 mb-2">{t('settings.features')}</div>
-                        <div className="flex flex-wrap gap-2">
-                            {info.features.map((f) => (
-                                <Badge key={f} color="blue">
-                                    {f}
-                                </Badge>
-                            ))}
-                        </div>
+                        <span className="text-[13px] text-lp-ink-3">{t("set.runningNote")}</span>
                     </div>
                 )}
-            </Card>
+            </section>
 
-            <SeatListCard info={info} isAdmin={user?.role === "admin"} onInfo={setInfo} />
+            {flash && (
+                <p role="status" className={cx("m-0 flex flex-wrap items-center gap-x-2 text-[14px] font-bold", flash.ok ? "text-lp-ok" : "text-lp-bad")}>
+                    <span aria-hidden="true">{flash.ok ? "●" : "■"}</span>
+                    <span>{flash.text}</span>
+                    {flash.reload && <button type="button" onClick={() => window.location.reload()} className={cx(linkButton, "text-[14px]")}>{t("set.reload")}</button>}
+                </p>
+            )}
 
-            {/* Machine ID — ALWAYS visible + copyable. The buyer sends this to the supplier so the
-                license can be bound to this exact server (it's needed regardless of demo/active state). */}
-            <Card>
-                <div className="text-sm font-semibold text-white">{t('settings.machineIdTitle')}</div>
-                <div className="mt-1 text-xs text-white/50">{t('settings.machineIdHint')}</div>
-                <div className="mt-3 flex items-center gap-2">
-                    <code className="min-w-0 flex-1 truncate rounded-lg border border-white/10 bg-black/30 px-3 py-2 font-mono text-sm text-white">
-                        {info.machine_id || "—"}
-                    </code>
-                    <button
-                        type="button"
-                        onClick={async () => {
-                            // Says «Скопировано» only when it was: on a plain-http LAN address the
-                            // async clipboard is missing and used to fail silently.
-                            if (info.machine_id && await copyText(info.machine_id)) {
-                                setCopied(true);
-                                setTimeout(() => setCopied(false), 1500);
-                            }
-                        }}
-                        className="shrink-0 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/70 transition hover:bg-white/10"
-                    >
-                        {copied ? t('settings.copied') : t('settings.copy')}
-                    </button>
-                </div>
-            </Card>
-
-            {/* Admin-only: import / replace the license (.lpl) — verified + activated live, no restart. */}
-            {user?.role === "admin" && (
-                <Card>
-                    <div className="text-sm font-semibold text-white">{t('settings.licenseImportTitle')}</div>
-                    <div className="mt-1 text-xs text-white/50">{t('settings.licenseImportHint')}</div>
-                    <div className="mt-3 flex flex-wrap items-center gap-3">
-                        <label
-                            className={cx(
-                                "cursor-pointer rounded-xl border px-4 py-2.5 text-sm font-medium transition",
-                                importing
-                                    ? "border-white/10 bg-white/5 text-white/40"
-                                    : "border-emerald-400/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20"
-                            )}
-                        >
-                            {importing ? t('settings.licenseImporting') : t('settings.licenseImportButton')}
-                            <input
-                                type="file"
-                                accept=".lpl"
-                                className="hidden"
-                                disabled={importing}
-                                onChange={async (e) => {
-                                    const file = e.target.files?.[0];
-                                    e.target.value = "";
-                                    if (!file) return;
-                                    setImporting(true);
-                                    setImportMsg(null);
-                                    try {
-                                        const updated = await licenseApi.importLicense(file);
-                                        setInfo(updated);
-                                        setImportMsg({ type: "ok", text: t('settings.licenseImportOk') });
-                                    } catch (err) {
-                                        setImportMsg({ type: "err", text: err instanceof Error ? err.message : t('settings.licenseImportFailed') });
-                                    } finally {
-                                        setImporting(false);
-                                    }
-                                }}
-                            />
-                        </label>
-                        {!isDemo && (
-                            <button
-                                type="button"
-                                disabled={refreshing || importing}
-                                onClick={async () => {
-                                    setRefreshing(true);
-                                    setImportMsg(null);
-                                    try {
-                                        const updated = await licenseApi.refreshLicense();
-                                        setInfo(updated);
-                                        const result = updated.refresh?.status ?? "unavailable";
-                                        setImportMsg({
-                                            type: result === "updated" || result === "current" ? "ok" : "err",
-                                            text: t(`settings.licenseRefresh.${result}`),
-                                        });
-                                    } catch (err) {
-                                        setImportMsg({ type: "err", text: err instanceof Error ? err.message : t('settings.licenseRefresh.unavailable') });
-                                    } finally {
-                                        setRefreshing(false);
-                                    }
-                                }}
-                                className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-white/80 transition hover:bg-white/10 disabled:opacity-50"
-                            >
-                                {refreshing ? t('settings.licenseRefreshing') : t('settings.licenseRefreshButton')}
-                            </button>
-                        )}
-                        {importMsg && (
-                            <span className={importMsg.type === "ok" ? "text-sm text-emerald-300" : "text-sm text-red-300"}>
-                                {importMsg.text}
-                            </span>
+            <div className="grid items-start gap-3.5 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+                <section aria-labelledby="set-backups" className="lp-card flex flex-col gap-3 p-[18px]">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                        <h2 id="set-backups" className="m-0 mr-auto text-[16px] font-extrabold text-lp-ink">{t("set.bk.title")}</h2>
+                        {isAdmin && backups !== "down" && (
+                            <button type="button" disabled={busy || running} onClick={() => void backupNow()} className={ghost}>{busy ? t("set.bk.making") : t("set.bk.now")}</button>
                         )}
                     </div>
-                    {!isDemo && <div className="mt-2 text-xs text-white/40">{t('settings.licenseRefreshHint')}</div>}
-                </Card>
-            )}
-
-            {isDemo && (
-                <div className="flex items-start gap-3 rounded-xl border border-indigo-400/20 bg-indigo-400/10 px-4 py-3 text-sm text-indigo-200">
-                    <svg viewBox="0 0 24 24" fill="none" className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true">
-                        <path d="M12 2l1.2 4.2L17.4 7.4 13.2 8.6 12 12.8 10.8 8.6 6.6 7.4l4.2-1.2L12 2Z" className="fill-current opacity-90" />
-                    </svg>
-                    <span>
-                        {t('settings.activateContactSupplier')}{" "}
-                        <code className="rounded bg-white/10 px-1 font-mono text-xs">{info.machine_id}</code>.
-                    </span>
-                </div>
-            )}
-        </div>
-    );
-}
-
-// ─── Settings sub-tabs ────────────────────────────────────────────────────────
-
-type SettingsTab = "updates" | "license" | "language" | "about";
-
-type TFn = (key: string, params?: Record<string, string | number>) => string;
-
-function getSettingsTabs(t: TFn): { key: SettingsTab; label: string }[] {
-    return [
-        { key: "updates", label: t('settings.tabUpdates') },
-        { key: "license", label: t('settings.tabLicense') },
-        { key: "language", label: t('settings.tabLanguage') },
-        { key: "about", label: t('settings.tabAbout') },
-    ];
-}
-
-// Interface-language switcher. Persists to localStorage and re-renders every
-// component that uses useTranslation() via the 'lang-changed' event.
-function LanguageSection() {
-    const { t, lang, setLang } = useTranslation();
-    return (
-        <Card>
-            <div className="space-y-4">
-                <div className="text-sm font-semibold text-white">{t('settings.languageTitle')}</div>
-                <div className="flex flex-wrap gap-3">
-                    {LANGS.map((l) => (
-                        <button
-                            key={l}
-                            onClick={() => setLang(l)}
-                            className={cx(
-                                "rounded-xl border px-5 py-3 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-white/20",
-                                lang === l
-                                    ? "border-emerald-500 bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
-                                    : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
-                            )}
-                        >
-                            {LANG_LABELS[l]}
-                        </button>
-                    ))}
-                </div>
-                <div className="text-xs text-white/50">{t('settings.languageHint')}</div>
-            </div>
-        </Card>
-    );
-}
-
-// ─── Main SettingsPage ────────────────────────────────────────────────────────
-
-export default function SettingsPage({ initialTab = "updates" }: { initialTab?: SettingsTab }) {
-    const { t } = useTranslation();
-    const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
-    const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
-    const settingsTabs = getSettingsTabs(t);
-
-    useEffect(() => {
-        fetch(`${API_BASE}/version/`)
-            .then((r) => r.json())
-            .then(setVersionInfo)
-            .catch(() => { });
-    }, []);
-
-    return (
-        <div className="space-y-6">
-            {/* Sub-navigation */}
-            <div className="flex gap-2 border-b border-white/10 pb-4">
-                {settingsTabs.map((t) => (
-                    <button
-                        key={t.key}
-                        onClick={() => setActiveTab(t.key)}
-                        className={cx(
-                            "rounded-xl px-4 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-white/20",
-                            activeTab === t.key
-                                ? "bg-white/10 text-white"
-                                : "text-white/60 hover:bg-white/5 hover:text-white"
-                        )}
-                    >
-                        {t.label}
-                    </button>
-                ))}
-            </div>
-
-            {activeTab === "updates" && <UpdatesSection />}
-
-            {activeTab === "license" && <LicenseSection />}
-
-            {activeTab === "language" && <LanguageSection />}
-
-            {activeTab === "about" && (
-                <Card>
-                    <div className="space-y-4">
-                        <div className="text-sm font-semibold text-white">{t('settings.aboutSystem')}</div>
-                        <div className="grid gap-3 text-sm sm:grid-cols-2">
-                            {[
-                                { label: t('settings.serverVersion'), value: versionInfo ? `v${versionInfo.server_version}` : "—" },
-                                { label: t('settings.minClientVersionShort'), value: versionInfo ? `v${versionInfo.min_client_version}` : "—" },
-                                { label: t('settings.latestClientVersion'), value: versionInfo ? `v${versionInfo.latest_client_version}` : "—" },
-                                { label: t('settings.product'), value: "LabelPilot Server" },
-                            ].map(({ label, value }) => (
-                                <div key={label} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-                                    <div className="text-xs text-white/50 mb-1">{label}</div>
-                                    <div className="font-medium text-white">{value}</div>
+                    <p className="m-0 -mt-1.5 text-[13px] text-lp-ink-3">{t("set.bk.lead")}</p>
+                    {backups === null ? (
+                        <p className="m-0 text-[14px] text-lp-ink-3">{t("set.loading")}</p>
+                    ) : backups === "down" ? (
+                        <p className="m-0 text-[14px] font-bold text-lp-warn">{t("set.bk.down")}</p>
+                    ) : backups.length === 0 ? (
+                        <p className="m-0 text-[14px] text-lp-ink-3">{t("set.bk.none")}</p>
+                    ) : backups.map((b) => (
+                        <div key={b.id} className="grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-3 border-t border-lp-line py-2.5">
+                            <span className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-lp-ink/[0.05] text-lp-ink-2"><Svg className="h-[18px] w-[18px]">{DB}</Svg></span>
+                            <div className="min-w-0">
+                                <b className="block text-[15px] text-lp-ink">{when(b.created_at)}</b>
+                                <span className="text-[13px] text-lp-ink-3">{t(b.reason === "manual" ? "set.bk.manual" : "set.bk.beforeUpdate", { version: b.version, size: Math.round(b.size_mb) })}</span>
+                            </div>
+                            {isAdmin && <button type="button" disabled={running} onClick={() => setConfirm(confirm === b.id ? null : b.id)} className={cx(linkButton, "text-[14px]")}>{t("set.bk.restore")}</button>}
+                            {confirm === b.id && (
+                                <div role="alert" className="col-span-full flex flex-wrap items-center gap-x-3.5 gap-y-2 rounded-[14px] bg-lp-warn-bg px-3.5 py-3 text-[14px] font-bold text-lp-warn">
+                                    <Svg className="h-[18px] w-[18px]">{WARN}</Svg>
+                                    <span className="min-w-0 flex-[1_1_320px]">{t("set.bk.ask", { when: when(b.created_at) })}</span>
+                                    <button type="button" onClick={() => void restore(b)} className={cx(dangerLink, "text-[14px]")}>{t("set.bk.yes")}</button>
+                                    <button type="button" onClick={() => setConfirm(null)} className={cx(linkButton, "text-[14px]")}>{t("set.no")}</button>
                                 </div>
+                            )}
+                        </div>
+                    ))}
+                </section>
+
+                <div className="flex flex-col gap-3.5">
+                    <section aria-labelledby="set-lang" className="lp-card flex flex-col gap-3 p-[18px]">
+                        <h2 id="set-lang" className="m-0 text-[16px] font-extrabold text-lp-ink">{t("set.langTitle")}</h2>
+                        <div role="group" aria-labelledby="set-lang" className="flex w-fit flex-wrap gap-1 rounded-[22px] bg-lp-ink/[0.05] p-1">
+                            {LANGS.map((code) => (
+                                <button
+                                    key={code}
+                                    type="button"
+                                    lang={code}
+                                    aria-pressed={lang === code}
+                                    onClick={() => setLang(code)}
+                                    className={cx("min-h-[38px] rounded-full px-3.5 text-[13px] font-extrabold transition", lang === code ? "bg-lp-surface text-lp-ink shadow-sm" : "text-lp-ink-3 hover:text-lp-ink")}
+                                >
+                                    {LANG_LABELS[code].replace(/^\S+\s/, "")}
+                                </button>
                             ))}
                         </div>
-                    </div>
-                </Card>
-            )}
+                        <p className="m-0 text-[13px] text-lp-ink-3">{t("set.langNote")}</p>
+                    </section>
+                    <section aria-labelledby="set-about" className="lp-card flex flex-col gap-3 p-[18px]">
+                        <h2 id="set-about" className="m-0 text-[16px] font-extrabold text-lp-ink">{t("set.about")}</h2>
+                        <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-3.5 gap-y-1.5 text-[14px]">
+                            <dt className="font-bold text-lp-ink-3">{t("set.aboutServer")}</dt>
+                            <dd className="m-0 font-extrabold tabular-nums">{check?.current ?? "—"}</dd>
+                            <dt className="font-bold text-lp-ink-3">{t("set.aboutAddress")}</dt>
+                            <dd className="m-0 font-mono font-semibold">{host}</dd>
+                            <dt className="font-bold text-lp-ink-3">{t("set.aboutStations")}</dt>
+                            <dd className="m-0 font-extrabold">{clients ? t("set.aboutStationsValue", { min: clients.min, latest: clients.latest }) : "—"}</dd>
+                        </dl>
+                        <button
+                            type="button"
+                            onClick={async () => {
+                                const text = [
+                                    `LabelPilot Server ${check?.current ?? ""}`,
+                                    `${t("set.aboutAddress")}: ${host}`,
+                                    clients ? `${t("set.aboutStations")}: ${t("set.aboutStationsValue", { min: clients.min, latest: clients.latest })}` : "",
+                                    `${t("set.langTitle")}: ${lang}`,
+                                ].filter(Boolean).join("\n");
+                                setFlash(await copyText(text) ? { ok: true, text: t("set.copied") } : { ok: false, text: t("set.copyFailed") });
+                            }}
+                            className={cx(linkButton, "w-fit text-[14px]")}
+                        >
+                            {t("set.copyInfo")}
+                        </button>
+                    </section>
+                </div>
+            </div>
         </div>
     );
 }
