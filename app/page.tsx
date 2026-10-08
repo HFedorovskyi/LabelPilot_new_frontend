@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import LabelDesigner from "./components/LabelDesigner";
 import ProductsPage from "./components/catalog/ProductsPage";
 import { mayLeave } from "@/lib/navGuard";
-import PackagingManager from "./components/catalog/PackagingManager";
+import PackagingPage from "./components/catalog/PackagingPage";
 import BarcodeTemplatesManager from "./components/barcodes/BarcodeTemplatesManager";
 import StationsPage from "./components/stations/StationsPage";
 import SettingsPage from "./components/settings/SettingsPage";
@@ -42,7 +42,7 @@ const roleLabel = (t: (key: string) => string, role: string | undefined): string
 };
 
 // Redesigned screens render their own page header; the others get the shared one.
-const OWN_HEADER: NavKey[] = ["home", "stations", "print_tasks", "catalog", "labels"];
+const OWN_HEADER: NavKey[] = ["home", "stations", "print_tasks", "catalog", "labels", "packaging"];
 
 function AppShell() {
   const { user, logout } = useAuth();
@@ -244,7 +244,7 @@ function AppShell() {
               {active === "home" ? <Dashboard onNavigate={setActive} /> : null}
               {active === "labels" ? <LabelDesigner onEditorChange={setLabelsEditing} /> : null}
               {active === "catalog" ? <ProductsPage onNavigate={setActive} onCatalogChanged={loadNoTemplate} /> : null}
-              {active === "packaging" ? <PackagingManager /> : null}
+              {active === "packaging" ? <PackagingPage /> : null}
               {active === "barcodes" ? <BarcodeTemplatesManager /> : null}
               {active === "print_tasks" ? <PrintPage onNavigate={setActive} onJobsChanged={loadJobErrors} /> : null}
               {active === "stations" ? <StationsPage /> : null}
