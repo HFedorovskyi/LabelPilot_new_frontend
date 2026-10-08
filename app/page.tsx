@@ -184,9 +184,18 @@ function AppShell() {
   const [labelsEditing, setLabelsEditing] = useState(false);
   const fullBleed = active === "labels" && labelsEditing;
   useEffect(() => {
-    const s = typeof window !== "undefined" ? window.localStorage.getItem("lp_sidebar_collapsed") : null;
-    if (s !== null) setCollapsed(s === "1");
-    else if (typeof window !== "undefined" && window.innerWidth < 900) setCollapsed(true);
+    // On a narrow window the full menu would cover the page: it starts folded there and
+    // folds when the window gets narrow; the remembered choice applies to wide windows.
+    const narrow = () => window.innerWidth < 900;
+    const s = window.localStorage.getItem("lp_sidebar_collapsed");
+    setCollapsed(narrow() || s === "1");
+    let wasNarrow = narrow();
+    const onResize = () => {
+      if (narrow() && !wasNarrow) setCollapsed(true);
+      wasNarrow = narrow();
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
   useEffect(() => {
     // Дизайнеру этикеток нужно максимум места — авто-сворачиваем меню при входе в него

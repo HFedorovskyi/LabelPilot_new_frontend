@@ -7,9 +7,16 @@ export function processDynamicText(
 ) {
     return text.replace(/{{\s*([^{}]+)\s*}}/g, (match, key) => {
         const trimmedKey = key.trim();
+        // Like the station: an exact key first, then the same key in any letter case.
+        let raw = data[trimmedKey];
+        if (raw === undefined) {
+            const lower = trimmedKey.toLowerCase();
+            const found = Object.keys(data).find((name) => name.toLowerCase() === lower);
+            if (found !== undefined) raw = data[found];
+        }
         // Stations print a field with no value as nothing; the field view keeps "{{ key }}".
-        if (data[trimmedKey] === undefined) return opts?.blankMissing ? "" : match;
-        let value = String(data[trimmedKey]);
+        if (raw === undefined) return opts?.blankMissing ? "" : match;
+        let value = String(raw);
 
         if (trimmedKey === "pack_number" || trimmedKey === "box_number") {
             if (/^\d+$/.test(value)) {
@@ -107,7 +114,8 @@ function drawText(
     ctx.textBaseline = "top";
 
     const lines = wrapText(ctx, text, el.w);
-    const lineHeight = fontSize * 1.1;
+    // Same line pitch as the station's raster renderer (native_raster text_layout).
+    const lineHeight = fontSize * 1.2;
     const totalHeight = lines.length * lineHeight;
 
     // Vertical alignment (center by default in our HTML version)

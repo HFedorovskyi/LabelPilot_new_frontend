@@ -16,6 +16,10 @@ describe('processDynamicText', () => {
       expect(result).toBe('ART-001 - Товар');
     });
 
+    it('finds a key in any letter case, as the stations do', () => {
+      expect(processDynamicText('{{ состав }}', { 'Состав': 'мясо' })).toBe('мясо');
+    });
+
     it('leaves a field with no value empty when printing, as the stations do', () => {
       expect(processDynamicText('Состав: {{ Состав }}', {}, { blankMissing: true })).toBe('Состав: ');
       expect(processDynamicText('Состав: {{ Состав }}', {})).toBe('Состав: {{ Состав }}');
