@@ -3,11 +3,13 @@ import { LabelDoc, LabelElement, TextElement, RectElement, BarcodeElement, Table
 export function processDynamicText(
     text: string,
     data: Record<string, any>,
-    opts?: { minLength?: number }
+    opts?: { minLength?: number; blankMissing?: boolean }
 ) {
     return text.replace(/{{\s*([^{}]+)\s*}}/g, (match, key) => {
         const trimmedKey = key.trim();
-        let value = data[trimmedKey] !== undefined ? String(data[trimmedKey]) : match; // Modified line
+        // Stations print a field with no value as nothing; the field view keeps "{{ key }}".
+        if (data[trimmedKey] === undefined) return opts?.blankMissing ? "" : match;
+        let value = String(data[trimmedKey]);
 
         if (trimmedKey === "pack_number" || trimmedKey === "box_number") {
             if (/^\d+$/.test(value)) {
@@ -34,9 +36,11 @@ export function renderLabel(
         pixelRatio?: number;
         /** Draw grey bars where a barcode has no picture yet (previews; never for printing). */
         barcodePlaceholder?: boolean;
+        /** Leave fields with no value empty, as the stations print them. */
+        blankMissing?: boolean;
     } = {}
 ) {
-    const { scale = 1, showZones = true, pixelRatio = 1, barcodePlaceholder = false } = options;
+    const { scale = 1, showZones = true, pixelRatio = 1, barcodePlaceholder = false, blankMissing = false } = options;
     const { canvas, elements } = doc;
 
     // Clear canvas
@@ -66,13 +70,13 @@ export function renderLabel(
         ctx.translate(-centerX, -centerY);
 
         if (el.type === "text") {
-            drawText(ctx, el as TextElement, previewData);
+            drawText(ctx, el as TextElement, previewData, blankMissing);
         } else if (el.type === "rect") {
             drawRect(ctx, el as RectElement);
         } else if (el.type === "barcode") {
             drawBarcode(ctx, el as BarcodeElement, barcodePlaceholder);
         } else if (el.type === "table") {
-            drawTable(ctx, el as TableElement, previewData);
+            drawTable(ctx, el as TableElement, previewData, blankMissing);
         } else if (el.type === "image") {
             drawImage(ctx, el as ImageElement);
         }
@@ -86,10 +90,12 @@ export function renderLabel(
 function drawText(
     ctx: CanvasRenderingContext2D,
     el: TextElement,
-    previewData: Record<string, any>
+    previewData: Record<string, any>,
+    blankMissing = false
 ) {
     const text = processDynamicText(el.text, previewData, {
         minLength: el.minLength,
+        blankMissing,
     });
     const fontStyle = el.fontStyle || "normal";
     const fontWeight = el.fontWeight || 400;
@@ -365,7 +371,8 @@ function drawPrintedZones(ctx: CanvasRenderingContext2D, doc: LabelDoc) {
 function drawTable(
     ctx: CanvasRenderingContext2D,
     el: TableElement,
-    previewData: Record<string, any>
+    previewData: Record<string, any>,
+    blankMissing = false
 ) {
     const { x, y, w, h, columns, fontSize, showHeaders, showBorders, fontFamily, fontStyle } = el;
 
@@ -467,7 +474,7 @@ function drawTable(
         const colLines: string[][] = [];
         columns.forEach((col) => {
             const colWidth = (w * col.widthRatio) / 100;
-            const val = String(processDynamicText(`{{ ${col.key} }}`, item));
+            const val = String(processDynamicText(`{{ ${col.key} }}`, item, { blankMissing }));
             const lines = wrapText(ctx, val, colWidth - padding * 2);
             colLines.push(lines);
             maxLines = Math.max(maxLines, lines.length);

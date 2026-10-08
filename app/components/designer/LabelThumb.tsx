@@ -36,7 +36,7 @@ export default function LabelThumb({ doc, data, className }: { doc: LabelDoc; da
             const dpr = window.devicePixelRatio || 1;
             canvas.width = Math.round(w * dpr);
             canvas.height = Math.round(h * dpr);
-            renderLabel(ctx, doc, data, { scale: k, pixelRatio: dpr, showZones: false, barcodePlaceholder: true });
+            renderLabel(ctx, doc, data, { scale: k, pixelRatio: dpr, showZones: false, barcodePlaceholder: true, blankMissing: true });
         };
         draw();
         void Promise.all([imagesReady(doc), labelFontsReady()]).then(() => alive && draw());

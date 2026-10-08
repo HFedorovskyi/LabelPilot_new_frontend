@@ -16,6 +16,11 @@ describe('processDynamicText', () => {
       expect(result).toBe('ART-001 - Товар');
     });
 
+    it('leaves a field with no value empty when printing, as the stations do', () => {
+      expect(processDynamicText('Состав: {{ Состав }}', {}, { blankMissing: true })).toBe('Состав: ');
+      expect(processDynamicText('Состав: {{ Состав }}', {})).toBe('Состав: {{ Состав }}');
+    });
+
     it('replaces repeated placeholder', () => {
       expect(processDynamicText('{{ x }} and {{ x }}', { x: 'A' }))
         .toBe('A and A');

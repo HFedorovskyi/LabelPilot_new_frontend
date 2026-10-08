@@ -360,14 +360,14 @@ export default function LabelDesigner({ onEditorChange }: { onEditorChange?: (ed
         const ratio = Math.min(window.devicePixelRatio || 1, 6000 / Math.max(w, h, 1));
         canvas.width = Math.max(1, Math.round(w * ratio));
         canvas.height = Math.max(1, Math.round(h * ratio));
-        const draw = () => renderLabel(ctx, renderDoc, shownData, { scale: zoom, pixelRatio: ratio, showZones: true, barcodePlaceholder: true });
+        const draw = () => renderLabel(ctx, renderDoc, shownData, { scale: zoom, pixelRatio: ratio, showZones: true, barcodePlaceholder: true, blankMissing: mode === "data" });
         draw();
         let alive = true;
         void Promise.all([imagesReady(renderDoc), labelFontsReady()]).then(() => alive && draw());
         return () => {
             alive = false;
         };
-    }, [renderDoc, shownData, zoom, view]);
+    }, [renderDoc, shownData, zoom, view, mode]);
 
     // ── toasts ──
     const showToast = useCallback((text: string, tone: Toast["tone"] = "ok", action?: Toast["action"]) => setToast({ text, tone, action }), []);
@@ -751,7 +751,7 @@ export default function LabelDesigner({ onEditorChange }: { onEditorChange?: (ed
         canvas.height = current.canvas.height * k;
         const ctx = canvas.getContext("2d");
         if (!ctx) return;
-        renderLabel(ctx, current, previewData, { pixelRatio: k, showZones: false });
+        renderLabel(ctx, current, previewData, { pixelRatio: k, showZones: false, blankMissing: true });
         const url = canvas.toDataURL("image/png");
         const win = window.open("", "_blank");
         if (!win) {

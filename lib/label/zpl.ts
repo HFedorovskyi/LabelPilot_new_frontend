@@ -43,7 +43,7 @@ export function labelToZpl(doc: LabelDoc, data: Record<string, any> = {}): strin
 function textToZpl(el: TextElement, data: Record<string, any>, dpi: number): string {
     const x = Math.round(el.x);
     const y = Math.round(el.y);
-    const text = processDynamicText(el.text, data, { minLength: el.minLength });
+    const text = processDynamicText(el.text, data, { minLength: el.minLength, blankMissing: true });
 
     // Basic ZPL font sizing (A is default, B, C, etc. are fixed)
     // ^A0 is Scalable font
@@ -141,7 +141,7 @@ function tableToZpl(el: TableElement, data: Record<string, any>, dpi: number): s
         let currentX = Math.round(x);
         for (const col of columns) {
             const colWidth = Math.round((w * col.widthRatio) / 100);
-            const val = processDynamicText(`{{ ${col.key} }}`, item);
+            const val = processDynamicText(`{{ ${col.key} }}`, item, { blankMissing: true });
 
             // Use ^FB for native ZPL wrapping
             // ^FBw,maxLines,lineSpacing,alignment,indent
