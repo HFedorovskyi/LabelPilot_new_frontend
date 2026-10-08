@@ -31,6 +31,10 @@ export interface LicenseInfo {
     stations_used: number;
     seats?: SeatSummary;
     seat_list?: SeatListStatus;
+    /** The last check for a renewed licence (daily, or the admin's button); null after a restart. */
+    refresh_last?: { status: LicenseRefreshStatus; detail: string; at: string } | null;
+    /** The licence file: none, valid here, issued for another server, not a LabelPilot licence. */
+    license_file?: "none" | "ok" | "foreign" | "invalid";
     seat_list_sync?: { status: SeatListSyncStatus; detail: string };
 }
 

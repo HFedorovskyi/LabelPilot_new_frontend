@@ -8,7 +8,7 @@ import PackagingPage from "./components/catalog/PackagingPage";
 import BarcodesPage from "./components/barcodes/BarcodesPage";
 import StationsPage from "./components/stations/StationsPage";
 import SettingsPage from "./components/settings/SettingsPage";
-import LicensePage from "./components/settings/LicensePage";
+import LicensePage from "./components/license/LicensePage";
 import PrintPage from "./components/print/PrintPage";
 import Dashboard from "./components/home/Dashboard";
 import DemoBanner from "./components/DemoBanner";
@@ -44,7 +44,7 @@ const roleLabel = (t: (key: string) => string, role: string | undefined): string
 };
 
 // Redesigned screens render their own page header; the others get the shared one.
-const OWN_HEADER: NavKey[] = ["home", "stations", "print_tasks", "catalog", "labels", "packaging", "barcodes", "operators", "users", "settings"];
+const OWN_HEADER: NavKey[] = ["home", "stations", "print_tasks", "catalog", "labels", "packaging", "barcodes", "operators", "users", "settings", "license"];
 
 function AppShell() {
   const { user, logout } = useAuth();
@@ -223,7 +223,7 @@ function AppShell() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Демо-режим: ненавязчивый баннер о лицензии (показывается только когда mode === "demo") */}
-        <DemoBanner onActivate={() => setActive("license")} />
+        {active !== "license" && <DemoBanner onActivate={() => setActive("license")} />}
         <main className={fullBleed ? "relative flex-1 overflow-hidden p-3" : "relative flex-1 overflow-y-auto px-6 pb-10 pt-3"}>
           {!fullBleed && <TopBar
             onSearch={() => setSearchOpen(true)}
@@ -250,7 +250,7 @@ function AppShell() {
               {active === "stations" ? <StationsPage /> : null}
               {active === "operators" ? <OperatorsPage onNavigate={setActive} /> : null}
               {active === "settings" ? <SettingsPage host={host} onNavigate={setActive} /> : null}
-              {active === "license" ? <LicensePage /> : null}
+              {active === "license" ? <LicensePage onNavigate={setActive} /> : null}
               {active === "users" && isAdmin ? <AccessPage host={host} onNavigate={setActive} /> : null}
 
               {!fullBleed && <footer className="border-t border-lp-line pt-5 text-[12px] text-lp-ink-3">
