@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { authApi, type AuthUser } from "@/lib/api/auth";
 import { setUnauthorizedHandler } from "@/lib/api/client";
 
@@ -19,6 +19,8 @@ interface AuthContextValue {
     loading: boolean;
     user: AuthUser | null;
     needsBootstrap: boolean;
+    /** The server signed this browser out (expired, password changed, sign-in closed). */
+    sessionEnded: boolean;
     /** Re-run csrf → bootstrap-status → me(). */
     refresh: () => Promise<void>;
     login: (username: string, password: string) => Promise<void>;
@@ -38,6 +40,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(true);
     const [user, setUser] = useState<AuthUser | null>(null);
     const [needsBootstrap, setNeedsBootstrap] = useState(false);
+    const [sessionEnded, setSessionEnded] = useState(false);
+    const userRef = useRef<AuthUser | null>(null);
+    userRef.current = user;
 
     const refresh = useCallback(async () => {
         setLoading(true);
@@ -62,9 +67,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     }, []);
 
-    // Drop to the login screen only when an API call returns 401 (session expired).
+    // Drop to the login screen only when an API call returns 401 (session expired). A wrong
+    // password on the login screen is a 401 too, but nobody is signed in then.
     useEffect(() => {
-        setUnauthorizedHandler(() => setUser(null));
+        setUnauthorizedHandler(() => {
+            if (userRef.current) setSessionEnded(true);
+            setUser(null);
+        });
         return () => setUnauthorizedHandler(null);
     }, []);
 
@@ -75,6 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const login = useCallback(
         async (username: string, password: string) => {
             await authApi.login(username, password);
+            setSessionEnded(false);
             await refresh();
         },
         [refresh]
@@ -94,6 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
             await authApi.logout();
         } finally {
+            setSessionEnded(false);
             setUser(null);
         }
     }, []);
@@ -102,6 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         user,
         needsBootstrap,
+        sessionEnded,
         refresh,
         login,
         bootstrap,

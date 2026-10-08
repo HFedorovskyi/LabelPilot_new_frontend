@@ -21,6 +21,14 @@ export interface BootstrapStatus {
 
 const API_BASE = resolveApiBase();
 
+/** A refused sign-in: the server's message, tries left on this computer, seconds locked. */
+export class LoginError extends Error {
+    constructor(message: string, public attemptsLeft: number | null, public lockedFor: number | null) {
+        super(message);
+        this.name = "LoginError";
+    }
+}
+
 /** Pull a human-readable error message out of a non-ok auth response. */
 async function readError(res: Response, fallback: string): Promise<string> {
     const data = await res.json().catch(() => ({} as any));
@@ -56,7 +64,8 @@ export const authApi = {
         return res.json();
     },
 
-    /** Log in with username/password. Sets the sessionid cookie on success. */
+    /** Log in with username/password. Sets the sessionid cookie on success. A wrong password
+     *  says how many tries this computer has left; too many lock it for a while (HTTP 429). */
     login: async (username: string, password: string): Promise<AuthUser> => {
         const res = await apiFetch(`${API_BASE}/auth/login/`, {
             method: "POST",
@@ -64,7 +73,12 @@ export const authApi = {
             body: JSON.stringify({ username, password }),
         });
         if (!res.ok) {
-            throw new Error(await readError(res, "Неверный логин или пароль"));
+            const data = await res.json().catch(() => ({} as any));
+            throw new LoginError(
+                data?.detail || "",
+                typeof data?.attempts_left === "number" ? data.attempts_left : null,
+                typeof data?.locked_for === "number" ? data.locked_for : null,
+            );
         }
         return res.json();
     },

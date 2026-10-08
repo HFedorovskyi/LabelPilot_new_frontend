@@ -19,10 +19,22 @@ export const LANG_LABELS: Record<Lang, string> = {
 
 const LANG_KEY = "labelpilot_language";
 
+/** The language chosen here; before any choice the browser's language, else English — an EU
+ *  customer meets the sign-in (and the first-run screen) before they could pick one. */
 export function getSavedLang(): Lang {
     if (typeof window === "undefined") return "ru";
-    const v = localStorage.getItem(LANG_KEY) as Lang | null;
-    return v && LANGS.includes(v) ? v : "ru";
+    let saved: string | null = null;
+    try {
+        saved = localStorage.getItem(LANG_KEY);
+    } catch {
+        // blocked storage: fall through to the browser's language
+    }
+    if (saved && LANGS.includes(saved as Lang)) return saved as Lang;
+    for (const tag of navigator.languages?.length ? navigator.languages : [navigator.language]) {
+        const code = (tag || "").slice(0, 2).toLowerCase() as Lang;
+        if (LANGS.includes(code)) return code;
+    }
+    return "en";
 }
 
 export function saveLang(lang: Lang): void {
