@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import Portal from "./Portal";
+import { copyText } from "@/lib/clipboard";
 
 interface ErrorModalProps {
     isOpen: boolean;
@@ -16,7 +17,7 @@ export default function ErrorModal({ isOpen, onClose, title = "Error", message, 
 
     const copyToClipboard = () => {
         const text = `${message}\n\nDetails:\n${typeof details === 'object' ? JSON.stringify(details, null, 2) : details}`;
-        navigator.clipboard.writeText(text);
+        void copyText(text);
         // Could add a toast here, but for now just a console log or subtle interaction is fine
     };
 

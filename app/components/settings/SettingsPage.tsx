@@ -6,6 +6,7 @@ import { SeatListCard } from "./SeatListCard";
 import { useTranslation, LANGS, LANG_LABELS } from "@/lib/i18n";
 import { useAuth } from "../auth/AuthProvider";
 import { resolveApiBase } from "@/lib/api/base";
+import { copyText } from "@/lib/clipboard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -702,9 +703,10 @@ function LicenseSection() {
                     </code>
                     <button
                         type="button"
-                        onClick={() => {
-                            if (info.machine_id) {
-                                navigator.clipboard?.writeText(info.machine_id);
+                        onClick={async () => {
+                            // Says «Скопировано» only when it was: on a plain-http LAN address the
+                            // async clipboard is missing and used to fail silently.
+                            if (info.machine_id && await copyText(info.machine_id)) {
                                 setCopied(true);
                                 setTimeout(() => setCopied(false), 1500);
                             }

@@ -27,6 +27,7 @@ import {
     textElement, toMm, usedKeys, type BarcodeTemplate, type FieldDef,
 } from "./designer/model";
 import { buildStarter, type ExtraNames, type Starter } from "./designer/starters";
+import { copyText as copyToClipboard } from "@/lib/clipboard";
 
 // Tab-local (sessionStorage) so two tabs do not overwrite each other's open template.
 const SS = {
@@ -735,12 +736,8 @@ export default function LabelDesigner({ onEditorChange }: { onEditorChange?: (ed
     };
     const copyText = async (text: string, done: string) => {
         setMoreOpen(false);
-        try {
-            await navigator.clipboard.writeText(text);
-            showToast(done);
-        } catch {
-            showToast(t("ed.copyFailed"), "bad");
-        }
+        if (await copyToClipboard(text)) showToast(done);
+        else showToast(t("ed.copyFailed"), "bad");
     };
     const printHere = () => {
         setMoreOpen(false);
