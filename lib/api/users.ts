@@ -10,18 +10,25 @@ import { resolveApiBase } from "./base";
 export interface ManagedUser {
     id: number;
     username: string;
+    /** «Кто это»: a name or job title, "" when not given. */
+    name: string;
     role: Role;
     is_active: boolean;
     is_superuser: boolean;
+    /** Last time the password was typed in (sessions last two weeks); null = never. */
+    last_login: string | null;
+    date_joined: string;
 }
 
 export interface CreateUserPayload {
     username: string;
     password: string;
     role: Role;
+    name?: string;
 }
 
 export interface UpdateUserPayload {
+    name?: string;
     role?: Role;
     is_active?: boolean;
     password?: string;

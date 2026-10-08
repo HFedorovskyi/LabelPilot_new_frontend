@@ -11,7 +11,7 @@ import SettingsPage from "./components/settings/SettingsPage";
 import PrintPage from "./components/print/PrintPage";
 import Dashboard from "./components/home/Dashboard";
 import DemoBanner from "./components/DemoBanner";
-import UsersManager from "./components/users/UsersManager";
+import AccessPage from "./components/users/AccessPage";
 import OperatorsPage from "./components/operators/OperatorsPage";
 import Sidebar, { type NavBadge, type NavKey } from "./components/shell/Sidebar";
 import TopBar from "./components/shell/TopBar";
@@ -42,7 +42,7 @@ const roleLabel = (t: (key: string) => string, role: string | undefined): string
 };
 
 // Redesigned screens render their own page header; the others get the shared one.
-const OWN_HEADER: NavKey[] = ["home", "stations", "print_tasks", "catalog", "labels", "packaging", "barcodes", "operators"];
+const OWN_HEADER: NavKey[] = ["home", "stations", "print_tasks", "catalog", "labels", "packaging", "barcodes", "operators", "users"];
 
 function AppShell() {
   const { user, logout } = useAuth();
@@ -260,7 +260,7 @@ function AppShell() {
               {active === "operators" ? <OperatorsPage onNavigate={setActive} /> : null}
               {active === "settings" ? <SettingsPage key="settings" /> : null}
               {active === "license" ? <SettingsPage key="license" initialTab="license" /> : null}
-              {active === "users" && isAdmin ? <UsersManager /> : null}
+              {active === "users" && isAdmin ? <AccessPage host={host} onNavigate={setActive} /> : null}
 
               {!fullBleed && <footer className="border-t border-lp-line pt-5 text-[12px] text-lp-ink-3">
                 {t("app.footerCopyright", { year: new Date().getFullYear() })}
