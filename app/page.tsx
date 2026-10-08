@@ -12,7 +12,7 @@ import PrintPage from "./components/print/PrintPage";
 import Dashboard from "./components/home/Dashboard";
 import DemoBanner from "./components/DemoBanner";
 import UsersManager from "./components/users/UsersManager";
-import OperatorsManager from "./components/operators/OperatorsManager";
+import OperatorsPage from "./components/operators/OperatorsPage";
 import Sidebar, { type NavBadge, type NavKey } from "./components/shell/Sidebar";
 import TopBar from "./components/shell/TopBar";
 import PageTitle from "./components/shell/PageTitle";
@@ -42,7 +42,7 @@ const roleLabel = (t: (key: string) => string, role: string | undefined): string
 };
 
 // Redesigned screens render their own page header; the others get the shared one.
-const OWN_HEADER: NavKey[] = ["home", "stations", "print_tasks", "catalog", "labels", "packaging", "barcodes"];
+const OWN_HEADER: NavKey[] = ["home", "stations", "print_tasks", "catalog", "labels", "packaging", "barcodes", "operators"];
 
 function AppShell() {
   const { user, logout } = useAuth();
@@ -257,7 +257,7 @@ function AppShell() {
               {active === "barcodes" ? <BarcodesPage onNavigate={setActive} /> : null}
               {active === "print_tasks" ? <PrintPage onNavigate={setActive} onJobsChanged={loadJobErrors} /> : null}
               {active === "stations" ? <StationsPage /> : null}
-              {active === "operators" ? <OperatorsManager /> : null}
+              {active === "operators" ? <OperatorsPage onNavigate={setActive} /> : null}
               {active === "settings" ? <SettingsPage key="settings" /> : null}
               {active === "license" ? <SettingsPage key="license" initialTab="license" /> : null}
               {active === "users" && isAdmin ? <UsersManager /> : null}

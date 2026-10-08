@@ -77,6 +77,12 @@ export const operatorsApi = {
         if (!res.ok) throw new Error(await readError(res, "Не удалось обновить оператора"));
         return res.json();
     },
+    /** When operators last changed (stations pushed before that do not have it yet). */
+    status: async (): Promise<{ changed_at: string | null }> => {
+        const res = await apiFetch(`${API_BASE}/operators/status/`);
+        if (!res.ok) throw new Error("Не удалось узнать, когда менялись операторы");
+        return res.json();
+    },
     remove: async (id: number): Promise<void> => {
         const res = await apiFetch(`${API_BASE}/operators/${id}/`, { method: "DELETE" });
         if (!res.ok) throw new Error(await readError(res, "Не удалось удалить оператора"));
