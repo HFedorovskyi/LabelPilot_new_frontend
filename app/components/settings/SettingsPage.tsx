@@ -11,6 +11,7 @@ import { api } from "@/lib/api/client";
 import { systemApi, type Backup, type UpdateCheck, type UpdateProgress } from "@/lib/api/system";
 import { LANGS, LANG_LABELS, useTranslation } from "@/lib/i18n";
 import { copyText } from "@/lib/clipboard";
+import { resolveApiBase } from "@/lib/api/base";
 import { useAuth } from "@/app/components/auth/AuthProvider";
 import PageTitle from "@/app/components/shell/PageTitle";
 import type { NavKey } from "@/app/components/shell/Sidebar";
@@ -355,6 +356,15 @@ export default function SettingsPage({ host, onNavigate }: { host: string; onNav
                         >
                             {t("set.copyInfo")}
                         </button>
+                        {/* Licences of the software the server ships, written by the release build. */}
+                        <a
+                            href={`${resolveApiBase().replace(/\/api\/v1$/, "")}/third-party-notices.txt`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={cx(linkButton, "w-fit text-[14px]")}
+                        >
+                            {t("set.thirdParty")}
+                        </a>
                     </section>
                 </div>
             </div>
