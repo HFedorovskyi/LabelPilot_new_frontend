@@ -9,6 +9,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api/client";
 import { systemApi, type Backup, type UpdateCheck, type UpdateProgress } from "@/lib/api/system";
+import { productionApi } from "@/lib/api/production";
 import { LANGS, LANG_LABELS, useTranslation } from "@/lib/i18n";
 import { copyText } from "@/lib/clipboard";
 import { resolveApiBase } from "@/lib/api/base";
@@ -48,6 +49,8 @@ export default function SettingsPage({ host, onNavigate }: { host: string; onNav
     const [uploading, setUploading] = useState(false);
     const [progress, setProgress] = useState<UpdateProgress | null>(null);
     const [confirm, setConfirm] = useState<string | null>(null);
+    const [operatorOutput, setOperatorOutput] = useState<boolean | null>(null);
+    useEffect(() => { productionApi.settings().then((s) => setOperatorOutput(s.operator_output)).catch(() => { }); }, []);
     const [busy, setBusy] = useState(false);
     const [flash, setFlash] = useState<Flash | null>(null);
     const fileRef = useRef<HTMLInputElement>(null);
@@ -330,6 +333,28 @@ export default function SettingsPage({ host, onNavigate }: { host: string; onNav
                             ))}
                         </div>
                         <p className="m-0 text-[13px] text-lp-ink-3">{t("set.langNote")}</p>
+                    </section>
+                    <section aria-labelledby="set-people" className="lp-card flex flex-col gap-3 p-[18px]">
+                        <h2 id="set-people" className="m-0 text-[16px] font-extrabold text-lp-ink">{t("set.people.title")}</h2>
+                        <label className={cx("flex items-start gap-3 text-[14px] font-bold text-lp-ink", isAdmin ? "cursor-pointer" : "opacity-70")}>
+                            <input
+                                type="checkbox"
+                                className="mt-0.5 h-5 w-5 flex-none accent-[rgb(var(--lp-accent))]"
+                                checked={operatorOutput ?? false}
+                                disabled={!isAdmin || operatorOutput === null}
+                                onChange={async (e) => {
+                                    const next = e.target.checked;
+                                    try {
+                                        setOperatorOutput((await productionApi.saveSettings({ operator_output: next })).operator_output);
+                                    } catch (error) {
+                                        setFlash({ ok: false, text: error instanceof Error ? error.message : String(error) });
+                                    }
+                                }}
+                            />
+                            <span>{t("set.people.operatorOutput")}</span>
+                        </label>
+                        <p className="m-0 text-[13px] text-lp-ink-3">{t("set.people.note")}</p>
+                        {!isAdmin && <p className="m-0 text-[13px] text-lp-ink-3">{t("set.people.adminOnly")}</p>}
                     </section>
                     <section aria-labelledby="set-about" className="lp-card flex flex-col gap-3 p-[18px]">
                         <h2 id="set-about" className="m-0 text-[16px] font-extrabold text-lp-ink">{t("set.about")}</h2>

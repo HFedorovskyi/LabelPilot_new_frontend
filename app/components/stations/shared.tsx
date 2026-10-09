@@ -79,6 +79,11 @@ export function formatNumber(value: number, lang: Lang, digits = 0): string {
     return new Intl.NumberFormat(lang, { maximumFractionDigits: digits, minimumFractionDigits: 0 }).format(value);
 }
 
+/** One pack's weight in kg as the scale shows it: always three decimals (0,400). */
+export function formatWeight(kg: number, lang: Lang): string {
+    return new Intl.NumberFormat(lang, { maximumFractionDigits: 3, minimumFractionDigits: 3 }).format(kg);
+}
+
 export function Bars({ values, height, now, width = 6 }: { values: number[]; height: number; now: number; width?: number }) {
     const max = Math.max(1, ...values);
     return (

@@ -54,9 +54,18 @@ function AppShell() {
   const hidden: NavKey[] = isAdmin ? [] : ["users"];
 
   const [active, setActiveTab] = useState<NavKey>("home");
+  // The station whose own page is open on «Станции» (null = the list of stations).
+  const [stationOpen, setStationOpen] = useState<string | null>(null);
   // A page with unsaved changes (a product being edited) may hold the switch.
   const setActive = useCallback((tab: NavKey) => {
-    if (mayLeave()) setActiveTab(tab);
+    if (!mayLeave()) return;
+    setActiveTab(tab);
+    setStationOpen(null);
+  }, []);
+  const openStation = useCallback((uuid: string) => {
+    if (!mayLeave()) return;
+    setActiveTab("stations");
+    setStationOpen(uuid);
   }, []);
   useEffect(() => {
     if (active === "users" && !isAdmin) setActive("home");
@@ -135,7 +144,8 @@ function AppShell() {
     void notifications.markSeen();
   };
   const openNotification = (item: NotificationItem) => {
-    if (item.link_tab) setActive(item.link_tab as NavKey);
+    if (item.link_tab === "stations" && item.link_id) openStation(item.link_id);
+    else if (item.link_tab) setActive(item.link_tab as NavKey);
   };
 
   // ── menu counters: stations that need a decision, jobs that did not go out, seats in use ──
@@ -242,13 +252,13 @@ function AppShell() {
                   <PageTitle icon={active} title={t(`nav.${active}`)} description={t(`nav.${active}Desc`)} />
                 </div>
               )}
-              {active === "home" ? <Dashboard onNavigate={setActive} /> : null}
+              {active === "home" ? <Dashboard onNavigate={setActive} onOpenStation={openStation} /> : null}
               {active === "labels" ? <LabelDesigner onEditorChange={setLabelsEditing} /> : null}
               {active === "catalog" ? <ProductsPage onNavigate={setActive} onCatalogChanged={loadNoTemplate} /> : null}
               {active === "packaging" ? <PackagingPage /> : null}
               {active === "barcodes" ? <BarcodesPage onNavigate={setActive} /> : null}
               {active === "print_tasks" ? <PrintPage onNavigate={setActive} onJobsChanged={loadJobErrors} /> : null}
-              {active === "stations" ? <StationsPage /> : null}
+              {active === "stations" ? <StationsPage open={stationOpen} onOpen={setStationOpen} /> : null}
               {active === "operators" ? <OperatorsPage onNavigate={setActive} /> : null}
               {active === "settings" ? <SettingsPage host={host} onNavigate={setActive} /> : null}
               {active === "license" ? <LicensePage onNavigate={setActive} /> : null}

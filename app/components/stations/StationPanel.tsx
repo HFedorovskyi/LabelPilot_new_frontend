@@ -1,40 +1,32 @@
 "use client";
 
-// Right side panel of the Stations page: one station (overview / settings / seat journal),
-// the "connect a station" steps, or the legend of station states. Editing happens here,
-// never in a modal. The server enforces every seat rule; this panel explains them.
+// Right side panel of the Stations page: the "connect a station" steps or the legend of
+// station states. A station itself opens as its own page (StationPage), which reuses the
+// decision card and the settings from here. The server enforces every seat rule; these
+// explain them.
 
 import React, { useEffect, useState } from "react";
-import { api, type SeatEvent } from "@/lib/api/client";
+import { api } from "@/lib/api/client";
 import type { LicenseInfo } from "@/lib/api/license";
 import { licenseApi } from "@/lib/api/license";
-import { useTranslation, type Lang } from "@/lib/i18n";
-import { PROBLEMS, stationProblem, type Station, type StationProblem } from "@/lib/stations";
+import { useTranslation } from "@/lib/i18n";
+import { PROBLEMS, type Station, type StationProblem } from "@/lib/stations";
 import {
-    cx, download, formatNumber, Icon, PROBLEM_TONE, sinceText, TONE_BG, TONE_DOT, TONE_INK, TONE_SOFT, TONE_SYMBOL, whenText, type Tone,
+    cx, download, Icon, PROBLEM_TONE, sinceText, TONE_BG, TONE_INK, TONE_SOFT, TONE_SYMBOL, type Tone,
 } from "./shared";
 
-export type TodayRow = { labels: number; weight_kg: number; last_at: string | null; last_product: string; hourly: number[] };
-
 type Props = {
-    mode: "station" | "add" | "legend";
-    station: Station | null;
-    today: TodayRow | null;
+    mode: "add" | "legend";
     license: LicenseInfo | null;
-    isAdmin: boolean;
     host: string;
     onClose: () => void;
-    onChanged: (message?: string) => void;
     onCreated: (uuid: string) => void;
 };
 
-function PanelHeader({ title, number, onClose }: { title: string; number?: string | null; onClose: () => void }) {
+function PanelHeader({ title, onClose }: { title: string; onClose: () => void }) {
     const { t } = useTranslation();
     return (
         <div className="flex items-center gap-2.5">
-            {number && (
-                <span className="rounded-[7px] border border-lp-line-2 px-[7px] py-[2px] font-mono text-[13px] font-semibold tabular-nums text-lp-ink-2">{number}</span>
-            )}
             <h2 className="m-0 min-w-0 flex-1 text-[18px] font-extrabold text-lp-ink">{title}</h2>
             <button
                 type="button"
@@ -50,17 +42,12 @@ function PanelHeader({ title, number, onClose }: { title: string; number?: strin
 
 const primaryButton = "min-h-[42px] rounded-[11px] lp-btn-primary px-4 text-[14px] font-extrabold text-[#fff] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50";
 const secondaryButton = "min-h-[40px] rounded-[10px] border border-lp-line-2 bg-lp-surface px-3.5 text-[14px] font-extrabold text-lp-ink transition hover:bg-lp-raised disabled:cursor-not-allowed disabled:opacity-50";
-const linkButton = "border-0 bg-transparent p-0 text-[13px] font-bold text-lp-accent-ink hover:underline";
 
 export default function StationPanel(props: Props) {
     return (
-        <aside
-            aria-label={props.mode === "station" && props.station ? props.station.station_name : undefined}
-            className="flex w-full min-w-0 flex-col overflow-hidden lp-card lg:sticky lg:top-0 lg:max-h-[calc(100vh-60px)] lg:w-[420px] lg:flex-none lg:overflow-y-auto"
-        >
+        <aside className="flex w-full min-w-0 flex-col overflow-hidden lp-card lg:sticky lg:top-0 lg:max-h-[calc(100vh-60px)] lg:w-[420px] lg:flex-none lg:overflow-y-auto">
             {props.mode === "legend" && <Legend onClose={props.onClose} />}
             {props.mode === "add" && <AddStation {...props} />}
-            {props.mode === "station" && props.station && <StationDetails {...props} station={props.station} />}
         </aside>
     );
 }
@@ -199,151 +186,7 @@ function AddStation({ license, host, onClose, onCreated }: Props) {
     );
 }
 
-// ─── One station ─────────────────────────────────────────────────────────────
-
-function StationDetails({ station, today, license, isAdmin, host, onClose, onChanged }: Props & { station: Station }) {
-    const { t, lang } = useTranslation();
-    const [tab, setTab] = useState<"overview" | "settings" | "journal">("overview");
-    const [busy, setBusy] = useState(false);
-    const [notice, setNotice] = useState<{ tone: Tone; text: string } | null>(null);
-    const [dump, setDump] = useState<string | null>(null);
-
-    useEffect(() => {
-        setTab("overview");
-        setNotice(null);
-        setDump(null);
-    }, [station.station_uuid]);
-
-    const problem = stationProblem(station);
-    const released = (station.seat_state ?? "active") === "released";
-    const seats = license?.seats;
-    const freeSeat = seats != null && (seats.limit == null || seats.active < seats.limit);
-
-    const run = async (operation: () => Promise<unknown>, done: string, confirmText?: string) => {
-        if (confirmText && !window.confirm(confirmText)) return;
-        setBusy(true);
-        setNotice(null);
-        try {
-            await operation();
-            setNotice({ tone: "ok", text: done });
-            onChanged(done);
-        } catch (e) {
-            setNotice({ tone: "bad", text: t("stp.err", { message: e instanceof Error ? e.message : String(e) }) });
-        } finally {
-            setBusy(false);
-        }
-    };
-
-    const tabs: { key: typeof tab; label: string }[] = [
-        { key: "overview", label: t("stp.tabOverview") },
-        { key: "settings", label: t("stp.tabSettings") },
-        { key: "journal", label: t("stp.tabJournal") },
-    ];
-
-    return (
-        <>
-            <div className="flex flex-col gap-3 border-b border-lp-line px-[18px] pb-3 pt-4">
-                <PanelHeader title={station.station_name} number={station.station_number} onClose={onClose} />
-                <div role="tablist" aria-label={t("stp.tabsLabel")} className="flex gap-1 rounded-[11px] bg-lp-bg p-[3px]">
-                    {tabs.map((item) => (
-                        <button
-                            key={item.key}
-                            type="button"
-                            role="tab"
-                            aria-selected={tab === item.key}
-                            onClick={() => setTab(item.key)}
-                            className={cx(
-                                "min-h-9 flex-1 rounded-[9px] text-[13px] font-extrabold transition",
-                                tab === item.key ? "bg-lp-surface text-lp-ink shadow-sm" : "text-lp-ink-3 hover:text-lp-ink",
-                            )}
-                        >
-                            {item.label}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            {notice && (
-                <p className={cx("mx-[18px] mb-0 mt-4 rounded-[12px] px-3.5 py-2.5 text-[14px] font-bold", TONE_BG[notice.tone])}>
-                    {TONE_SYMBOL[notice.tone]} {notice.text}
-                </p>
-            )}
-
-            {tab === "overview" && (
-                <div className="flex flex-col gap-4 px-[18px] pb-5 pt-4">
-                    <Callout
-                        station={station}
-                        problem={problem}
-                        released={released}
-                        freeSeat={freeSeat}
-                        license={license}
-                        isAdmin={isAdmin}
-                        busy={busy}
-                        host={host}
-                        run={run}
-                    />
-                    <Facts station={station} problem={problem} released={released} today={today} />
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                        <button
-                            type="button"
-                            disabled={busy || problem !== null || released}
-                            onClick={() => run(() => api.stations.sync(station.station_uuid), t("stp.sent"))}
-                            className={secondaryButton}
-                        >
-                            {t("stp.sendNow")}
-                        </button>
-                    </div>
-                    {(problem !== null || released) && (
-                        <span className="-mt-2 text-[12px] text-lp-ink-3">{problem === "offline" ? t("stp.sendOffline") : t("stp.sendBlocked")}</span>
-                    )}
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-lp-line pt-3.5 text-[13px]">
-                        <span className="text-lp-ink-3">{t("stp.offlineFiles")}</span>
-                        <button
-                            type="button"
-                            className={linkButton}
-                            onClick={() => run(async () => download(await api.stations.downloadIdentity(station.station_uuid), `identity_${station.station_name.replace(/\s+/g, "_")}.lpi`), t("stp.downloaded"))}
-                        >
-                            {t("stp.fileIdentity")}
-                        </button>
-                        <button
-                            type="button"
-                            className={linkButton}
-                            disabled={problem !== null && problem !== "offline"}
-                            onClick={() => run(async () => download(await api.stations.downloadUpdate(station.station_uuid), `update_${station.station_name.replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.lps`), t("stp.downloaded"))}
-                        >
-                            {t("stp.filePackage")}
-                        </button>
-                        <button
-                            type="button"
-                            className={cx(linkButton, "text-lp-ink-3")}
-                            onClick={async () => {
-                                if (dump) return setDump(null);
-                                try {
-                                    setDump(JSON.stringify(await api.stations.getFullDump(station.station_uuid), null, 2));
-                                } catch (e) {
-                                    setNotice({ tone: "bad", text: t("stp.err", { message: e instanceof Error ? e.message : String(e) }) });
-                                }
-                            }}
-                        >
-                            {dump ? t("stp.hideTech") : t("stp.techData")}
-                        </button>
-                    </div>
-                    {dump && (
-                        <pre className="max-h-72 overflow-auto rounded-[12px] bg-lp-raised p-3 font-mono text-[11px] text-lp-ink-2">{dump}</pre>
-                    )}
-                </div>
-            )}
-
-            {tab === "settings" && (
-                <Settings station={station} isAdmin={isAdmin} license={license} busy={busy} run={run} onDeleted={onClose} />
-            )}
-
-            {tab === "journal" && <Journal station={station} lang={lang} />}
-        </>
-    );
-}
-
-function Callout({ station, problem, released, freeSeat, license, isAdmin, busy, host, run }: {
+export function Callout({ station, problem, released, freeSeat, license, isAdmin, busy, host, run }: {
     station: Station; problem: StationProblem | null; released: boolean; freeSeat: boolean; license: LicenseInfo | null;
     isAdmin: boolean; busy: boolean; host: string;
     run: (operation: () => Promise<unknown>, done: string, confirmText?: string) => void;
@@ -429,51 +272,7 @@ function Callout({ station, problem, released, freeSeat, license, isAdmin, busy,
     );
 }
 
-function Facts({ station, problem, released, today }: { station: Station; problem: StationProblem | null; released: boolean; today: TodayRow | null }) {
-    const { t, lang } = useTranslation();
-    const seat = station.seat_state ?? "active";
-    const link: [string, Tone | null] = problem === "conflict"
-        ? [t("stp.f.linkConflict"), "bad"]
-        : station.is_online
-            ? [t("stp.f.linkOk"), null]
-            : [t("stp.f.linkOff", { time: whenText(station.changed_at, lang, t) }), problem === "offline" ? "warn" : null];
-    const seatText: [string, Tone | null] = released
-        ? [t("stp.f.seatReleased"), null]
-        : seat === "pending"
-            ? [t("stp.f.seatPending"), "warn"]
-            : problem === "outside_cap"
-                ? [t("stp.f.seatOutside"), "bad"]
-                : problem === "unlisted"
-                    ? [t("stp.f.seatUnlisted"), "warn"]
-                    : [t("stp.f.seatActive"), null];
-    const data: [string, Tone | null] = problem && problem !== "offline"
-        ? [t("stp.f.dataBlocked"), PROBLEM_TONE[problem]]
-        : station.last_sync_at
-            ? [t("stp.f.dataSent", { time: whenText(station.last_sync_at, lang, t) }), null]
-            : [t("stp.f.dataNever"), null];
-    const todayText = today && today.labels > 0
-        ? t("stp.f.todayValue", { labels: formatNumber(today.labels, lang), kg: formatNumber(today.weight_kg, lang, 1) })
-        : t("stp.f.todayNone");
-    const rows: { k: string; v: string; tone: Tone | null; mono?: boolean }[] = [
-        { k: t("stp.f.link"), v: link[0], tone: link[1] },
-        { k: t("stp.f.seat"), v: seatText[0], tone: seatText[1] },
-        { k: t("stp.f.data"), v: data[0], tone: data[1] },
-        { k: t("stp.f.today"), v: todayText, tone: null },
-        { k: t("stp.f.address"), v: station.station_ip ? `${station.station_ip}:${station.station_port}` : "—", tone: null, mono: true },
-    ];
-    return (
-        <dl className="m-0 flex flex-col gap-2.5">
-            {rows.map((row) => (
-                <div key={row.k} className="flex justify-between gap-3 text-[14px]">
-                    <dt className="text-lp-ink-2">{row.k}</dt>
-                    <dd className={cx("m-0 text-right font-bold tabular-nums", row.tone ? TONE_INK[row.tone] : "text-lp-ink", row.mono && "font-mono font-semibold")}>{row.v}</dd>
-                </div>
-            ))}
-        </dl>
-    );
-}
-
-function Settings({ station, isAdmin, license, busy, run, onDeleted }: {
+export function Settings({ station, isAdmin, license, busy, run, onDeleted }: {
     station: Station; isAdmin: boolean; license: LicenseInfo | null; busy: boolean;
     run: (operation: () => Promise<unknown>, done: string, confirmText?: string) => void; onDeleted: () => void;
 }) {
@@ -543,45 +342,6 @@ function Settings({ station, isAdmin, license, busy, run, onDeleted }: {
                     <span className="-mt-1.5 text-[13px] text-lp-ink-2">{t("stp.s.deleteHint")}</span>
                 </div>
             )}
-        </div>
-    );
-}
-
-const EVENT_TONE: Record<string, Tone> = {
-    assigned: "ok", pending: "warn", released: "off", deleted: "off",
-    fingerprint_bound: "ok", fingerprint_conflict: "bad", hardware_replaced: "ok",
-};
-
-function Journal({ station, lang }: { station: Station; lang: Lang }) {
-    const { t } = useTranslation();
-    const [events, setEvents] = useState<SeatEvent[] | null>(null);
-    useEffect(() => {
-        let alive = true;
-        api.stations.seatEvents()
-            .then((all) => { if (alive) setEvents(all.filter((e) => e.station_uuid === station.station_uuid)); })
-            .catch(() => { if (alive) setEvents([]); });
-        return () => { alive = false; };
-    }, [station.station_uuid]);
-
-    if (events === null) return <p className="px-[18px] py-4 text-[14px] text-lp-ink-3">…</p>;
-    if (events.length === 0) return <p className="px-[18px] py-4 text-[14px] text-lp-ink-3">{t("stp.j.empty")}</p>;
-    return (
-        <div className="flex flex-col">
-            {events.map((event, i) => {
-                const tone = EVENT_TONE[event.event] ?? "off";
-                return (
-                    <div key={`${event.created_at}-${i}`} className="flex gap-3 border-b border-lp-line px-[18px] py-3 last:border-0">
-                        <span className={cx("mt-[7px] h-2 w-2 flex-none rounded-full", TONE_DOT[tone])} />
-                        <div className="flex min-w-0 flex-col">
-                            <span className="text-[14px] font-bold text-lp-ink">{t(`stp.j.${event.event}`)}</span>
-                            <span className="text-[12px] tabular-nums text-lp-ink-3">
-                                {whenText(event.created_at, lang, t)} · {event.actor || t("stp.j.system")}
-                            </span>
-                        </div>
-                    </div>
-                );
-            })}
-            <p className="m-0 px-[18px] pb-4 pt-3 text-[13px] text-lp-ink-3">{t("stp.j.hint")}</p>
         </div>
     );
 }

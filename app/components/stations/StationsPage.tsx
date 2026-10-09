@@ -2,8 +2,9 @@
 
 // Stations: the computers with scales and printers on the floor. One focal block on top —
 // the stations that need a decision, each once, with the reason and one action — then the
-// working stations as quiet tiles, and stations without a seat folded away. Details and
-// editing open in the side panel (canvas «LabelPilot Server — редизайн», board Stations).
+// working stations as quiet tiles, and stations without a seat folded away. A station opens
+// as its own page (StationPage); connecting one and the legend open in the side panel
+// (canvas «LabelPilot Server — редизайн», boards Stations and «Станция — своя страница»).
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, type StationsToday } from "@/lib/api/client";
@@ -13,16 +14,18 @@ import { useAuth } from "@/app/components/auth/AuthProvider";
 import { useTranslation } from "@/lib/i18n";
 import PageTitle from "@/app/components/shell/PageTitle";
 import { PROBLEMS, stationProblem, type Station, type StationProblem } from "@/lib/stations";
-import StationPanel, { type TodayRow } from "@/app/components/stations/StationPanel";
+import StationPage from "@/app/components/stations/StationPage";
+import StationPanel from "@/app/components/stations/StationPanel";
 import {
     Bars, cx, formatNumber, Icon, PROBLEM_TONE, sinceText, TONE_INK, TONE_SOFT, whenText,
 } from "@/app/components/stations/shared";
 
-type PanelState = { mode: "station"; uuid: string } | { mode: "add" } | { mode: "legend" } | null;
+type PanelState = "add" | "legend" | null;
+type TodayRow = StationsToday["stations"][number];
 
 const TILE_HOURS = 9;
 
-export default function StationsPage() {
+export default function StationsPage({ open, onOpen }: { open: string | null; onOpen: (uuid: string | null) => void }) {
     const { t, lang } = useTranslation();
     const { user } = useAuth();
     const isAdmin = user?.role === "admin";
@@ -79,13 +82,16 @@ export default function StationsPage() {
     const seats = license?.seats ?? null;
     const freeSeat = seats != null && (seats.limit == null || seats.active < seats.limit);
 
-    const selected = panel?.mode === "station" ? list.find((s) => s.station_uuid === panel.uuid) ?? null : null;
+    const selected = open ? list.find((s) => s.station_uuid === open) ?? null : null;
     useEffect(() => {
-        // The open station was deleted (here or elsewhere): close its panel.
-        if (panel?.mode === "station" && stations && !selected) setPanel(null);
-    }, [panel, stations, selected]);
+        // The open station was deleted (here or elsewhere): back to the list.
+        if (open && stations && !selected) onOpen(null);
+    }, [open, stations, selected, onOpen]);
 
-    const openStation = (uuid: string) => setPanel({ mode: "station", uuid });
+    const openStation = (uuid: string) => onOpen(uuid);
+    // ‹ › on a station's page walk the stations in their number order.
+    const ordered = useMemo(() => [...list].sort((a, b) =>
+        Number(a.station_number ?? 0) - Number(b.station_number ?? 0) || a.station_name.localeCompare(b.station_name)), [list]);
 
     const act = async (operation: () => Promise<unknown>, done: string) => {
         setMessage(null);
@@ -112,11 +118,25 @@ export default function StationsPage() {
         await act(() => api.stations.uploadReport(file), t("stp.reportUploaded"));
     };
 
-    const tileBars = (row: TodayRow | undefined) => {
-        const values = row?.hourly ?? [];
+    const tileBars = (values: number[] = []) => {
         const window = values.slice(-TILE_HOURS);
         return [...Array(Math.max(0, TILE_HOURS - window.length)).fill(0), ...window];
     };
+
+    if (open && selected) {
+        return (
+            <StationPage
+                station={selected}
+                siblings={ordered}
+                license={license}
+                isAdmin={isAdmin}
+                host={host}
+                onBack={() => onOpen(null)}
+                onSelect={onOpen}
+                onChanged={refresh}
+            />
+        );
+    }
 
     return (
         <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-[22px]">
@@ -130,7 +150,7 @@ export default function StationsPage() {
             >
                 <button
                     type="button"
-                    onClick={() => setPanel({ mode: "add" })}
+                    onClick={() => setPanel("add")}
                     className="flex min-h-[44px] items-center gap-2 rounded-[11px] lp-btn-primary px-[18px] text-[14px] font-extrabold text-[#fff] transition hover:brightness-110"
                 >
                     <Icon name="plus" className="h-5 w-5" />
@@ -166,7 +186,7 @@ export default function StationsPage() {
                             <span className="text-[30px] font-extrabold tabular-nums tracking-[-0.02em]">{formatNumber(printedToday, lang)}</span>
                             <span className="font-bold text-lp-ink-3">{t("stp.kpiLabels")}</span>
                         </div>
-                        <Bars values={tileBars({ labels: 0, weight_kg: 0, last_at: null, last_product: "", hourly: totalHourly })} height={34} now={TILE_HOURS - 1} width={7} />
+                        <Bars values={tileBars(totalHourly)} height={34} now={TILE_HOURS - 1} width={7} />
                     </div>
                 </div>
                 <div className="flex flex-col gap-2.5 lp-card px-[18px] py-4">
@@ -220,14 +240,10 @@ export default function StationsPage() {
                                         {problems.map(({ station, problem }) => {
                                             const tone = PROBLEM_TONE[problem];
                                             const action = problemAction(station, problem);
-                                            const isOpen = selected?.station_uuid === station.station_uuid;
                                             return (
                                                 <div
                                                     key={station.station_uuid}
-                                                    className={cx(
-                                                        "flex flex-col gap-2.5 rounded-[20px] border bg-lp-surface p-4 shadow-[var(--lp-shadow)]",
-                                                        isOpen ? "border-lp-accent ring-1 ring-lp-accent" : "border-lp-line",
-                                                    )}
+                                                    className="flex flex-col gap-2.5 rounded-[20px] border border-lp-line bg-lp-surface p-4 shadow-[var(--lp-shadow)]"
                                                 >
                                                     <div className="flex items-start gap-3">
                                                         <span className={cx("flex h-11 w-11 flex-none items-center justify-center rounded-[12px]", TONE_SOFT[tone], TONE_INK[tone])}>
@@ -277,17 +293,12 @@ export default function StationsPage() {
                                     <div className="grid grid-cols-[repeat(auto-fill,minmax(min(240px,100%),1fr))] gap-3">
                                         {working.map((station) => {
                                             const row = todayById.get(station.id);
-                                            const isOpen = selected?.station_uuid === station.station_uuid;
                                             return (
                                                 <button
                                                     key={station.station_uuid}
                                                     type="button"
                                                     onClick={() => openStation(station.station_uuid)}
-                                                    aria-pressed={isOpen}
-                                                    className={cx(
-                                                        "lp-lift flex flex-col gap-2.5 rounded-[20px] border bg-lp-surface px-4 py-3.5 text-left shadow-[var(--lp-shadow)] hover:border-lp-line-2",
-                                                        isOpen ? "border-lp-accent ring-1 ring-lp-accent" : "border-lp-line",
-                                                    )}
+                                                    className="lp-lift flex flex-col gap-2.5 rounded-[20px] border border-lp-line bg-lp-surface px-4 py-3.5 text-left shadow-[var(--lp-shadow)] hover:border-lp-line-2"
                                                 >
                                                     <span className="flex w-full items-center gap-2.5">
                                                         <span className="flex h-[38px] w-[38px] flex-none items-center justify-center rounded-[11px] bg-lp-accent-bg text-lp-accent-ink">
@@ -304,7 +315,7 @@ export default function StationsPage() {
                                                             <span className="text-[22px] font-extrabold tabular-nums tracking-[-0.01em]">{formatNumber(row?.labels ?? 0, lang)}</span>
                                                             <span className="text-[12px] text-lp-ink-3">{t("stp.labelsToday")}</span>
                                                         </span>
-                                                        <Bars values={tileBars(row)} height={30} now={TILE_HOURS - 1} />
+                                                        <Bars values={tileBars(row?.hourly)} height={30} now={TILE_HOURS - 1} />
                                                     </span>
                                                     <span className="w-full truncate text-[13px] text-lp-ink-2">
                                                         {row?.last_product
@@ -346,7 +357,7 @@ export default function StationsPage() {
                     )}
 
                     <div className="flex flex-wrap gap-x-[22px] gap-y-2 text-[13px]">
-                        <button type="button" onClick={() => setPanel({ mode: "legend" })} className="border-0 bg-transparent p-0 font-bold text-lp-accent-ink hover:underline">
+                        <button type="button" onClick={() => setPanel("legend")} className="border-0 bg-transparent p-0 font-bold text-lp-accent-ink hover:underline">
                             {t("stp.legendLink")}
                         </button>
                         <button type="button" onClick={() => reportInput.current?.click()} className="border-0 bg-transparent p-0 font-bold text-lp-accent-ink hover:underline">
@@ -366,16 +377,12 @@ export default function StationsPage() {
                     </div>
                 </div>
 
-                {panel && (panel.mode !== "station" || selected) && (
+                {panel && (
                     <StationPanel
-                        mode={panel.mode}
-                        station={selected}
-                        today={selected ? todayById.get(selected.id) ?? null : null}
+                        mode={panel}
                         license={license}
-                        isAdmin={isAdmin}
                         host={host}
                         onClose={() => setPanel(null)}
-                        onChanged={() => refresh()}
                         onCreated={() => refresh()}
                     />
                 )}
