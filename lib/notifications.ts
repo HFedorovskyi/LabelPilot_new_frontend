@@ -77,6 +77,10 @@ export function useNotifications() {
     const [feed, setFeed] = useState<NotificationsFeed | null>(null);
     const [toasts, setToasts] = useState<NotificationItem[]>([]);
     const since = useRef<string | null>(null);
+    // Reachability for the menu: two failed polls in a row (~20 s) mean the server is gone;
+    // one alone may be a restart.
+    const [online, setOnline] = useState<boolean | null>(null);
+    const failures = useRef(0);
 
     const load = useCallback(async () => {
         try {
@@ -91,7 +95,11 @@ export function useNotifications() {
             }
             since.current = data.server_time;
             setFeed(data);
+            failures.current = 0;
+            setOnline(true);
         } catch {
+            failures.current += 1;
+            if (failures.current >= 2) setOnline(false);
             // Signed out or server restarting: keep the last feed, try again next poll.
         }
     }, []);
@@ -118,5 +126,5 @@ export function useNotifications() {
         }
     }, [load]);
 
-    return { feed, toasts, dismissToast, markSeen, refresh: load };
+    return { feed, toasts, dismissToast, markSeen, refresh: load, online };
 }

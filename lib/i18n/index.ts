@@ -57,8 +57,14 @@ export function useTranslation() {
     const [lang, setLangState] = useState<Lang>("ru");
 
     useEffect(() => {
-        setLangState(getSavedLang());
-        const handler = () => setLangState(getSavedLang());
+        // The document speaks the chosen language too: screen readers and hyphenation of long
+        // menu names («Etikettieraufträge») follow it.
+        const handler = () => {
+            const current = getSavedLang();
+            document.documentElement.lang = current;
+            setLangState(current);
+        };
+        handler();
         window.addEventListener("lang-changed", handler);
         return () => window.removeEventListener("lang-changed", handler);
     }, []);

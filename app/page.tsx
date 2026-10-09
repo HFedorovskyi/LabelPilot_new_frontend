@@ -208,6 +208,7 @@ function AppShell() {
         collapsed={collapsed}
         onToggleCollapsed={toggleCollapsed}
         serverVersion={serverVersion}
+        serverOnline={notifications.online}
         host={host}
         userName={user?.username ?? ""}
         userRole={roleLabel(t, user?.role)}

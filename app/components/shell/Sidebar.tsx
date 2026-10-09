@@ -5,8 +5,9 @@
 // server/user footer. Pure view — the shell (app/page.tsx) owns navigation state and data;
 // search, notifications and the theme live in the top bar (TopBar.tsx).
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useTranslation } from "@/lib/i18n";
+import { copyText } from "@/lib/clipboard";
 
 export type NavKey =
     | "home" | "print_tasks" | "stations"
@@ -88,6 +89,7 @@ export default function Sidebar({
     collapsed,
     onToggleCollapsed,
     serverVersion,
+    serverOnline,
     host,
     userName,
     userRole,
@@ -100,6 +102,8 @@ export default function Sidebar({
     collapsed: boolean;
     onToggleCollapsed: () => void;
     serverVersion: string | null;
+    /** null until the first poll answers. */
+    serverOnline: boolean | null;
     host: string;
     userName: string;
     userRole: string;
@@ -107,6 +111,15 @@ export default function Sidebar({
 }) {
     const { t } = useTranslation();
     const initials = (userName || "?").slice(0, 2).toUpperCase();
+    const [copied, setCopied] = useState(false);
+    useEffect(() => {
+        if (!copied) return;
+        const timer = window.setTimeout(() => setCopied(false), 1500);
+        return () => window.clearTimeout(timer);
+    }, [copied]);
+    // Opened by IP: labelled as the IP; by name (labelpilot.local): as the address.
+    const addressLabel = /^\d{1,3}(\.\d{1,3}){3}(:\d+)?$/.test(host) ? t("nav.serverIp") : t("nav.serverAddress");
+    const linkLabel = serverOnline === false ? t("nav.offline") : t("nav.online");
 
     return (
         <aside
@@ -171,7 +184,8 @@ export default function Sidebar({
                                         <span className={cx("flex h-[30px] w-[30px] flex-none items-center justify-center rounded-[9px]", ICON_CHIP[group.id])}>
                                             <NavIcon name={key} className="h-[18px] w-[18px]" />
                                         </span>
-                                        {!collapsed && <span className="min-w-0 flex-1 truncate">{label}</span>}
+                                        {/* Long names («Задания на маркировку», «Etikettieraufträge») take a second line, never «…». */}
+                                        {!collapsed && <span className="line-clamp-2 min-w-0 flex-1 hyphens-auto leading-tight">{label}</span>}
                                         {badge && !collapsed && (
                                             <span title={badge.title} className={cx("rounded-full px-2 py-px text-[12px] font-bold tabular-nums", BADGE_TONE[badge.tone])}>
                                                 {badge.text}
@@ -190,16 +204,40 @@ export default function Sidebar({
 
             <div className={cx("mt-3 flex flex-col gap-3 border-t border-lp-line pt-3.5", collapsed ? "items-center" : "px-2.5")}>
                 {collapsed ? (
-                    <span className="h-2 w-2 rounded-full bg-lp-ok" title={`${t("nav.serverRunning")} · ${host}${serverVersion ? ` · ${serverVersion}` : ""}`} />
+                    <span className={cx("h-2 w-2 rounded-full", serverOnline === false ? "bg-lp-bad" : "bg-lp-ok")} title={`${addressLabel} ${host} · ${linkLabel}${serverVersion ? ` · ${serverVersion}` : ""}`} />
                 ) : (
-                    <div className="flex flex-col gap-0.5">
-                        <div className="flex items-center gap-2 text-[13px] text-lp-ink-2">
-                            <span className="h-2 w-2 rounded-full bg-lp-ok" aria-hidden="true" />
-                            {t("nav.serverRunning")}
-                            <span className="ml-auto font-mono text-[12px] tabular-nums text-lp-ink-3">{serverVersion ?? "…"}</span>
+                    <dl className="m-0 flex flex-col gap-2 rounded-[14px] border border-lp-line bg-lp-raised px-3 py-2.5">
+                        <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                                <dt className="text-[12px] font-bold text-lp-ink-3">{addressLabel}</dt>
+                                <span className={cx("ml-auto flex items-center gap-1.5 rounded-full px-2 py-px text-[11px] font-extrabold", serverOnline === false ? "bg-lp-bad-bg text-lp-bad" : "bg-lp-ok-bg text-lp-ok")}>
+                                    <span className={cx("h-1.5 w-1.5 rounded-full", serverOnline === false ? "bg-lp-bad" : "bg-lp-ok")} aria-hidden="true" />
+                                    {linkLabel}
+                                </span>
+                            </div>
+                            <dd className="m-0 flex items-center gap-1.5">
+                                <span className="min-w-0 truncate font-mono text-[12px] font-semibold text-lp-ink">{host}</span>
+                                <button
+                                    type="button"
+                                    onClick={async () => setCopied(await copyText(host))}
+                                    aria-label={t("nav.copyAddress")}
+                                    title={copied ? t("nav.addressCopied") : t("nav.copyAddress")}
+                                    className="ml-auto flex h-6 w-6 flex-none items-center justify-center rounded-[7px] text-lp-ink-3 transition hover:bg-lp-surface hover:text-lp-ink"
+                                >
+                                    {copied ? (
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-lp-ok" aria-hidden="true"><path d="M5 12l5 5 9-10" /></svg>
+                                    ) : (
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
+                                    )}
+                                </button>
+                            </dd>
                         </div>
-                        <span className="pl-4 font-mono text-[12px] text-lp-ink-3">{host}</span>
-                    </div>
+                        <div className="h-px bg-lp-line" />
+                        <div className="flex items-center gap-2">
+                            <dt className="text-[12px] font-bold text-lp-ink-3">{t("nav.serverVersion")}</dt>
+                            <dd className="m-0 ml-auto font-mono text-[13px] font-semibold tabular-nums text-lp-ink">{serverVersion ?? "…"}</dd>
+                        </div>
+                    </dl>
                 )}
                 <div className={cx("flex items-center", collapsed ? "flex-col gap-2" : "gap-2.5")}>
                     <div className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-full bg-lp-coral-bg text-[12px] font-extrabold text-lp-coral" title={collapsed ? `${userName} · ${userRole}` : undefined}>
