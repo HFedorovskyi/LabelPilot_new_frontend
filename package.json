@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently -n web,api -c cyan,magenta \"NEXT_DISABLE_ESLINT=1 NEXT_DISABLE_TYPECHECK=1 next dev\" \"pnpm:dev:api\"",
+    "dev": "concurrently -n web,api -c cyan,magenta \"cross-env NEXT_DISABLE_ESLINT=1 NEXT_DISABLE_TYPECHECK=1 next dev\" \"pnpm:dev:api\"",
     "dev:api": "tsx watch --clear-screen=false backend/src/server.ts",
-    "build": "next build",
-    "build:web": "next build",
+    "build": "cross-env NODE_ENV=production next build",
+    "build:web": "cross-env NODE_ENV=production next build",
     "build:api": "tsc -p backend/tsconfig.json",
     "start": "next start",
     "start:api": "node backend/dist/server.js",
@@ -15,17 +15,19 @@
     "check-all": "npm run lint & npm run type-check & wait"
   },
   "dependencies": {
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
+    "@fontsource-variable/manrope": "^5.3.0",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.4",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.5.0",
+    "bwip-js": "4.8.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "express": "^5.2.1",
     "jsbarcode": "^3.12.1",
     "jsonwebtoken": "^9.0.3",
     "next": "15.5.7",
-    "posthog-js": "^1.270.1",
     "react": "^19",
     "react-dom": "^19"
   },
@@ -39,16 +41,23 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
     "oxlint": "^1.12.0",
     "postcss": "^8",
     "supabase": "2.34.3",
     "tailwindcss": "^3.4.1",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "unrs-resolver"
+      "unrs-resolver",
+      "better-sqlite3",
+      "esbuild",
+      "sharp",
+      "supabase",
+      "protobufjs"
     ],
     "peerDependencyRules": {
       "allowAny": [

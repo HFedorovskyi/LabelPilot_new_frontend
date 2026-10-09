@@ -1,15 +1,10 @@
 /** @type {import('next').NextConfig} */
 
 const nextConfig = {
-	output: "standalone",
+	output: "export",
 	turbopack: {},
 	images: {
-		remotePatterns: [
-			{
-				protocol: "https",
-				hostname: "**",
-			},
-		],
+		unoptimized: true,
 	},
 	typescript: {
 		ignoreBuildErrors: true,

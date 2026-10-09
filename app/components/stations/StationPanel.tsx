@@ -1,0 +1,347 @@
+"use client";
+
+// Right side panel of the Stations page: the "connect a station" steps or the legend of
+// station states. A station itself opens as its own page (StationPage), which reuses the
+// decision card and the settings from here. The server enforces every seat rule; these
+// explain them.
+
+import React, { useEffect, useState } from "react";
+import { api } from "@/lib/api/client";
+import type { LicenseInfo } from "@/lib/api/license";
+import { licenseApi } from "@/lib/api/license";
+import { useTranslation } from "@/lib/i18n";
+import { PROBLEMS, type Station, type StationProblem } from "@/lib/stations";
+import {
+    cx, download, Icon, PROBLEM_TONE, sinceText, TONE_BG, TONE_INK, TONE_SOFT, TONE_SYMBOL, type Tone,
+} from "./shared";
+
+type Props = {
+    mode: "add" | "legend";
+    license: LicenseInfo | null;
+    host: string;
+    onClose: () => void;
+    onCreated: (uuid: string) => void;
+};
+
+function PanelHeader({ title, onClose }: { title: string; onClose: () => void }) {
+    const { t } = useTranslation();
+    return (
+        <div className="flex items-center gap-2.5">
+            <h2 className="m-0 min-w-0 flex-1 text-[18px] font-extrabold text-lp-ink">{title}</h2>
+            <button
+                type="button"
+                onClick={onClose}
+                aria-label={t("stp.close")}
+                className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-lp-line bg-lp-surface text-lp-ink-2 transition hover:border-lp-line-2 hover:bg-lp-raised"
+            >
+                <Icon name="close" className="h-4 w-4" />
+            </button>
+        </div>
+    );
+}
+
+const primaryButton = "min-h-[42px] rounded-[11px] lp-btn-primary px-4 text-[14px] font-extrabold text-[#fff] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50";
+const secondaryButton = "min-h-[40px] rounded-[10px] border border-lp-line-2 bg-lp-surface px-3.5 text-[14px] font-extrabold text-lp-ink transition hover:bg-lp-raised disabled:cursor-not-allowed disabled:opacity-50";
+
+export default function StationPanel(props: Props) {
+    return (
+        <aside className="flex w-full min-w-0 flex-col overflow-hidden lp-card lg:sticky lg:top-0 lg:max-h-[calc(100vh-60px)] lg:w-[420px] lg:flex-none lg:overflow-y-auto">
+            {props.mode === "legend" && <Legend onClose={props.onClose} />}
+            {props.mode === "add" && <AddStation {...props} />}
+        </aside>
+    );
+}
+
+// ─── Legend ──────────────────────────────────────────────────────────────────
+
+function Legend({ onClose }: { onClose: () => void }) {
+    const { t } = useTranslation();
+    const items: { tone: Tone; label: string; text: string }[] = [
+        { tone: "ok", label: t("stp.l.ok"), text: t("stp.l.okText") },
+        ...PROBLEMS.map((problem) => ({
+            tone: PROBLEM_TONE[problem],
+            label: t(`stp.p.${problem}.label`, { duration: "" }).trim(),
+            text: t(`stp.l.${problem}Text`),
+        })),
+        { tone: "off" as Tone, label: t("stp.l.released"), text: t("stp.l.releasedText") },
+    ];
+    return (
+        <>
+            <div className="border-b border-lp-line px-[18px] py-4">
+                <PanelHeader title={t("stp.l.title")} onClose={onClose} />
+            </div>
+            <div className="flex flex-col gap-3.5 px-[18px] pb-5 pt-4">
+                <p className="m-0 text-[14px] text-lp-ink-2">{t("stp.l.intro")}</p>
+                {items.map((item) => (
+                    <div key={item.label} className="flex flex-col items-start gap-1">
+                        <span className={cx("rounded-full px-2.5 py-0.5 text-[12px] font-extrabold", TONE_BG[item.tone])}>
+                            {TONE_SYMBOL[item.tone]} {item.label}
+                        </span>
+                        <span className="text-[14px] text-lp-ink-2">{item.text}</span>
+                    </div>
+                ))}
+                <p className="m-0 rounded-[12px] bg-lp-accent-bg px-3.5 py-3 text-[14px] font-bold text-lp-accent-ink">{t("stp.l.footer")}</p>
+            </div>
+        </>
+    );
+}
+
+// ─── Connect a station ───────────────────────────────────────────────────────
+
+// The station client listens for the server's data on this port (ingress.rs).
+const STATION_PORT = 5556;
+
+function AddStation({ license, host, onClose, onCreated }: Props) {
+    const { t } = useTranslation();
+    const [name, setName] = useState("");
+    const [ip, setIp] = useState("");
+    const [busy, setBusy] = useState(false);
+    const [created, setCreated] = useState<{ uuid: string; name: string } | null>(null);
+    const [sent, setSent] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const seats = license?.seats;
+    const full = seats != null && seats.limit != null && seats.active >= seats.limit;
+
+    const run = async (operation: () => Promise<void>) => {
+        setBusy(true);
+        setError(null);
+        try {
+            await operation();
+        } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    // A 2.0 station gets its identity with the first data the server sends it, so the
+    // server needs the station's address; the .lpi file is for the older client.
+    const create = () => run(async () => {
+        const station = await api.stations.create({ station_name: name.trim(), station_ip: ip.trim(), station_port: STATION_PORT });
+        setCreated({ uuid: station.station_uuid, name: name.trim() });
+        onCreated(station.station_uuid);
+    });
+    const send = () => run(async () => {
+        if (!created) return;
+        await api.stations.sync(created.uuid);
+        setSent(true);
+    });
+    const legacyFile = () => run(async () => {
+        if (!created) return;
+        download(await api.stations.downloadIdentity(created.uuid), `identity_${created.name.replace(/\s+/g, "_")}.lpi`);
+    });
+
+    const step = (n: number, body: React.ReactNode, done = false) => (
+        <li className="flex gap-3">
+            <span aria-hidden="true" className={cx("flex h-7 w-7 flex-none items-center justify-center rounded-[9px] text-[14px] font-extrabold", done ? "bg-lp-ok-bg text-lp-ok" : "bg-lp-accent-bg text-lp-accent-ink")}>{done ? "✓" : n}</span>
+            <div className="flex min-w-0 flex-1 flex-col gap-1.5">{body}</div>
+        </li>
+    );
+    const input = "min-h-[42px] rounded-[10px] border border-lp-line-2 bg-lp-surface px-3 text-[14px] text-lp-ink outline-none focus:border-lp-accent disabled:opacity-60";
+
+    return (
+        <>
+            <div className="border-b border-lp-line px-[18px] py-4">
+                <PanelHeader title={t("stp.a.title")} onClose={onClose} />
+            </div>
+            <ol className="m-0 flex list-none flex-col gap-[18px] p-[18px]">
+                {step(1, <>
+                    <span className="text-[14px] font-extrabold text-lp-ink">{t("stp.a.step1")}</span>
+                    <label htmlFor="add-station-name" className="text-[12px] font-bold text-lp-ink-3">{t("stp.s.name")}</label>
+                    <input id="add-station-name" value={name} disabled={created !== null} onChange={(e) => setName(e.target.value)} placeholder={t("stp.a.placeholder")} className={input} />
+                    <label htmlFor="add-station-ip" className="text-[12px] font-bold text-lp-ink-3">{t("stp.a.ipLabel")}</label>
+                    <input id="add-station-ip" value={ip} disabled={created !== null} onChange={(e) => setIp(e.target.value)} placeholder="192.168.1.25" className={cx(input, "font-mono")} />
+                    <span className="text-[12px] text-lp-ink-3">{t("stp.a.step1Hint")}</span>
+                    {created === null && (
+                        <button type="button" disabled={!name.trim() || !ip.trim() || busy} onClick={create} className={cx(primaryButton, "mt-1 self-start")}>
+                            {t("stp.a.create")}
+                        </button>
+                    )}
+                </>, created !== null)}
+                {step(2, <>
+                    <span className="text-[14px] font-extrabold text-lp-ink">{t("stp.a.step2")}</span>
+                    <span className="text-[14px] text-lp-ink-2">{t("stp.a.step2Text", { host })}</span>
+                </>)}
+                {step(3, <>
+                    <span className="text-[14px] font-extrabold text-lp-ink">{t("stp.a.step3")}</span>
+                    <button type="button" disabled={created === null || busy || sent} onClick={send} className={cx(primaryButton, "self-start")}>
+                        {t("stp.a.send")}
+                    </button>
+                    {sent && <span className="text-[14px] font-bold text-lp-ok">● {t("stp.a.sent", { name: created?.name ?? "" })}</span>}
+                    {created !== null && !sent && (
+                        <button type="button" onClick={legacyFile} disabled={busy} className="self-start border-0 bg-transparent p-0 text-[13px] font-bold text-lp-accent-ink hover:underline">
+                            {t("stp.a.legacyFile")}
+                        </button>
+                    )}
+                </>, sent)}
+            </ol>
+            {error && <p className="mx-[18px] mb-[18px] mt-0 rounded-[12px] bg-lp-bad-bg px-3.5 py-2.5 text-[13px] font-bold text-lp-bad">■ {t("stp.err", { message: error })}</p>}
+            {full && seats && (
+                <div className="mx-[18px] mb-[18px] flex flex-col gap-1.5 rounded-[14px] bg-lp-warn-bg p-3.5">
+                    <span className="text-[14px] font-extrabold text-lp-warn">▲ {t("stp.a.noSeats", { used: seats.active, limit: seats.limit ?? 0 })}</span>
+                    <span className="text-[14px] text-lp-ink">{t("stp.a.noSeatsText")}</span>
+                </div>
+            )}
+        </>
+    );
+}
+
+export function Callout({ station, problem, released, freeSeat, license, isAdmin, busy, host, run }: {
+    station: Station; problem: StationProblem | null; released: boolean; freeSeat: boolean; license: LicenseInfo | null;
+    isAdmin: boolean; busy: boolean; host: string;
+    run: (operation: () => Promise<unknown>, done: string, confirmText?: string) => void;
+}) {
+    const { t } = useTranslation();
+    if (!problem && !released) return null;
+    const tone: Tone = problem ? PROBLEM_TONE[problem] : "off";
+    let title = "";
+    let why = "";
+    let checks: string[] = [];
+    let action: React.ReactNode = null;
+    let note = "";
+    const adminOnly = <span className="text-[13px] text-lp-ink-2">{t("stp.adminOnly")}</span>;
+
+    switch (problem) {
+        case "conflict":
+            title = t("stp.c.conflict.title");
+            why = t("stp.c.conflict.why", {
+                new: (station.conflict_fingerprint ?? "").slice(0, 8).toUpperCase(),
+                old: (station.station_fingerprint ?? "").slice(0, 8).toUpperCase(),
+            });
+            note = t("stp.c.conflict.note");
+            action = isAdmin ? (
+                <button type="button" disabled={busy} className={cx(primaryButton, "self-start")}
+                    onClick={() => run(() => api.stations.replaceHardware(station.station_uuid), t("stp.done.replace"), t("seats.confirmReplace", { name: station.station_name }))}>
+                    {t("stp.c.conflict.action")}
+                </button>
+            ) : adminOnly;
+            break;
+        case "outside_cap":
+            title = t("stp.c.outside_cap.title");
+            why = t("stp.c.outside_cap.why");
+            break;
+        case "unlisted": {
+            title = t("stp.c.unlisted.title");
+            why = t("stp.c.unlisted.why");
+            const canSync = license?.seat_list?.sync_enabled;
+            if (!isAdmin) action = adminOnly;
+            else if (canSync) {
+                action = (
+                    <button type="button" disabled={busy} className={cx(primaryButton, "self-start")}
+                        onClick={() => run(() => licenseApi.syncSeatList(), t("stp.done.sync"))}>
+                        {t("stp.c.unlisted.action")}
+                    </button>
+                );
+            } else note = t("stp.c.unlisted.noSync");
+            break;
+        }
+        case "pending":
+            title = t("stp.c.pending.title");
+            why = freeSeat ? t("stp.c.pending.whyFree") : t("stp.c.pending.whyFull");
+            if (freeSeat) {
+                action = isAdmin ? (
+                    <button type="button" disabled={busy} className={cx(primaryButton, "self-start")}
+                        onClick={() => run(() => api.stations.activateSeat(station.station_uuid), t("stp.done.activate"))}>
+                        {t("stp.c.pending.action")}
+                    </button>
+                ) : adminOnly;
+            }
+            break;
+        case "offline":
+            title = t("stp.c.offline.title", { duration: sinceText(station.changed_at, t) });
+            why = t("stp.c.offline.why");
+            checks = [t("stp.c.offline.check1"), t("stp.c.offline.check2", { host }), t("stp.c.offline.check3")];
+            break;
+        default:
+            title = t("stp.c.released.title");
+            why = t("stp.c.released.why");
+    }
+
+    return (
+        <div className={cx("flex flex-col gap-2 rounded-[14px] p-3.5", TONE_SOFT[tone])}>
+            <span className={cx("text-[14px] font-extrabold", TONE_INK[tone])}>{TONE_SYMBOL[tone]} {title}</span>
+            <span className="text-[14px] text-lp-ink">{why}</span>
+            {checks.length > 0 && (
+                <ol className="m-0 flex flex-col gap-1 pl-5 text-[14px] text-lp-ink-2">
+                    {checks.map((check) => <li key={check}>{check}</li>)}
+                </ol>
+            )}
+            {action}
+            {note && <span className="text-[13px] text-lp-ink-2">{note}</span>}
+        </div>
+    );
+}
+
+export function Settings({ station, isAdmin, license, busy, run, onDeleted }: {
+    station: Station; isAdmin: boolean; license: LicenseInfo | null; busy: boolean;
+    run: (operation: () => Promise<unknown>, done: string, confirmText?: string) => void; onDeleted: () => void;
+}) {
+    const { t } = useTranslation();
+    const [name, setName] = useState(station.station_name);
+    const [ip, setIp] = useState(station.station_ip ?? "");
+    const [port, setPort] = useState(String(station.station_port ?? 5000));
+    useEffect(() => {
+        setName(station.station_name);
+        setIp(station.station_ip ?? "");
+        setPort(String(station.station_port ?? 5000));
+    }, [station.station_uuid]); // eslint-disable-line react-hooks/exhaustive-deps
+    const dirty = name !== station.station_name || ip !== (station.station_ip ?? "") || port !== String(station.station_port ?? 5000);
+    const seats = license?.seats;
+    const seated = (station.seat_state ?? "active") === "active";
+
+    const field = (id: string, label: string, value: string, set: (v: string) => void, mono = false) => (
+        <div className="flex flex-col gap-1.5">
+            <label htmlFor={id} className="text-[13px] font-extrabold text-lp-ink">{label}</label>
+            <input
+                id={id}
+                value={value}
+                onChange={(e) => set(e.target.value)}
+                className={cx("min-h-[42px] rounded-[10px] border border-lp-line-2 bg-lp-surface px-3 text-[14px] text-lp-ink outline-none focus:border-lp-accent", mono && "font-mono")}
+            />
+        </div>
+    );
+
+    return (
+        <div className="flex flex-col gap-3.5 px-[18px] pb-5 pt-4">
+            {field("station-name", t("stp.s.name"), name, setName)}
+            {field("station-ip", t("stp.s.ip"), ip, setIp, true)}
+            {field("station-port", t("stp.s.port"), port, setPort, true)}
+            <button
+                type="button"
+                disabled={!dirty || !name.trim() || busy}
+                className={cx(primaryButton, "self-start")}
+                onClick={() => run(() => api.stations.update(station.station_uuid, {
+                    station_name: name.trim(), station_ip: ip.trim() || null, station_port: parseInt(port, 10) || 5000,
+                }), t("stp.s.saved"))}
+            >
+                {t("stp.s.save")}
+            </button>
+            {isAdmin && (
+                <div className="mt-1.5 flex flex-col items-start gap-3 border-t border-lp-line pt-4">
+                    {seated && (
+                        <>
+                            <button type="button" disabled={busy} className={secondaryButton}
+                                onClick={() => run(() => api.stations.releaseSeat(station.station_uuid), t("stp.s.releasedDone"), t("seats.confirmRelease", { name: station.station_name }))}>
+                                {t("stp.s.release")}
+                            </button>
+                            <span className="-mt-1.5 text-[13px] text-lp-ink-2">
+                                {seats?.release_allowance != null
+                                    ? t("stp.s.releaseHint", { used: seats.releases_30d, allowance: seats.release_allowance })
+                                    : t("stp.s.releaseHintNoLimit")}
+                            </span>
+                        </>
+                    )}
+                    <button
+                        type="button"
+                        disabled={busy}
+                        className="min-h-[40px] rounded-[10px] border border-lp-bad bg-lp-bad-bg px-3.5 text-[14px] font-extrabold text-lp-bad transition hover:brightness-95 disabled:opacity-50"
+                        onClick={() => run(async () => { await api.stations.delete(station.station_uuid); onDeleted(); }, t("stp.s.deletedDone"), t("stp.s.confirmDelete", { name: station.station_name }))}
+                    >
+                        {t("stp.s.delete")}
+                    </button>
+                    <span className="-mt-1.5 text-[13px] text-lp-ink-2">{t("stp.s.deleteHint")}</span>
+                </div>
+            )}
+        </div>
+    );
+}
