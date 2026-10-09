@@ -1,5 +1,6 @@
 import { getSavedLang } from "@/lib/i18n";
 import { resolveApiBase } from "./base";
+import { barcodePicture } from "@/lib/barcodePicture";
 import type { PrintJob } from "@/lib/printJobs";
 
 declare const process: any;
@@ -427,7 +428,12 @@ export const api = {
                 }
                 throw new Error(errorData.error || 'Failed to generate barcode preview');
             }
-            return res.json();
+            // The server prepares the type and data; the picture is drawn here.
+            const result = await res.json();
+            if (result.barcode_type && typeof result.data_string === 'string') {
+                result.png = await barcodePicture(result.barcode_type, result.data_string);
+            }
+            return result;
         },
     },
     statistics: {
